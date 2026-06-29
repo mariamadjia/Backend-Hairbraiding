@@ -1,0 +1,101 @@
+package org.example.backendbraiding.controller;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.example.backendbraiding.dto.HomepageSettingsDTO;
+import org.example.backendbraiding.model.Admin;
+import org.example.backendbraiding.repository.AdminRepository;
+import org.example.backendbraiding.service.HomepageSettingsService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/homepage-settings")
+@RequiredArgsConstructor
+@Slf4j
+public class HomepageSettingsController {
+    private final HomepageSettingsService service;
+    private final AdminRepository adminRepository;
+
+    @GetMapping
+    public ResponseEntity<HomepageSettingsDTO> getHomepageSettings() {
+        log.debug("Fetching homepage settings");
+        Optional<HomepageSettingsDTO> settings = service.getSettings();
+        if (settings.isPresent()) {
+            return ResponseEntity.ok(settings.get());
+        } else {
+            HomepageSettingsDTO defaultSettings = new HomepageSettingsDTO();
+            defaultSettings.setHeroVideoSrc("");
+            defaultSettings.setUseHeroVideo(false);
+            defaultSettings.setHeroImages("[]");
+            defaultSettings.setWelcomeItems("[]");
+            defaultSettings.setGalleryCollections("[]");
+            defaultSettings.setFooterVideoSrc("");
+            return ResponseEntity.ok(defaultSettings);
+        }
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> saveHomepageSettings(
+            @Valid @RequestBody HomepageSettingsDTO settings,
+            Authentication authentication) {
+        log.info("Saving homepage settings");
+        Long adminId = extractAdminId(authentication);
+        HomepageSettingsDTO saved = service.saveSettings(settings, adminId);
+        return ResponseEntity.ok(saved);
+    }
+
+    @PostMapping("/hero-video")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> updateHeroVideo(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        log.info("Updating hero video settings");
+        Long adminId = extractAdminId(authentication);
+        String heroVideoSrc = request.get("heroVideoSrc") != null ? request.get("heroVideoSrc").toString() : "";
+        Boolean useHeroVideo = request.get("useHeroVideo") != null ? Boolean.valueOf(request.get("useHeroVideo").toString()) : false;
+
+        HomepageSettingsDTO updated = service.updateHeroVideo(heroVideoSrc, useHeroVideo, adminId);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/hero-images")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> updateHeroImages(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        log.info("Updating hero images");
+        Long adminId = extractAdminId(authentication);
+        String heroImages = request.get("heroImages") != null ? request.get("heroImages").toString() : "[]";
+
+        HomepageSettingsDTO updated = service.updateHeroImages(heroImages, adminId);
+        return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/welcome-items")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> updateWelcomeItems(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        log.info("Updating welcome items");
+        Long adminId = extractAdminId(authentication);
+        String welcomeItems = request.get("welcomeItems") != null ? request.get("welcomeItems").toString() : "[]";
+
+        HomepageSettingsDTO updated = service.updateWelcomeItems(welcomeItems, adminId);
+        return ResponseEntity.ok(updated);
+    }
+    
+    private Long extractAdminId(Authentication authentication) {
+        String email = authentication.getName();
+        Admin admin = adminRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
+        return admin.getId();
+    }
+}

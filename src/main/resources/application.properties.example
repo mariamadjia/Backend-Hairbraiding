@@ -1,0 +1,51 @@
+# Application
+spring.application.name=Backend-Braiding
+
+# Server
+server.port=8080
+
+#Database - Postgresql
+spring.datasource.url=jdbc:postgresql://localhost:5432/braiding
+spring.datasource.username=postgres
+spring.datasource.password=${DB_PASSWORD}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+ 
+# JPA/Hibernate
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.properties.hibernate.packagesToScan=model
+spring.jpa.properties.packagesToScan=model
+
+# JWT Configuration
+jwt.secret=${JWT_SECRET}
+jwt.expiration=86400000
+jwt.refresh-expiration=604800000
+
+# Stripe API Keys
+stripe.api.key=${STRIPE_SECRET_KEY}
+stripe.public.key=${STRIPE_PUBLIC_KEY}
+stripe.webhook.secret=${STRIPE_WEBHOOK_SECRET}
+
+# Email Configuration (Gmail example)
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=${EMAIL_USERNAME}
+spring.mail.password=${EMAIL_PASSWORD}
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+spring.mail.properties.mail.smtp.starttls.required=true
+
+# CORS
+cors.allowed-origin-patterns=http://localhost:*,http://127.0.0.1:*
+
+# File Upload Configuration
+spring.servlet.multipart.max-file-size=50MB
+spring.servlet.multipart.max-request-size=50MB
+
+# Vonage (Nexmo) SMS Configuration
+vonage.api.key=${VONAGE_API_KEY}
+vonage.api.secret=${VONAGE_API_SECRET}
+vonage.phone.number=${VONAGE_PHONE_NUMBER}
