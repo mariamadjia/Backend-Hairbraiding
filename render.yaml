@@ -1,9 +1,8 @@
 services:
   - type: web
     name: ah-braiding-backend
-    runtime: java
-    buildCommand: ./mvnw clean package -DskipTests
-    startCommand: java -jar target/Backend-Braiding-0.0.1-SNAPSHOT.jar
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: DATABASE_URL
         sync: false
