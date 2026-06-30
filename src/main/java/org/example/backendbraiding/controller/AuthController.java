@@ -17,6 +17,8 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        System.out.println("========== LOGIN ENDPOINT HIT ==========");
+        System.out.println("Email: " + request.getEmail());
         return ResponseEntity.ok(authService.login(request));
     }
 
