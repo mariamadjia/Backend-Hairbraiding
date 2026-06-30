@@ -32,6 +32,7 @@ public class SecurityConfig {
                 config.addAllowedOriginPattern("*");
                 config.addAllowedHeader("*");
                 config.addAllowedMethod("*");
+                config.setAllowCredentials(true);
                 return config;
             }))
             .csrf(csrf -> csrf.disable())
