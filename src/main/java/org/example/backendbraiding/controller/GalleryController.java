@@ -4,12 +4,18 @@ import org.example.backendbraiding.dto.ImageResponse;
 import org.example.backendbraiding.dto.ImageUpdateRequest;
 import org.example.backendbraiding.dto.ImageUploadRequest;
 import org.example.backendbraiding.service.GalleryImageService;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
@@ -105,5 +111,39 @@ public class GalleryController {
     public ResponseEntity<Map<String, String>> reorderImages(@RequestBody List<Long> imageIds) {
         galleryImageService.reorderImages(imageIds);
         return ResponseEntity.ok(Map.of("message", "Images reordered successfully"));
+    }
+
+    @GetMapping("/image/{filename:.+}")
+    public ResponseEntity<Resource> serveImage(@PathVariable String filename) {
+        try {
+            String uploadDir = System.getenv("UPLOAD_DIR") != null 
+                ? System.getenv("UPLOAD_DIR") 
+                : "public/Gallery/uploads";
+            
+            Path filePath = Paths.get(uploadDir).resolve(filename).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
+
+            if (resource.exists() && resource.isReadable()) {
+                String contentType = "application/octet-stream";
+                if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
+                    contentType = "image/jpeg";
+                } else if (filename.endsWith(".png")) {
+                    contentType = "image/png";
+                } else if (filename.endsWith(".webp")) {
+                    contentType = "image/webp";
+                } else if (filename.endsWith(".gif")) {
+                    contentType = "image/gif";
+                }
+
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                        .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (IOException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }
