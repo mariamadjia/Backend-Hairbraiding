@@ -9,8 +9,18 @@ public class WebConfig implements WebMvcConfigurer {
     
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Serve static files from public/Gallery directory
+        // Get upload directory from environment variable or use default
+        String uploadDir = System.getenv("UPLOAD_DIR") != null 
+            ? System.getenv("UPLOAD_DIR") 
+            : "public/Gallery/uploads";
+        
+        // Ensure path ends with /
+        if (!uploadDir.endsWith("/")) {
+            uploadDir += "/";
+        }
+        
+        // Serve static files from upload directory
         registry.addResourceHandler("/Gallery/**")
-                .addResourceLocations("file:public/Gallery/");
+                .addResourceLocations("file:" + uploadDir);
     }
 }
