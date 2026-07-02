@@ -28,7 +28,9 @@ public class ChatController {
         this.chatMessageService = chatMessageService;
     }
     
-    private static final String UPLOAD_DIR = "uploads/chat-photos/";
+    private static final String UPLOAD_DIR = System.getenv("UPLOAD_DIR") != null 
+        ? System.getenv("UPLOAD_DIR") + "/chat-photos/" 
+        : "uploads/chat-photos/";
     
     // GET - Get all chat messages
     @GetMapping("/messages")

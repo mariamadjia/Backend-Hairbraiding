@@ -26,7 +26,10 @@ public class GalleryImageService {
     private final ServiceItemRepository serviceItemRepository;
     private final ImageSyncService imageSyncService;
     
-    private static final String UPLOAD_DIR = "public/Gallery/uploads";
+    // Use Render persistent disk if available, fallback to local for development
+    private static final String UPLOAD_DIR = System.getenv("UPLOAD_DIR") != null 
+        ? System.getenv("UPLOAD_DIR") 
+        : "public/Gallery/uploads";
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final List<String> ALLOWED_TYPES = List.of("image/jpeg", "image/png", "image/webp", "image/jpg");
 
