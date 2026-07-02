@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/webhooks/**").permitAll()
                 .requestMatchers("/api/payments/**").permitAll()
                 .requestMatchers("/Gallery/**").permitAll()
+                .requestMatchers("/uploads/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/categories/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/categories/**").authenticated()

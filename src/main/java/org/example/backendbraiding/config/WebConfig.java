@@ -21,6 +21,7 @@ public class WebConfig implements WebMvcConfigurer {
         
         // Serve static files from upload directory
         registry.addResourceHandler("/Gallery/**")
-                .addResourceLocations("file:" + uploadDir);
+                .addResourceLocations("file:" + uploadDir)
+                .addResourceLocations("classpath:/static/Gallery/");
     }
 }
