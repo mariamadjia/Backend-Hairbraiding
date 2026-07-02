@@ -46,10 +46,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             System.out.println("JWT Filter - Email: " + email + ", Role: " + role + ", Path: " + request.getRequestURI());
 
-            // Spring Security's hasRole() automatically adds ROLE_ prefix, so we need to use the role as-is
-            // If role is "ROLE_ADMIN", use it directly for hasAuthority(), or strip prefix for hasRole()
+            // Spring Security's hasRole() automatically adds ROLE_ prefix, so we need to strip it if present
+            // If role is "ROLE_ADMIN", strip to "ADMIN" for hasRole() to work correctly
+            String authority = role.startsWith("ROLE_") ? role.substring(5) : role;
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    email, null, Collections.singletonList(new SimpleGrantedAuthority(role)));
+                    email, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + authority)));
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
