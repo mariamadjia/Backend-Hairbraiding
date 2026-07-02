@@ -67,7 +67,6 @@ public class HomepageSettingsController {
     }
 
     @PostMapping("/hero-images")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HomepageSettingsDTO> updateHeroImages(
             @RequestBody Map<String, Object> request,
             Authentication authentication) {
