@@ -1,5 +1,6 @@
 package org.example.backendbraiding.controller;
 
+import org.example.backendbraiding.dto.CategoryGalleryDTO;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.service.CategoryService;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,11 @@ public class CategoryController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllCategories() {
         return ResponseEntity.ok(categoryService.getAllCategories());
+    }
+
+    @GetMapping("/gallery")
+    public ResponseEntity<List<CategoryGalleryDTO>> getCategoriesForGallery() {
+        return ResponseEntity.ok(categoryService.getAllCategoriesForGallery());
     }
 
     @GetMapping("/{id}")
