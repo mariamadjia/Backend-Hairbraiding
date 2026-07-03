@@ -66,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/homepage-settings/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/hero-images").permitAll()
                 .requestMatchers("/api/hero-images/**").authenticated()
+                .requestMatchers("/api/upload/welcome-video").authenticated()
                 .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().authenticated()
             )

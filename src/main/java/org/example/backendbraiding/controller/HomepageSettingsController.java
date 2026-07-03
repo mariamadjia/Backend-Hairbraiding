@@ -11,19 +11,25 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/homepage-settings")
+@RequestMapping("/api")
 @RequiredArgsConstructor
 @Slf4j
 public class HomepageSettingsController {
     private final HomepageSettingsService service;
     private final AdminRepository adminRepository;
 
-    @GetMapping
+    @GetMapping("/homepage-settings")
     public ResponseEntity<HomepageSettingsDTO> getHomepageSettings() {
         log.debug("Fetching homepage settings");
         Optional<HomepageSettingsDTO> settings = service.getSettings();
@@ -41,7 +47,7 @@ public class HomepageSettingsController {
         }
     }
 
-    @PostMapping
+    @PostMapping("/homepage-settings")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HomepageSettingsDTO> saveHomepageSettings(
             @Valid @RequestBody HomepageSettingsDTO settings,
@@ -52,7 +58,7 @@ public class HomepageSettingsController {
         return ResponseEntity.ok(saved);
     }
 
-    @PostMapping("/hero-video")
+    @PostMapping("/homepage-settings/hero-video")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HomepageSettingsDTO> updateHeroVideo(
             @RequestBody Map<String, Object> request,
@@ -66,7 +72,7 @@ public class HomepageSettingsController {
         return ResponseEntity.ok(updated);
     }
 
-    @PostMapping("/hero-images")
+    @PostMapping("/homepage-settings/hero-images")
     public ResponseEntity<HomepageSettingsDTO> updateHeroImages(
             @RequestBody Map<String, Object> request,
             Authentication authentication) {
@@ -78,7 +84,7 @@ public class HomepageSettingsController {
         return ResponseEntity.ok(updated);
     }
 
-    @PostMapping("/welcome-items")
+    @PostMapping("/homepage-settings/welcome-items")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HomepageSettingsDTO> updateWelcomeItems(
             @RequestBody Map<String, Object> request,
@@ -89,6 +95,44 @@ public class HomepageSettingsController {
 
         HomepageSettingsDTO updated = service.updateWelcomeItems(welcomeItems, adminId);
         return ResponseEntity.ok(updated);
+    }
+
+    @PostMapping("/upload/welcome-video")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> uploadWelcomeVideo(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(required = false) String index,
+            Authentication authentication) throws IOException {
+        log.info("Uploading welcome video: {}", file.getOriginalFilename());
+        
+        String uploadDir = System.getenv("UPLOAD_DIR") != null 
+            ? System.getenv("UPLOAD_DIR") 
+            : "public/Gallery/uploads";
+        
+        // Create uploads directory if it doesn't exist
+        Path uploadPath = Paths.get(uploadDir);
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+        
+        // Generate unique filename
+        String originalFilename = file.getOriginalFilename();
+        String extension = originalFilename != null && originalFilename.contains(".") 
+            ? originalFilename.substring(originalFilename.lastIndexOf(".")) 
+            : ".mp4";
+        String filename = UUID.randomUUID().toString() + extension;
+        Path filePath = uploadPath.resolve(filename);
+        
+        // Save file
+        Files.copy(file.getInputStream(), filePath);
+        
+        // Return the URL
+        String videoUrl = "/Gallery/uploads/" + filename;
+        return ResponseEntity.ok(Map.of(
+            "url", videoUrl,
+            "path", videoUrl,
+            "videoPath", videoUrl
+        ));
     }
     
     private Long extractAdminId(Authentication authentication) {
