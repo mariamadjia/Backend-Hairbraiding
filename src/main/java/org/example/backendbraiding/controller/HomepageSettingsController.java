@@ -25,6 +25,7 @@ import java.util.UUID;
 @RequestMapping("/api")
 @RequiredArgsConstructor
 @Slf4j
+@CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
 public class HomepageSettingsController {
     private final HomepageSettingsService service;
     private final AdminRepository adminRepository;

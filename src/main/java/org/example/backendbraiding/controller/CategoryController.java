@@ -10,6 +10,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/categories")
+@CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
 public class CategoryController {
     private final CategoryService categoryService;
 
