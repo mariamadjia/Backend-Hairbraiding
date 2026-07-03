@@ -113,6 +113,38 @@ public class GalleryController {
         return ResponseEntity.ok(Map.of("message", "Images reordered successfully"));
     }
 
+    @GetMapping("/debug/upload-config")
+    public ResponseEntity<Map<String, Object>> getUploadConfig() {
+        String uploadDir = System.getenv("UPLOAD_DIR") != null 
+            ? System.getenv("UPLOAD_DIR") 
+            : "public/Gallery/uploads";
+        
+        Map<String, Object> config = new java.util.HashMap<>();
+        config.put("UPLOAD_DIR", uploadDir);
+        config.put("UPLOAD_DIR_env", System.getenv("UPLOAD_DIR"));
+        
+        try {
+            Path uploadPath = Paths.get(uploadDir);
+            config.put("uploadPath_exists", Files.exists(uploadPath));
+            config.put("uploadPath_readable", Files.isReadable(uploadPath));
+            config.put("uploadPath_writable", Files.isWritable(uploadPath));
+            
+            if (Files.exists(uploadPath)) {
+                long fileCount = Files.list(uploadPath).count();
+                config.put("file_count", fileCount);
+                config.put("files", Files.list(uploadPath)
+                    .limit(10)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    .collect(java.util.stream.Collectors.toList()));
+            }
+        } catch (Exception e) {
+            config.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(config);
+    }
+
     @CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
     @GetMapping("/image/{filename:.+}")
     public ResponseEntity<Resource> serveImage(@PathVariable String filename) {
