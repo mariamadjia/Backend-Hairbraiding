@@ -10,14 +10,6 @@ import java.util.List;
 
 @Repository
 public interface GalleryImageRepository extends JpaRepository<GalleryImage, Long> {
-    
-    @Query("SELECT DISTINCT g FROM GalleryImage g " +
-           "LEFT JOIN FETCH g.category " +
-           "LEFT JOIN FETCH g.subcategory " +
-           "LEFT JOIN FETCH g.serviceItem " +
-           "ORDER BY g.displayOrder ASC")
-    List<GalleryImage> findAllWithRelations();
-    
     List<GalleryImage> findByCategoryIdOrderByDisplayOrderAsc(Long categoryId);
     List<GalleryImage> findBySubcategoryIdOrderByDisplayOrderAsc(Long subcategoryId);
     List<GalleryImage> findByServiceItemIdOrderByDisplayOrderAsc(Long serviceItemId);

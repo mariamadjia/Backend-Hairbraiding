@@ -9,7 +9,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/subcategories")
-@CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
 public class SubcategoryController {
     private final SubcategoryService subcategoryService;
     private final org.example.backendbraiding.repository.SubcategoryRepository subcategoryRepository;
