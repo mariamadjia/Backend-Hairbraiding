@@ -47,7 +47,7 @@ public class GalleryImageService {
     }
 
     public List<ImageResponse> getAllImages() {
-        return imageRepository.findAll().stream()
+        return imageRepository.findAllWithRelations().stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
