@@ -113,6 +113,7 @@ public class GalleryController {
         return ResponseEntity.ok(Map.of("message", "Images reordered successfully"));
     }
 
+    @CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
     @GetMapping("/image/{filename:.+}")
     public ResponseEntity<Resource> serveImage(@PathVariable String filename) {
         try {
