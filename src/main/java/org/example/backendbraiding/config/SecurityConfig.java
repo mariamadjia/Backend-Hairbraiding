@@ -60,7 +60,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/customers/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/appointments").permitAll()
                 .requestMatchers("/api/appointments/**").authenticated()
-                .requestMatchers("/api/gallery", "/api/gallery/featured", "/api/gallery/category/**", "/api/gallery/subcategory/**", "/api/gallery/tag/**", "/api/gallery/tags", "/api/gallery/image/**").permitAll()
+                .requestMatchers("/api/gallery", "/api/gallery/featured", "/api/gallery/category/**", "/api/gallery/subcategory/**", "/api/gallery/tag/**", "/api/gallery/tags", "/api/gallery/image/**", "/api/gallery/debug/**").permitAll()
                 .requestMatchers("/api/gallery/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/homepage-settings").permitAll()
                 .requestMatchers("/api/homepage-settings/**").authenticated()
