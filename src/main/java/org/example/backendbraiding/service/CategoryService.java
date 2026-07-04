@@ -40,7 +40,8 @@ public class CategoryService {
             dto.setSlug(cat.getSlug());
             dto.setImage(cat.getImage());
             dto.setFlippingImages(cat.getFlippingImages());
-            
+            dto.setDisplayOrder(cat.getDisplayOrder());
+
             // Don't load subcategories items - just the basic subcategory data
             List<SubcategoryGalleryDTO> subDtos = cat.getSubcategories().stream().map(sub -> {
                 SubcategoryGalleryDTO subDto = new SubcategoryGalleryDTO();
@@ -51,7 +52,7 @@ public class CategoryService {
                 subDto.setImages(sub.getImages());
                 return subDto;
             }).collect(Collectors.toList());
-            
+
             dto.setSubcategories(subDtos);
             return dto;
         }).collect(Collectors.toList());

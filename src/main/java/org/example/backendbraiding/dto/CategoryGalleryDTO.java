@@ -11,4 +11,5 @@ public class CategoryGalleryDTO {
     private String image;
     private List<String> flippingImages;
     private List<SubcategoryGalleryDTO> subcategories;
+    private Integer displayOrder;
 }
