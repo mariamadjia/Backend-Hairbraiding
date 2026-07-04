@@ -39,7 +39,7 @@ public class CategoryService {
     }
 
     public Map<String, Object> getAllCategoriesForAdmin() {
-        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
+        List<Category> categories = categoryRepository.findAllWithSubcategoriesAndItems();
         List<AdminCategoryDTO> adminDtos = categories.stream().map(cat -> {
             AdminCategoryDTO dto = new AdminCategoryDTO();
             dto.setId(cat.getId());
@@ -48,32 +48,41 @@ public class CategoryService {
             dto.setSummary(cat.getSummary());
             dto.setImage(cat.getImage());
             dto.setDisplayOrder(cat.getDisplayOrder());
-            dto.setFlippingImages(cat.getFlippingImages());
+            dto.setFlippingImages(cat.getFlippingImages() != null ? cat.getFlippingImages() : new ArrayList<>());
 
-            // Map subcategories
-            List<AdminSubcategoryDTO> subDtos = cat.getSubcategories().stream().map(sub -> {
-                AdminSubcategoryDTO subDto = new AdminSubcategoryDTO();
-                subDto.setId(sub.getId());
-                subDto.setName(sub.getName());
-                subDto.setSlug(sub.getSlug());
-                subDto.setSummary(sub.getSummary());
-                subDto.setImage(sub.getImage());
-                subDto.setDisplayOrder(sub.getDisplayOrder());
+            // Map subcategories with null safety
+            List<AdminSubcategoryDTO> subDtos = new ArrayList<>();
+            if (cat.getSubcategories() != null) {
+                subDtos = cat.getSubcategories().stream().map(sub -> {
+                    AdminSubcategoryDTO subDto = new AdminSubcategoryDTO();
+                    subDto.setId(sub.getId());
+                    subDto.setName(sub.getName());
+                    subDto.setSlug(sub.getSlug());
+                    subDto.setSummary(sub.getSummary());
+                    subDto.setImage(sub.getImage());
+                    subDto.setDisplayOrder(sub.getDisplayOrder());
 
-                // Map service items for subcategory
-                List<AdminServiceItemDTO> itemDtos = sub.getItems().stream().map(item -> {
-                    return mapToAdminServiceItemDTO(item);
+                    // Map service items for subcategory with null safety
+                    List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
+                    if (sub.getItems() != null) {
+                        itemDtos = sub.getItems().stream().map(item -> {
+                            return mapToAdminServiceItemDTO(item);
+                        }).collect(Collectors.toList());
+                    }
+                    subDto.setItems(itemDtos);
+
+                    return subDto;
                 }).collect(Collectors.toList());
-                subDto.setItems(itemDtos);
-
-                return subDto;
-            }).collect(Collectors.toList());
+            }
             dto.setSubcategories(subDtos);
 
-            // Map service items for category
-            List<AdminServiceItemDTO> itemDtos = cat.getItems().stream().map(item -> {
-                return mapToAdminServiceItemDTO(item);
-            }).collect(Collectors.toList());
+            // Map service items for category with null safety
+            List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
+            if (cat.getItems() != null) {
+                itemDtos = cat.getItems().stream().map(item -> {
+                    return mapToAdminServiceItemDTO(item);
+                }).collect(Collectors.toList());
+            }
             dto.setItems(itemDtos);
 
             return dto;
