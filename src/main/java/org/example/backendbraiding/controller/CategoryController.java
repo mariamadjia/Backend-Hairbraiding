@@ -1,5 +1,6 @@
 package org.example.backendbraiding.controller;
 
+import org.example.backendbraiding.dto.AdminCategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.service.CategoryService;
@@ -21,6 +22,11 @@ public class CategoryController {
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllCategories() {
         return ResponseEntity.ok(categoryService.getAllCategories());
+    }
+
+    @GetMapping("/admin")
+    public ResponseEntity<Map<String, Object>> getAllCategoriesForAdmin() {
+        return ResponseEntity.ok(categoryService.getAllCategoriesForAdmin());
     }
 
     @GetMapping("/gallery")

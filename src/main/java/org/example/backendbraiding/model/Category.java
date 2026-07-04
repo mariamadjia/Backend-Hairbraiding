@@ -42,6 +42,7 @@ public class Category {
     private List<Subcategory> subcategories = new ArrayList<>();
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonIgnore
     private List<ServiceItem> items = new ArrayList<>();
 
     @CreationTimestamp

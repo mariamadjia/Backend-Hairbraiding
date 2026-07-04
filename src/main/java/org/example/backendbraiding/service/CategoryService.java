@@ -1,8 +1,15 @@
 package org.example.backendbraiding.service;
 
+import org.example.backendbraiding.dto.AdminCategoryDTO;
+import org.example.backendbraiding.dto.AdminServiceItemDTO;
+import org.example.backendbraiding.dto.AdminSubcategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
+import org.example.backendbraiding.dto.LengthOptionDTO;
 import org.example.backendbraiding.dto.SubcategoryGalleryDTO;
 import org.example.backendbraiding.model.Category;
+import org.example.backendbraiding.model.LengthOption;
+import org.example.backendbraiding.model.ServiceItem;
+import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +36,82 @@ public class CategoryService {
 
     public List<Category> getAllCategoriesData() {
         return categoryRepository.findAllByOrderByDisplayOrderAsc();
+    }
+
+    public Map<String, Object> getAllCategoriesForAdmin() {
+        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
+        List<AdminCategoryDTO> adminDtos = categories.stream().map(cat -> {
+            AdminCategoryDTO dto = new AdminCategoryDTO();
+            dto.setId(cat.getId());
+            dto.setName(cat.getName());
+            dto.setSlug(cat.getSlug());
+            dto.setSummary(cat.getSummary());
+            dto.setImage(cat.getImage());
+            dto.setDisplayOrder(cat.getDisplayOrder());
+            dto.setFlippingImages(cat.getFlippingImages());
+
+            // Map subcategories
+            List<AdminSubcategoryDTO> subDtos = cat.getSubcategories().stream().map(sub -> {
+                AdminSubcategoryDTO subDto = new AdminSubcategoryDTO();
+                subDto.setId(sub.getId());
+                subDto.setName(sub.getName());
+                subDto.setSlug(sub.getSlug());
+                subDto.setSummary(sub.getSummary());
+                subDto.setImage(sub.getImage());
+                subDto.setDisplayOrder(sub.getDisplayOrder());
+
+                // Map service items for subcategory
+                List<AdminServiceItemDTO> itemDtos = sub.getItems().stream().map(item -> {
+                    return mapToAdminServiceItemDTO(item);
+                }).collect(Collectors.toList());
+                subDto.setItems(itemDtos);
+
+                return subDto;
+            }).collect(Collectors.toList());
+            dto.setSubcategories(subDtos);
+
+            // Map service items for category
+            List<AdminServiceItemDTO> itemDtos = cat.getItems().stream().map(item -> {
+                return mapToAdminServiceItemDTO(item);
+            }).collect(Collectors.toList());
+            dto.setItems(itemDtos);
+
+            return dto;
+        }).collect(Collectors.toList());
+
+        return Map.of(
+            "defaultBookingUrl", "https://calendly.com/djonretglo",
+            "categories", adminDtos
+        );
+    }
+
+    private AdminServiceItemDTO mapToAdminServiceItemDTO(ServiceItem item) {
+        AdminServiceItemDTO dto = new AdminServiceItemDTO();
+        dto.setId(item.getId());
+        dto.setName(item.getName());
+        dto.setPrice(item.getPrice());
+        dto.setDescription(item.getDescription());
+        dto.setNotes(item.getNotes());
+        dto.setImage(item.getImage());
+        dto.setImages(item.getImages());
+        dto.setLink(item.getLink());
+        dto.setObjectPosition(item.getObjectPosition());
+        dto.setAvailableSizes(item.getAvailableSizes());
+        dto.setHairTextures(item.getHairTextures());
+
+        // Map length options
+        List<LengthOptionDTO> lengthOptionDtos = item.getLengthOptions().stream().map(opt -> {
+            LengthOptionDTO optDto = new LengthOptionDTO();
+            optDto.setId(opt.getId());
+            optDto.setName(opt.getName());
+            optDto.setPrice(opt.getPrice());
+            optDto.setDuration(opt.getDuration());
+            optDto.setNotes(opt.getNotes());
+            return optDto;
+        }).collect(Collectors.toList());
+        dto.setLengthOptions(lengthOptionDtos);
+
+        return dto;
     }
 
     public List<CategoryGalleryDTO> getAllCategoriesForGallery() {
