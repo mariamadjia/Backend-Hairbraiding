@@ -49,7 +49,7 @@ public class CategoryService {
                 subDto.setName(sub.getName());
                 subDto.setSlug(sub.getSlug());
                 subDto.setImage(sub.getImage());
-                subDto.setImages(sub.getImages());
+                // Subcategory doesn't have images field, leave as null
                 return subDto;
             }).collect(Collectors.toList());
 
