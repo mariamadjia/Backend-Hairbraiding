@@ -49,9 +49,6 @@ public class ServiceItemController {
 
     @PostMapping
     public ResponseEntity<ServiceItem> createService(@RequestBody Map<String, Object> serviceData) {
-        System.out.println("========== CREATE SERVICE CALLED ==========");
-        System.out.println("Service data: " + serviceData);
-        
         ServiceItem service = new ServiceItem();
         service.setName(serviceData.get("name").toString());
         service.setPrice(serviceData.getOrDefault("price", "").toString());
@@ -64,7 +61,6 @@ public class ServiceItemController {
                 Long categoryId = ((Number) categoryData.get("id")).longValue();
                 Category category = categoryService.getCategoryById(categoryId);
                 service.setCategory(category);
-                System.out.println("Set category: " + category.getName());
             }
         }
         
@@ -75,7 +71,6 @@ public class ServiceItemController {
                 Long subcategoryId = ((Number) subcategoryData.get("id")).longValue();
                 Subcategory subcategory = subcategoryService.getSubcategoryById(subcategoryId);
                 service.setSubcategory(subcategory);
-                System.out.println("Set subcategory: " + subcategory.getName());
             }
         }
         
@@ -103,9 +98,7 @@ public class ServiceItemController {
             service.setLengthOptions(lengthOptions);
         }
         
-        System.out.println("Length options: " + (service.getLengthOptions() != null ? service.getLengthOptions().size() : 0));
         ServiceItem created = serviceItemService.createService(service);
-        System.out.println("Service created with ID: " + created.getId());
         return ResponseEntity.ok(created);
     }
 

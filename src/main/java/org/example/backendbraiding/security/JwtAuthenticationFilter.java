@@ -44,8 +44,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String email = jwtTokenProvider.getEmailFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
 
-            System.out.println("JWT Filter - Email: " + email + ", Role: " + role + ", Path: " + request.getRequestURI());
-
             // Spring Security's hasRole() automatically adds ROLE_ prefix, so we need to strip it if present
             // If role is "ROLE_ADMIN", strip to "ADMIN" for hasRole() to work correctly
             String authority = role.startsWith("ROLE_") ? role.substring(5) : role;
@@ -54,10 +52,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-        } else if (StringUtils.hasText(token)) {
-            System.out.println("JWT Filter - Invalid token for path: " + request.getRequestURI());
-        } else {
-            System.out.println("JWT Filter - No token found for path: " + request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
