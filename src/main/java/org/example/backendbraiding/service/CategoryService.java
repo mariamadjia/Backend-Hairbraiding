@@ -152,7 +152,7 @@ public class CategoryService {
     }
 
     public List<CategoryGalleryDTO> getAllCategoriesForGalleryCards() {
-        List<Category> categories = categoryRepository.findAllForGalleryWithFlippingImages();
+        List<Category> categories = categoryRepository.findAllForGalleryCards();
         return categories.stream().map(category -> {
             CategoryGalleryDTO dto = new CategoryGalleryDTO();
 

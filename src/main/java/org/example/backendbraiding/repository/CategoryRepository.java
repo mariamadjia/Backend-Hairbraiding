@@ -21,7 +21,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         LEFT JOIN FETCH c.flippingImages
         ORDER BY c.displayOrder ASC
     """)
-    List<Category> findAllForGalleryWithFlippingImages();
+    List<Category> findAllForGalleryCards();
 
     Optional<Category> findBySlug(String slug);
     boolean existsBySlug(String slug);
