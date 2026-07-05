@@ -69,6 +69,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/gallery/tag/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/gallery/tags").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/gallery/image/**").permitAll()
+                .requestMatchers(HttpMethod.HEAD, "/api/gallery/image/**").permitAll()
                 // Required for homepage gallery request with images
                 .requestMatchers(HttpMethod.GET, "/api/categories/gallery").permitAll()
                 // Gallery admin actions require authentication
