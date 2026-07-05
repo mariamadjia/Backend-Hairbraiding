@@ -3,6 +3,7 @@ package org.example.backendbraiding.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -35,10 +36,12 @@ public class Category {
     @ElementCollection
     @CollectionTable(name = "category_flipping_images", joinColumns = @JoinColumn(name = "category_id"))
     @Column(name = "image_url")
+    @BatchSize(size = 50)
     private List<String> flippingImages = new ArrayList<>();
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @OrderBy("displayOrder ASC")
+    @BatchSize(size = 50)
     private List<Subcategory> subcategories = new ArrayList<>();
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
