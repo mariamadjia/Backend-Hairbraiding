@@ -125,14 +125,14 @@ public class CategoryService {
     }
 
     public List<CategoryGalleryDTO> getAllCategoriesForGallery() {
-        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
+        List<Category> categories = categoryRepository.findAllForGalleryWithFlippingImages();
         return categories.stream().map(cat -> {
             CategoryGalleryDTO dto = new CategoryGalleryDTO();
             dto.setId(cat.getId());
             dto.setName(cat.getName());
             dto.setSlug(cat.getSlug());
             dto.setImage(cat.getImage());
-            dto.setFlippingImages(cat.getFlippingImages());
+            dto.setFlippingImages(cat.getFlippingImages() != null ? cat.getFlippingImages() : new ArrayList<>());
             dto.setDisplayOrder(cat.getDisplayOrder());
 
             // Don't load subcategories items - just the basic subcategory data
