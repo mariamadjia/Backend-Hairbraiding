@@ -132,10 +132,18 @@ public class GalleryController {
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
-                String contentType = Files.probeContentType(filePath);
+                String lowerFilename = filename.toLowerCase(java.util.Locale.ROOT);
 
-                if (contentType == null) {
-                    contentType = "application/octet-stream";
+                String contentType = "application/octet-stream";
+
+                if (lowerFilename.endsWith(".jpg") || lowerFilename.endsWith(".jpeg")) {
+                    contentType = "image/jpeg";
+                } else if (lowerFilename.endsWith(".png")) {
+                    contentType = "image/png";
+                } else if (lowerFilename.endsWith(".webp")) {
+                    contentType = "image/webp";
+                } else if (lowerFilename.endsWith(".gif")) {
+                    contentType = "image/gif";
                 }
 
                 return ResponseEntity.ok()
