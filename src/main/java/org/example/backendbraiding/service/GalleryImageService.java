@@ -248,11 +248,15 @@ public class GalleryImageService {
                     .toAbsolutePath()
                     .normalize();
 
-            Path filePath = uploadPath.resolve(filename).normalize();
+            Path filePath = uploadPath
+                    .resolve(filename)
+                    .normalize();
 
-            if (filePath.startsWith(uploadPath)) {
-                Files.deleteIfExists(filePath);
+            if (!filePath.startsWith(uploadPath)) {
+                throw new IllegalStateException("Invalid image file path");
             }
+
+            Files.deleteIfExists(filePath);
         } catch (IOException e) {
             // Log error but continue with database deletion
             System.err.println("Failed to delete file: " + e.getMessage());
