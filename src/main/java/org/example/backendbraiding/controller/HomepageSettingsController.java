@@ -72,6 +72,26 @@ public class HomepageSettingsController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/homepage-settings/footer-video")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> updateFooterVideo(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication
+    ) {
+        log.info("Updating footer video settings");
+
+        Long adminId = extractAdminId(authentication);
+
+        String footerVideoSrc = request.get("footerVideoSrc") != null
+            ? request.get("footerVideoSrc").toString()
+            : "";
+
+        HomepageSettingsDTO updated =
+            service.updateFooterVideo(footerVideoSrc, adminId);
+
+        return ResponseEntity.ok(updated);
+    }
+
     @PostMapping("/homepage-settings/hero-images")
     public ResponseEntity<HomepageSettingsDTO> updateHeroImages(
             @RequestBody Map<String, Object> request,
@@ -125,9 +145,9 @@ public class HomepageSettingsController {
         
         // Save file
         Files.copy(file.getInputStream(), filePath);
-        
+
         // Return the URL
-        String videoUrl = "/Gallery/uploads/" + filename;
+        String videoUrl = "/api/gallery/image/" + filename;
         return ResponseEntity.ok(Map.of(
             "url", videoUrl,
             "path", videoUrl,
