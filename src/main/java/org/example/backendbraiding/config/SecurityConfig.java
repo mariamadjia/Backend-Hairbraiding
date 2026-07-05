@@ -61,8 +61,21 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/customers/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/appointments").permitAll()
                 .requestMatchers("/api/appointments/**").authenticated()
-                .requestMatchers("/api/gallery", "/api/gallery/featured", "/api/gallery/category/**", "/api/gallery/subcategory/**", "/api/gallery/tag/**", "/api/gallery/tags", "/api/gallery/image/**").permitAll()
-                .requestMatchers("/api/gallery/**").authenticated()
+                // Public gallery read-only endpoints
+                .requestMatchers(HttpMethod.GET, "/api/gallery").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/gallery/featured").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/gallery/category/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/gallery/subcategory/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/gallery/tag/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/gallery/tags").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/gallery/image/**").permitAll()
+                // Required for homepage gallery request with images
+                .requestMatchers(HttpMethod.GET, "/api/categories/gallery").permitAll()
+                // Gallery admin actions require authentication
+                .requestMatchers(HttpMethod.POST, "/api/gallery/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/gallery/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/gallery/**").authenticated()
+                .requestMatchers(HttpMethod.PATCH, "/api/gallery/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/homepage-settings").permitAll()
                 .requestMatchers("/api/homepage-settings/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/hero-images").permitAll()
