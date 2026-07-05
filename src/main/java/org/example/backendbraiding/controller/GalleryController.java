@@ -144,6 +144,12 @@ public class GalleryController {
                     contentType = "image/webp";
                 } else if (lowerFilename.endsWith(".gif")) {
                     contentType = "image/gif";
+                } else if (lowerFilename.endsWith(".mov")) {
+                    contentType = "video/quicktime";
+                } else if (lowerFilename.endsWith(".mp4")) {
+                    contentType = "video/mp4";
+                } else if (lowerFilename.endsWith(".webm")) {
+                    contentType = "video/webm";
                 }
 
                 return ResponseEntity.ok()
