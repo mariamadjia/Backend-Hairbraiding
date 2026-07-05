@@ -39,6 +39,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/payments/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/gallery").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/categories/gallery-cards").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/categories/slug/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/categories/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/categories/**").authenticated()
