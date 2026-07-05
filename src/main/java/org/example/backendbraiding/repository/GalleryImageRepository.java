@@ -14,7 +14,8 @@ public interface GalleryImageRepository extends JpaRepository<GalleryImage, Long
     List<GalleryImage> findBySubcategoryIdOrderByDisplayOrderAsc(Long subcategoryId);
     List<GalleryImage> findByServiceItemIdOrderByDisplayOrderAsc(Long serviceItemId);
     List<GalleryImage> findByIsFeaturedTrueOrderByDisplayOrderAsc();
-    List<GalleryImage> findByIsHeroTrue();
+    List<GalleryImage> findByIsHeroTrueOrderByDisplayOrderAsc();
+    long countByIsHeroTrue();
     
     @Query("SELECT g FROM GalleryImage g WHERE " +
            "LOWER(g.title) LIKE LOWER(CONCAT('%', :search, '%')) OR " +

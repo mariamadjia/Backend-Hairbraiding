@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -29,7 +30,13 @@ public class GalleryController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ImageResponse>> getAllImages() {
+    public ResponseEntity<List<ImageResponse>> getAllImages(
+            @RequestParam(required = false) Boolean isHero) {
+
+        if (Boolean.TRUE.equals(isHero)) {
+            return ResponseEntity.ok(galleryImageService.getHeroImages());
+        }
+
         return ResponseEntity.ok(galleryImageService.getAllImages());
     }
 
@@ -125,15 +132,10 @@ public class GalleryController {
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
-                String contentType = "application/octet-stream";
-                if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) {
-                    contentType = "image/jpeg";
-                } else if (filename.endsWith(".png")) {
-                    contentType = "image/png";
-                } else if (filename.endsWith(".webp")) {
-                    contentType = "image/webp";
-                } else if (filename.endsWith(".gif")) {
-                    contentType = "image/gif";
+                String contentType = Files.probeContentType(filePath);
+
+                if (contentType == null) {
+                    contentType = "application/octet-stream";
                 }
 
                 return ResponseEntity.ok()

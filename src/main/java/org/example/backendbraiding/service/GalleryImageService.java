@@ -5,9 +5,11 @@ import org.example.backendbraiding.dto.ImageUpdateRequest;
 import org.example.backendbraiding.dto.ImageUploadRequest;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,6 +34,7 @@ public class GalleryImageService {
         : "public/Gallery/uploads";
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final List<String> ALLOWED_TYPES = List.of("image/jpeg", "image/png", "image/webp", "image/jpg");
+    private static final int MAX_HERO_IMAGES = 5;
 
     public GalleryImageService(
             GalleryImageRepository imageRepository,
@@ -86,10 +89,27 @@ public class GalleryImageService {
         return imageRepository.findAllTags();
     }
 
+    public List<ImageResponse> getHeroImages() {
+        return imageRepository.findByIsHeroTrueOrderByDisplayOrderAsc()
+                .stream()
+                .map(this::convertToResponse)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
         // Validate file
         validateFile(file);
+
+        // Enforce maximum hero images limit
+        if (Boolean.TRUE.equals(request.getIsHero())
+                && imageRepository.countByIsHeroTrue() >= MAX_HERO_IMAGES) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A maximum of 5 hero images is allowed. Remove an existing hero image before uploading another one."
+            );
+        }
 
         // Create upload directory if it doesn't exist
         Path uploadPath = Paths.get(UPLOAD_DIR);
@@ -111,8 +131,12 @@ public class GalleryImageService {
         image.setTitle(request.getTitle());
         image.setDescription(request.getDescription());
         image.setAltText(request.getAltText());
-        image.setImageUrl("/Gallery/uploads/" + filename);
-        image.setThumbnailUrl("/Gallery/uploads/" + filename); // TODO: Generate thumbnail
+        
+        // Store correct image route that matches the serveImage endpoint
+        String imageEndpoint = "/api/gallery/image/" + filename;
+        image.setImageUrl(imageEndpoint);
+        image.setThumbnailUrl(imageEndpoint); // TODO: Generate thumbnail
+        
         image.setFileSize(file.getSize());
         image.setMimeType(file.getContentType());
         image.setTags(request.getTags() != null ? request.getTags() : List.of());
@@ -161,6 +185,21 @@ public class GalleryImageService {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
 
+        // Protect against creating 6th hero image through update
+        boolean currentlyHero = Boolean.TRUE.equals(image.getIsHero());
+        boolean willBeHero = request.getIsHero() != null
+                ? request.getIsHero()
+                : currentlyHero;
+
+        if (!currentlyHero && willBeHero
+                && imageRepository.countByIsHeroTrue() >= MAX_HERO_IMAGES) {
+
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "A maximum of 5 hero images is allowed."
+            );
+        }
+
         if (request.getTitle() != null) image.setTitle(request.getTitle());
         if (request.getDescription() != null) image.setDescription(request.getDescription());
         if (request.getAltText() != null) image.setAltText(request.getAltText());
@@ -201,8 +240,19 @@ public class GalleryImageService {
         
         // Delete physical file
         try {
-            Path filePath = Paths.get(image.getImageUrl().substring(1)); // Remove leading /
-            Files.deleteIfExists(filePath);
+            String filename = Paths.get(image.getImageUrl())
+                    .getFileName()
+                    .toString();
+
+            Path uploadPath = Paths.get(UPLOAD_DIR)
+                    .toAbsolutePath()
+                    .normalize();
+
+            Path filePath = uploadPath.resolve(filename).normalize();
+
+            if (filePath.startsWith(uploadPath)) {
+                Files.deleteIfExists(filePath);
+            }
         } catch (IOException e) {
             // Log error but continue with database deletion
             System.err.println("Failed to delete file: " + e.getMessage());
