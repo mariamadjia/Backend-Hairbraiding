@@ -125,14 +125,14 @@ public class CategoryService {
     }
 
     public List<CategoryGalleryDTO> getAllCategoriesForGallery() {
-        List<Category> categories = categoryRepository.findAllForGalleryWithFlippingImages();
+        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
         return categories.stream().map(cat -> {
             CategoryGalleryDTO dto = new CategoryGalleryDTO();
             dto.setId(cat.getId());
             dto.setName(cat.getName());
             dto.setSlug(cat.getSlug());
             dto.setImage(cat.getImage());
-            dto.setFlippingImages(cat.getFlippingImages() != null ? cat.getFlippingImages() : new ArrayList<>());
+            dto.setFlippingImages(cat.getFlippingImages());
             dto.setDisplayOrder(cat.getDisplayOrder());
 
             // Don't load subcategories items - just the basic subcategory data
@@ -147,6 +147,28 @@ public class CategoryService {
             }).collect(Collectors.toList());
 
             dto.setSubcategories(subDtos);
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    public List<CategoryGalleryDTO> getAllCategoriesForGalleryCards() {
+        List<Category> categories = categoryRepository.findAllForGalleryWithFlippingImages();
+        return categories.stream().map(category -> {
+            CategoryGalleryDTO dto = new CategoryGalleryDTO();
+
+            dto.setId(category.getId());
+            dto.setName(category.getName());
+            dto.setSlug(category.getSlug());
+            dto.setImage(category.getImage());
+            dto.setDisplayOrder(category.getDisplayOrder());
+
+            dto.setFlippingImages(
+                category.getFlippingImages() != null
+                    ? category.getFlippingImages()
+                    : new ArrayList<>()
+            );
+
+            // Intentionally do not load or set subcategories here.
             return dto;
         }).collect(Collectors.toList());
     }
