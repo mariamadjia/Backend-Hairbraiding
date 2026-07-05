@@ -11,10 +11,12 @@ import org.example.backendbraiding.model.LengthOption;
 import org.example.backendbraiding.model.ServiceItem;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
+import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,9 +24,14 @@ import java.util.stream.Collectors;
 @Service
 public class CategoryService {
     private final CategoryRepository categoryRepository;
+    private final SubcategoryRepository subcategoryRepository;
 
-    public CategoryService(CategoryRepository categoryRepository) {
+    public CategoryService(
+            CategoryRepository categoryRepository,
+            SubcategoryRepository subcategoryRepository
+    ) {
         this.categoryRepository = categoryRepository;
+        this.subcategoryRepository = subcategoryRepository;
     }
 
     public Map<String, Object> getAllCategories() {
@@ -151,26 +158,64 @@ public class CategoryService {
         }).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public List<CategoryGalleryDTO> getAllCategoriesForGalleryCards() {
-        List<Category> categories = categoryRepository.findAllForGalleryCards();
-        return categories.stream().map(category -> {
-            CategoryGalleryDTO dto = new CategoryGalleryDTO();
+        List<Category> categories =
+                categoryRepository.findAllForGalleryCards();
 
-            dto.setId(category.getId());
-            dto.setName(category.getName());
-            dto.setSlug(category.getSlug());
-            dto.setImage(category.getImage());
-            dto.setDisplayOrder(category.getDisplayOrder());
+        if (categories.isEmpty()) {
+            return List.of();
+        }
 
-            dto.setFlippingImages(
-                category.getFlippingImages() != null
-                    ? category.getFlippingImages()
-                    : new ArrayList<>()
-            );
+        List<Long> categoryIds = categories.stream()
+                .map(Category::getId)
+                .collect(Collectors.toList());
 
-            // Intentionally do not load or set subcategories here.
-            return dto;
-        }).collect(Collectors.toList());
+        Map<Long, List<String>> fallbackImagesByCategoryId =
+                subcategoryRepository.findGalleryCardImageSources(categoryIds)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                subcategory -> subcategory.getCategory().getId(),
+                                LinkedHashMap::new,
+                                Collectors.mapping(
+                                        Subcategory::getImage,
+                                        Collectors.toList()
+                                )
+                        ));
+
+        return categories.stream()
+                .map(category -> {
+                    CategoryGalleryDTO dto = new CategoryGalleryDTO();
+
+                    dto.setId(category.getId());
+                    dto.setName(category.getName());
+                    dto.setSlug(category.getSlug());
+                    dto.setImage(category.getImage());
+                    dto.setDisplayOrder(category.getDisplayOrder());
+
+                    // These are manually chosen rotating images.
+                    dto.setFlippingImages(
+                            category.getFlippingImages() != null
+                                    ? new ArrayList<>(category.getFlippingImages())
+                                    : new ArrayList<>()
+                    );
+
+                    // These are existing subcategory cover photos.
+                    // They are only a fallback when flippingImages is empty.
+                    List<String> fallbackImages = fallbackImagesByCategoryId
+                            .getOrDefault(category.getId(), List.of())
+                            .stream()
+                            .limit(5)
+                            .collect(Collectors.toList());
+
+                    dto.setFallbackImages(fallbackImages);
+
+                    // Keep this lightweight endpoint free of full subcategory data.
+                    dto.setSubcategories(null);
+
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     public Category getCategoryById(Long id) {
