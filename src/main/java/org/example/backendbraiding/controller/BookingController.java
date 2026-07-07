@@ -8,9 +8,11 @@ import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -92,6 +94,92 @@ public class BookingController {
         }
 
         return ResponseEntity.ok(bookingCategories);
+    }
+
+    @GetMapping("/{slug}")
+    @Transactional(readOnly = true)
+    public ResponseEntity<Map<String, Object>> getBookingCategoryBySlug(
+            @PathVariable String slug
+    ) {
+        Category category = categoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Booking category not found"
+                ));
+
+        return ResponseEntity.ok(mapBookingCategory(category));
+    }
+
+    private Map<String, Object> mapBookingCategory(Category category) {
+        Map<String, Object> bookingCategory = new LinkedHashMap<>();
+
+        bookingCategory.put("name", category.getName());
+        bookingCategory.put("slug", category.getSlug());
+        bookingCategory.put("summary", category.getSummary());
+        bookingCategory.put("image", category.getImage());
+
+        List<Map<String, Object>> bookingSubcategories = new ArrayList<>();
+
+        List<Subcategory> subcategories = category.getSubcategories() != null
+                ? category.getSubcategories()
+                : List.of();
+
+        for (Subcategory subcategory : subcategories) {
+            Map<String, Object> bookingSubcategory = new LinkedHashMap<>();
+
+            bookingSubcategory.put("name", subcategory.getName());
+            bookingSubcategory.put("slug", subcategory.getSlug());
+            bookingSubcategory.put("summary", subcategory.getSummary());
+            bookingSubcategory.put("image", subcategory.getImage());
+
+            List<Map<String, Object>> bookingItems = new ArrayList<>();
+
+            List<ServiceItem> items = subcategory.getItems() != null
+                    ? subcategory.getItems()
+                    : List.of();
+
+            for (ServiceItem item : items) {
+                Map<String, Object> bookingItem = new LinkedHashMap<>();
+
+                bookingItem.put("name", item.getName());
+                bookingItem.put("price", item.getPrice());
+                bookingItem.put("description", item.getDescription());
+                bookingItem.put("notes", item.getNotes());
+                bookingItem.put("image", item.getImage());
+                bookingItem.put("images", item.getImages());
+                bookingItem.put("link", item.getLink());
+                bookingItem.put("objectPosition", item.getObjectPosition());
+                bookingItem.put("availableSizes", item.getAvailableSizes());
+                bookingItem.put("hairTextures", item.getHairTextures());
+
+                List<Map<String, Object>> lengthOptions = new ArrayList<>();
+
+                List<LengthOption> options = item.getLengthOptions() != null
+                        ? item.getLengthOptions()
+                        : List.of();
+
+                for (LengthOption option : options) {
+                    Map<String, Object> lengthOption = new LinkedHashMap<>();
+
+                    lengthOption.put("name", option.getName());
+                    lengthOption.put("price", option.getPrice());
+                    lengthOption.put("duration", option.getDuration());
+                    lengthOption.put("notes", option.getNotes());
+
+                    lengthOptions.add(lengthOption);
+                }
+
+                bookingItem.put("lengthOptions", lengthOptions);
+                bookingItems.add(bookingItem);
+            }
+
+            bookingSubcategory.put("items", bookingItems);
+            bookingSubcategories.add(bookingSubcategory);
+        }
+
+        bookingCategory.put("subcategories", bookingSubcategories);
+
+        return bookingCategory;
     }
 
     @PostMapping("/populate-images")
