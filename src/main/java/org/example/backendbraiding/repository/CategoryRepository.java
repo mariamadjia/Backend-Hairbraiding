@@ -12,7 +12,15 @@ import java.util.Optional;
 public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findAllByOrderByDisplayOrderAsc();
 
-    @Query("SELECT c FROM Category c LEFT JOIN FETCH c.subcategories LEFT JOIN FETCH c.items ORDER BY c.displayOrder ASC")
+    @Query("""
+        SELECT DISTINCT c FROM Category c
+        LEFT JOIN FETCH c.subcategories sub
+        LEFT JOIN FETCH sub.items si
+        LEFT JOIN FETCH si.lengthOptions
+        LEFT JOIN FETCH c.items ci
+        LEFT JOIN FETCH ci.lengthOptions
+        ORDER BY c.displayOrder ASC
+    """)
     List<Category> findAllWithSubcategoriesAndItems();
 
     @Query("""

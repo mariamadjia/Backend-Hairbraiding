@@ -46,6 +46,7 @@ public class CategoryService {
         return categoryRepository.findAllByOrderByDisplayOrderAsc();
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Object> getAllCategoriesForAdmin() {
         List<Category> categories = categoryRepository.findAllWithSubcategoriesAndItems();
         List<AdminCategoryDTO> adminDtos = categories.stream().map(cat -> {
