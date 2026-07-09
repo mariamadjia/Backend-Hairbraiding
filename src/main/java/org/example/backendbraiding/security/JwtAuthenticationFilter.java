@@ -28,12 +28,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        
+        // Admin endpoints must always be filtered
+        if (path.equals("/api/categories/admin")) {
+            return false;
+        }
+        
         return path.startsWith("/api/auth/") ||
                path.startsWith("/Gallery/") ||
                path.startsWith("/gallery/") ||
                path.startsWith("/api/webhooks/") ||
                path.startsWith("/api/payments/") ||
-               (path.startsWith("/api/categories/") && method.equals("GET") && !path.startsWith("/api/categories/admin")) ||
+               (path.startsWith("/api/categories/") && method.equals("GET")) ||
                (path.startsWith("/api/subcategories/") && method.equals("GET")) ||
                (path.startsWith("/api/services/") && method.equals("GET"));
     }
