@@ -230,6 +230,13 @@ public class CategoryService {
                 .orElseThrow(() -> new RuntimeException("Category not found"));
     }
 
+    @Transactional(readOnly = true)
+    @org.springframework.cache.annotation.Cacheable(value = "bookingCategory", key = "#slug")
+    public Category getCategoryBySlugForBooking(String slug) {
+        return categoryRepository.findBySlug(slug)
+                .orElse(null);
+    }
+
     @Transactional
     @CacheEvict(value = "bookingCategory", allEntries = true)
     public Category createCategory(Category category) {

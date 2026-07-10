@@ -8,7 +8,6 @@ import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -98,16 +97,16 @@ public class BookingController {
     }
 
     @GetMapping("/{slug}")
-    @Transactional(readOnly = true)
-    @Cacheable(value = "bookingCategory", key = "#slug")
     public ResponseEntity<Map<String, Object>> getBookingCategoryBySlug(
             @PathVariable String slug
     ) {
-        Category category = categoryRepository.findBySlug(slug)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Booking category not found"
-                ));
+        Category category = categoryService.getCategoryBySlugForBooking(slug);
+        if (category == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Booking category not found"
+            );
+        }
 
         return ResponseEntity.ok(mapBookingCategory(category));
     }
