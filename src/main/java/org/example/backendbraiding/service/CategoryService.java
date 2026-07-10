@@ -12,6 +12,7 @@ import org.example.backendbraiding.model.ServiceItem;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -230,6 +231,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public Category createCategory(Category category) {
         if (categoryRepository.existsBySlug(category.getSlug())) {
             throw new RuntimeException("Category with slug already exists");
@@ -238,6 +240,7 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = getCategoryById(id);
         category.setName(categoryDetails.getName());
@@ -251,12 +254,14 @@ public class CategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public void deleteCategory(Long id) {
         Category category = getCategoryById(id);
         categoryRepository.delete(category);
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
         Category category = getCategoryById(id);
         category.setFlippingImages(flippingImages);

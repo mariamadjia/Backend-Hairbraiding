@@ -3,6 +3,7 @@ package org.example.backendbraiding.service;
 import org.example.backendbraiding.model.LengthOption;
 import org.example.backendbraiding.model.ServiceItem;
 import org.example.backendbraiding.repository.ServiceItemRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,7 @@ public class ServiceItemService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public ServiceItem createService(ServiceItem service) {
         // Set bidirectional relationship for length options
         if (service.getLengthOptions() != null) {
@@ -58,6 +60,7 @@ public class ServiceItemService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public ServiceItem updateService(Long id, Map<String, Object> updates) {
         ServiceItem service = getServiceById(id);
 
@@ -125,6 +128,7 @@ public class ServiceItemService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public void deleteService(Long id) {
         ServiceItem service = getServiceById(id);
         serviceItemRepository.delete(service);

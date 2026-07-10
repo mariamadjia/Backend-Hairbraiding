@@ -4,6 +4,7 @@ import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ public class SubcategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public Subcategory createSubcategory(String name, Long categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -47,6 +49,7 @@ public class SubcategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = "bookingCategory", allEntries = true)
     public Subcategory updateSubcategory(Long id, Map<String, String> updates) {
         Subcategory subcategory = getSubcategoryById(id);
         boolean imageUpdated = false;
