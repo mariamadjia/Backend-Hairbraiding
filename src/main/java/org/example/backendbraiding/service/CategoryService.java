@@ -43,6 +43,7 @@ public class CategoryService {
         );
     }
 
+    @org.springframework.cache.annotation.Cacheable(value = "allCategories")
     public List<Category> getAllCategoriesData() {
         return categoryRepository.findAllByOrderByDisplayOrderAsc();
     }
@@ -238,7 +239,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = "bookingCategory", allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public Category createCategory(Category category) {
         if (categoryRepository.existsBySlug(category.getSlug())) {
             throw new RuntimeException("Category with slug already exists");
@@ -247,7 +248,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = "bookingCategory", allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = getCategoryById(id);
         category.setName(categoryDetails.getName());
@@ -261,14 +262,14 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = "bookingCategory", allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public void deleteCategory(Long id) {
         Category category = getCategoryById(id);
         categoryRepository.delete(category);
     }
 
     @Transactional
-    @CacheEvict(value = "bookingCategory", allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
         Category category = getCategoryById(id);
         category.setFlippingImages(flippingImages);

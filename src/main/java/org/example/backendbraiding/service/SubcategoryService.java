@@ -28,7 +28,7 @@ public class SubcategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = "bookingCategory", allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public Subcategory createSubcategory(String name, Long categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -49,7 +49,7 @@ public class SubcategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = "bookingCategory", allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public Subcategory updateSubcategory(Long id, Map<String, String> updates) {
         Subcategory subcategory = getSubcategoryById(id);
         boolean imageUpdated = false;
