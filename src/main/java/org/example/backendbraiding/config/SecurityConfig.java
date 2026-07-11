@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/webhooks/**").permitAll()
                 .requestMatchers("/api/payments/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/categories/admin").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/categories/admin").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/gallery").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/gallery-cards").permitAll()
