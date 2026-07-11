@@ -29,12 +29,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         
+        System.out.println("JWT Filter - Path: " + path + ", Method: " + method);
+        
         // Admin endpoints must always be filtered
         if (path.equals("/api/categories/admin")) {
+            System.out.println("JWT Filter - Admin endpoint, MUST filter");
             return false;
         }
         
-        return path.startsWith("/api/auth/") ||
+        boolean skip = path.startsWith("/api/auth/") ||
                path.startsWith("/Gallery/") ||
                path.startsWith("/gallery/") ||
                path.startsWith("/api/webhooks/") ||
@@ -44,6 +47,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                (path.startsWith("/api/categories/") && method.equals("GET")) ||
                (path.startsWith("/api/subcategories/") && method.equals("GET")) ||
                (path.startsWith("/api/services/") && method.equals("GET"));
+        
+        System.out.println("JWT Filter - Should skip: " + skip);
+        return skip;
     }
 
     @Override
