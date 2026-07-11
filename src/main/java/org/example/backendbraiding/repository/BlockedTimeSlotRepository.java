@@ -26,4 +26,6 @@ public interface BlockedTimeSlotRepository extends JpaRepository<BlockedTimeSlot
         @Param("startDate") LocalDateTime startDate,
         @Param("endDate") LocalDateTime endDate
     );
+    
+    List<BlockedTimeSlot> findByIsRecurringTrue();
 }

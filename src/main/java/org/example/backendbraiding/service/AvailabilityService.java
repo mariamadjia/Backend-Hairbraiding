@@ -1,11 +1,13 @@
 package org.example.backendbraiding.service;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.example.backendbraiding.dto.AvailableSlotDTO;
 import org.example.backendbraiding.dto.BlockedTimeSlotDTO;
 import org.example.backendbraiding.dto.BusinessHoursDTO;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +26,29 @@ public class AvailabilityService {
     private final AppointmentRepository appointmentRepository;
     private final AdminRepository adminRepository;
     
+    @PostConstruct
+    public void initializeDefaultSettings() {
+        if (settingsRepository.count() == 0) {
+            AppointmentSettings defaultSettings = new AppointmentSettings();
+            defaultSettings.setSlotDurationMinutes(60);
+            defaultSettings.setMaxAppointmentsPerSlot(1);
+            defaultSettings.setAdvanceBookingDays(60);
+            defaultSettings.setBufferTimeBetweenAppointments(0);
+            defaultSettings.setRequireApproval(true);
+            defaultSettings.setAllowSameDayBooking(true);
+            defaultSettings.setTimezone("America/Los_Angeles");
+            settingsRepository.save(defaultSettings);
+        }
+    }
+    
     // Business Hours Management
     @Transactional
     public BusinessHoursDTO saveBusinessHours(BusinessHoursDTO dto) {
+        // Validate business hours
+        if (dto.getIsOpen() && dto.getCloseTime().isBefore(dto.getOpenTime())) {
+            throw new IllegalArgumentException("Close time must be after open time");
+        }
+        
         BusinessHours hours = businessHoursRepository.findByDayOfWeek(dto.getDayOfWeek())
             .orElse(new BusinessHours());
         
@@ -83,6 +105,7 @@ public class AvailabilityService {
     }
     
     // Available Slots Calculation
+    @Cacheable(value = "availableSlots", key = "#date")
     public List<AvailableSlotDTO> getAvailableSlots(LocalDate date) {
         List<AvailableSlotDTO> slots = new ArrayList<>();
         
@@ -92,18 +115,12 @@ public class AvailabilityService {
             return slots;
         }
         
-        // Get settings from database
+        // Get settings from database (guaranteed to exist due to @PostConstruct)
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
-            .orElseGet(() -> {
-                AppointmentSettings defaultSettings = new AppointmentSettings();
-                defaultSettings.setSlotDurationMinutes(60);
-                defaultSettings.setMaxAppointmentsPerSlot(1);
-                defaultSettings.setAdvanceBookingDays(60);
-                defaultSettings.setBufferTimeBetweenAppointments(0);
-                defaultSettings.setRequireApproval(true);
-                defaultSettings.setAllowSameDayBooking(true);
-                return settingsRepository.save(defaultSettings);
-            });
+            .orElseThrow(() -> new RuntimeException("AppointmentSettings not found"));
+        
+        // Get configured timezone
+        ZoneId timezone = ZoneId.of(settings.getTimezone());
         
         // Generate time slots using slotDurationMinutes
         LocalTime currentTime = businessHours.getOpenTime();
@@ -119,30 +136,43 @@ public class AvailabilityService {
         while (slotStart.isBefore(slotEnd)) {
             LocalDateTime currentSlotEnd = slotStart.plusMinutes(settings.getSlotDurationMinutes());
             
-            AvailableSlotDTO slot = checkSlotAvailability(slotStart, currentSlotEnd, settings);
+            AvailableSlotDTO slot = checkSlotAvailability(slotStart, currentSlotEnd, settings, timezone);
             slots.add(slot);
             
-            slotStart = currentSlotEnd;
+            // Add buffer time between slots
+            slotStart = currentSlotEnd.plusMinutes(settings.getBufferTimeBetweenAppointments());
         }
         
         return slots;
     }
     
-    private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, LocalDateTime end, AppointmentSettings settings) {
+    private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, LocalDateTime end, AppointmentSettings settings, ZoneId timezone) {
         AvailableSlotDTO slot = new AvailableSlotDTO();
         slot.setStartTime(start);
         slot.setEndTime(end);
         
-        // Check if in the past
-        if (start.isBefore(LocalDateTime.now())) {
+        // Check if in the past (using configured timezone)
+        ZonedDateTime now = ZonedDateTime.now(timezone);
+        ZonedDateTime slotStartZoned = start.atZone(timezone);
+        
+        if (slotStartZoned.isBefore(now)) {
             slot.setIsAvailable(false);
             slot.setAvailableSpots(0);
             slot.setReason("Past time");
             return slot;
         }
         
-        // Check if blocked
+        // Check if blocked (including recurring blocks)
         List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findOverlappingSlots(start, end);
+        
+        // Check for recurring blocks that might apply to this slot
+        List<BlockedTimeSlot> allRecurringBlocks = blockedTimeSlotRepository.findByIsRecurringTrue();
+        for (BlockedTimeSlot recurringBlock : allRecurringBlocks) {
+            if (isRecurringBlockActive(recurringBlock, start, end, timezone)) {
+                blockedSlots.add(recurringBlock);
+            }
+        }
+        
         if (!blockedSlots.isEmpty()) {
             slot.setIsAvailable(false);
             slot.setAvailableSpots(0);
@@ -161,6 +191,44 @@ public class AvailabilityService {
         }
         
         return slot;
+    }
+    
+    private boolean isRecurringBlockActive(BlockedTimeSlot recurringBlock, LocalDateTime slotStart, LocalDateTime slotEnd, ZoneId timezone) {
+        if (!recurringBlock.getIsRecurring() || recurringBlock.getRecurrencePattern() == null) {
+            return false;
+        }
+        
+        LocalDateTime blockStart = recurringBlock.getStartDateTime();
+        LocalDateTime blockEnd = recurringBlock.getEndDateTime();
+        
+        // Simple daily recurrence check
+        if (recurringBlock.getRecurrencePattern().equalsIgnoreCase("DAILY")) {
+            // Check if the slot time matches the block time on any day
+            LocalTime blockStartTime = blockStart.toLocalTime();
+            LocalTime blockEndTime = blockEnd.toLocalTime();
+            LocalTime slotStartTime = slotStart.toLocalTime();
+            LocalTime slotEndTime = slotEnd.toLocalTime();
+            
+            // Check if times overlap
+            return !(slotEndTime.isBefore(blockStartTime) || slotStartTime.isAfter(blockEndTime));
+        }
+        
+        // Weekly recurrence check
+        if (recurringBlock.getRecurrencePattern().startsWith("WEEKLY")) {
+            // Check if it's the same day of week
+            if (blockStart.getDayOfWeek() != slotStart.getDayOfWeek()) {
+                return false;
+            }
+            
+            LocalTime blockStartTime = blockStart.toLocalTime();
+            LocalTime blockEndTime = blockEnd.toLocalTime();
+            LocalTime slotStartTime = slotStart.toLocalTime();
+            LocalTime slotEndTime = slotEnd.toLocalTime();
+            
+            return !(slotEndTime.isBefore(blockStartTime) || slotStartTime.isAfter(blockEndTime));
+        }
+        
+        return false;
     }
     
     // Helper methods

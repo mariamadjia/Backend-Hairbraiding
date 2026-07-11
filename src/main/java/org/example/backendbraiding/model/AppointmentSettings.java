@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Entity
 @Table(name = "appointment_settings")
@@ -35,6 +36,9 @@ public class AppointmentSettings {
     
     @Column(nullable = false)
     private Boolean allowSameDayBooking = true;
+    
+    @Column(length = 50)
+    private String timezone = "America/Los_Angeles"; // Default to Pacific time
     
     @Column
     private LocalDateTime updatedAt = LocalDateTime.now();
