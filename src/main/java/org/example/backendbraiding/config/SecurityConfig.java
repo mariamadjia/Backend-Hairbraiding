@@ -63,6 +63,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/customers").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/customers/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/appointments").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/appointments/settings").authenticated()
                 .requestMatchers("/api/appointments/**").authenticated()
                 // Public gallery read-only endpoints
                 .requestMatchers(HttpMethod.GET, "/api/gallery").permitAll()
