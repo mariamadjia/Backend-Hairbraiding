@@ -233,8 +233,19 @@ public class CategoryService {
 
     @org.springframework.cache.annotation.Cacheable(value = "bookingCategory", key = "#slug")
     public Category getCategoryBySlugForBooking(String slug) {
-        return categoryRepository.findBySlugWithAllData(slug)
-                .orElse(null);
+        Category category = categoryRepository.findBySlugWithAllData(slug).orElse(null);
+        if (category != null) {
+            // Eagerly load all nested relationships for caching
+            category.getSubcategories().forEach(sub -> {
+                sub.getItems().forEach(item -> {
+                    item.getLengthOptions().size(); // Force load
+                });
+            });
+            category.getItems().forEach(item -> {
+                item.getLengthOptions().size(); // Force load
+            });
+        }
+        return category;
     }
 
     @Transactional

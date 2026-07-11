@@ -36,10 +36,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     @Query("""
         SELECT DISTINCT c FROM Category c
         LEFT JOIN FETCH c.subcategories sub
-        LEFT JOIN FETCH sub.items si
-        LEFT JOIN FETCH si.lengthOptions
         LEFT JOIN FETCH c.items ci
-        LEFT JOIN FETCH ci.lengthOptions
         WHERE c.slug = :slug
     """)
     Optional<Category> findBySlugWithAllData(@org.springframework.data.repository.query.Param("slug") String slug);
