@@ -32,5 +32,17 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     List<Category> findAllForGalleryCards();
 
     Optional<Category> findBySlug(String slug);
+    
+    @Query("""
+        SELECT DISTINCT c FROM Category c
+        LEFT JOIN FETCH c.subcategories sub
+        LEFT JOIN FETCH sub.items si
+        LEFT JOIN FETCH si.lengthOptions
+        LEFT JOIN FETCH c.items ci
+        LEFT JOIN FETCH ci.lengthOptions
+        WHERE c.slug = :slug
+    """)
+    Optional<Category> findBySlugWithAllRelations(String slug);
+    
     boolean existsBySlug(String slug);
 }
