@@ -3,6 +3,7 @@ package org.example.backendbraiding.repository;
 import org.example.backendbraiding.model.Category;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -42,7 +43,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         LEFT JOIN FETCH ci.lengthOptions
         WHERE c.slug = :slug
     """)
-    Optional<Category> findBySlugWithAllRelations(String slug);
+    Optional<Category> findBySlugWithAllRelations(@Param("slug") String slug);
     
     boolean existsBySlug(String slug);
 }
