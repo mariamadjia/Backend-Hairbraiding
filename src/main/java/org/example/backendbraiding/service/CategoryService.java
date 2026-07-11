@@ -43,9 +43,18 @@ public class CategoryService {
         );
     }
 
+    @Transactional(readOnly = true)
     @org.springframework.cache.annotation.Cacheable(value = "allCategories")
     public List<Category> getAllCategoriesData() {
-        return categoryRepository.findAllByOrderByDisplayOrderAsc();
+        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
+        // Force-load all lazy collections within the transaction
+        for (Category category : categories) {
+            category.getSubcategories().forEach(sub -> {
+                sub.getItems().forEach(item -> item.getLengthOptions().size());
+            });
+            category.getItems().forEach(item -> item.getLengthOptions().size());
+        }
+        return categories;
     }
 
     @Transactional(readOnly = true)
