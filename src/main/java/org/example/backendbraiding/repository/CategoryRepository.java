@@ -16,9 +16,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         SELECT DISTINCT c FROM Category c
         LEFT JOIN FETCH c.subcategories sub
         LEFT JOIN FETCH sub.items si
-        LEFT JOIN FETCH si.lengthOptions
         LEFT JOIN FETCH c.items ci
-        LEFT JOIN FETCH ci.lengthOptions
         ORDER BY c.displayOrder ASC
     """)
     List<Category> findAllWithSubcategoriesAndItems();

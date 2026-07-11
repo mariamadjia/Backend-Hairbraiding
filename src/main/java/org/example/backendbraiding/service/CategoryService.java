@@ -60,6 +60,11 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public Map<String, Object> getAllCategoriesForAdmin() {
         List<Category> categories = categoryRepository.findAllWithSubcategoriesAndItems();
+        // Force-load lengthOptions within the transaction
+        categories.forEach(cat -> {
+            cat.getSubcategories().forEach(sub -> sub.getItems().forEach(item -> item.getLengthOptions().size()));
+            cat.getItems().forEach(item -> item.getLengthOptions().size());
+        });
         List<AdminCategoryDTO> adminDtos = categories.stream().map(cat -> {
             AdminCategoryDTO dto = new AdminCategoryDTO();
             dto.setId(cat.getId());
