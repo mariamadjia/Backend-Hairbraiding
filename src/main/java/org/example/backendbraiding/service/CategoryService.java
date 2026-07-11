@@ -45,7 +45,7 @@ public class CategoryService {
 
     @org.springframework.cache.annotation.Cacheable(value = "allCategories")
     public List<Category> getAllCategoriesData() {
-        return categoryRepository.findAllWithSubcategoriesAndItems();
+        return categoryRepository.findAllByOrderByDisplayOrderAsc();
     }
 
     @Transactional(readOnly = true)
