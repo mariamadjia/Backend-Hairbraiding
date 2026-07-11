@@ -31,7 +31,7 @@ public class TimeSlotController {
     }
 
     @PostMapping("/{dayOfWeek}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> saveTimeSlotsForDay(
             @PathVariable String dayOfWeek,
             @RequestBody List<TimeSlotDTO> slots) {
