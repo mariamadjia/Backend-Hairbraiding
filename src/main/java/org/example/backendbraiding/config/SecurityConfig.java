@@ -53,6 +53,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/services/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/services/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/services/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/booking").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/booking/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/booking/fix-image-paths").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/booking/**").authenticated()
