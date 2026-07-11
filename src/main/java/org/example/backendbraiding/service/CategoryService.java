@@ -45,7 +45,7 @@ public class CategoryService {
 
     @org.springframework.cache.annotation.Cacheable(value = "allCategories")
     public List<Category> getAllCategoriesData() {
-        return categoryRepository.findAllByOrderByDisplayOrderAsc();
+        return categoryRepository.findAllWithSubcategoriesAndItems();
     }
 
     @Transactional(readOnly = true)
@@ -231,10 +231,9 @@ public class CategoryService {
                 .orElseThrow(() -> new RuntimeException("Category not found"));
     }
 
-    @Transactional(readOnly = true)
     @org.springframework.cache.annotation.Cacheable(value = "bookingCategory", key = "#slug")
     public Category getCategoryBySlugForBooking(String slug) {
-        return categoryRepository.findBySlug(slug)
+        return categoryRepository.findBySlugWithAllData(slug)
                 .orElse(null);
     }
 
