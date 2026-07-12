@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/customers")
-@CrossOrigin(origins = "*")
 @Slf4j
 public class CustomerController {
     private final CustomerService customerService;
