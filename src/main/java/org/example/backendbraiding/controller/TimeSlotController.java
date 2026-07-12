@@ -10,7 +10,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/time-slots")
-@CrossOrigin(origins = "*")
 public class TimeSlotController {
     private final TimeSlotService timeSlotService;
 

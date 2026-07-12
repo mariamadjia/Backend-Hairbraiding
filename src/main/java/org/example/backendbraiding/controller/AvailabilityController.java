@@ -20,7 +20,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/availability")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class AvailabilityController {
     
     private final AvailabilityService availabilityService;
