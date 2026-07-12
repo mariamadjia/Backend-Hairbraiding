@@ -1,8 +1,12 @@
 package org.example.backendbraiding.controller;
 
+import jakarta.validation.Valid;
+import org.example.backendbraiding.dto.SubcategoryRequestDTO;
+import org.example.backendbraiding.dto.SubcategoryUpdateDTO;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.service.SubcategoryService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -29,20 +33,21 @@ public class SubcategoryController {
     }
 
     @PostMapping
-    public ResponseEntity<Subcategory> createSubcategory(@RequestBody Map<String, Object> request) {
-        String name = (String) request.get("name");
-        Long categoryId = ((Number) request.get("categoryId")).longValue();
-        return ResponseEntity.ok(subcategoryService.createSubcategory(name, categoryId));
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Subcategory> createSubcategory(@Valid @RequestBody SubcategoryRequestDTO request) {
+        return ResponseEntity.ok(subcategoryService.createSubcategory(request));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Subcategory> updateSubcategory(
             @PathVariable Long id,
-            @RequestBody Map<String, String> updates) {
-        return ResponseEntity.ok(subcategoryService.updateSubcategory(id, updates));
+            @Valid @RequestBody SubcategoryUpdateDTO request) {
+        return ResponseEntity.ok(subcategoryService.updateSubcategory(id, request));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteSubcategory(@PathVariable Long id) {
         subcategoryService.deleteSubcategory(id);
         return ResponseEntity.ok(Map.of("message", "Subcategory deleted successfully"));

@@ -1,5 +1,9 @@
 package org.example.backendbraiding.service;
 
+import org.example.backendbraiding.dto.SubcategoryRequestDTO;
+import org.example.backendbraiding.dto.SubcategoryUpdateDTO;
+import org.example.backendbraiding.exception.ResourceNotFoundException;
+import org.example.backendbraiding.exception.SlugAlreadyExistsException;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
@@ -7,8 +11,6 @@ import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.Map;
 
 @Service
 public class SubcategoryService {
@@ -24,58 +26,65 @@ public class SubcategoryService {
 
     public Subcategory getSubcategoryById(Long id) {
         return subcategoryRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Subcategory", id));
     }
 
     @Transactional
     @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
-    public Subcategory createSubcategory(String name, Long categoryId) {
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+    public Subcategory createSubcategory(SubcategoryRequestDTO request) {
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
+        
+        // Generate slug from name
+        String slug = generateSlug(request.getName());
+        
+        // Check if slug already exists
+        if (subcategoryRepository.findBySlug(slug).isPresent()) {
+            throw new SlugAlreadyExistsException(slug);
+        }
         
         Subcategory subcategory = new Subcategory();
-        subcategory.setName(name);
-        
-        // Auto-generate slug from name
-        String slug = name.toLowerCase()
-                .replaceAll("[^a-z0-9\\s-]", "")
-                .replaceAll("\\s+", "-")
-                .replaceAll("-+", "-")
-                .trim();
+        subcategory.setName(request.getName());
         subcategory.setSlug(slug);
         subcategory.setCategory(category);
+        subcategory.setSummary(request.getSummary());
+        subcategory.setImage(request.getImage());
+        subcategory.setDisplayOrder(request.getDisplayOrder());
         
         return subcategoryRepository.save(subcategory);
     }
 
     @Transactional
     @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
-    public Subcategory updateSubcategory(Long id, Map<String, String> updates) {
+    public Subcategory updateSubcategory(Long id, SubcategoryUpdateDTO request) {
         Subcategory subcategory = getSubcategoryById(id);
         boolean imageUpdated = false;
         
-        if (updates.containsKey("name")) {
-            subcategory.setName(updates.get("name"));
-            // Auto-generate slug from name
-            String slug = updates.get("name").toLowerCase()
-                    .replaceAll("[^a-z0-9\\s-]", "")
-                    .replaceAll("\\s+", "-")
-                    .replaceAll("-+", "-")
-                    .trim();
-            subcategory.setSlug(slug);
+        if (request.getName() != null && !request.getName().isBlank()) {
+            String newSlug = generateSlug(request.getName());
+            
+            // Check if new slug already exists (and belongs to different subcategory)
+            subcategoryRepository.findBySlug(newSlug).ifPresent(existing -> {
+                if (!existing.getId().equals(id)) {
+                    throw new SlugAlreadyExistsException(newSlug);
+                }
+            });
+            
+            subcategory.setName(request.getName());
+            subcategory.setSlug(newSlug);
         }
         
-        if (updates.containsKey("summary")) {
-            subcategory.setSummary(updates.get("summary"));
+        if (request.getSummary() != null) {
+            subcategory.setSummary(request.getSummary());
         }
         
-        if (updates.containsKey("image")) {
-            subcategory.setImage(updates.get("image"));
+        if (request.getImage() != null) {
+            subcategory.setImage(request.getImage());
             imageUpdated = true;
         }
         
-        if (updates.containsKey("displayOrder")) {
-            subcategory.setDisplayOrder(Integer.parseInt(updates.get("displayOrder")));
+        if (request.getDisplayOrder() != null) {
+            subcategory.setDisplayOrder(Integer.parseInt(request.getDisplayOrder()));
         }
         
         Subcategory saved = subcategoryRepository.save(subcategory);
@@ -89,8 +98,17 @@ public class SubcategoryService {
     }
 
     @Transactional
+    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
     public void deleteSubcategory(Long id) {
         Subcategory subcategory = getSubcategoryById(id);
         subcategoryRepository.delete(subcategory);
+    }
+    
+    private String generateSlug(String name) {
+        return name.toLowerCase()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-")
+                .replaceAll("-+", "-")
+                .trim();
     }
 }
