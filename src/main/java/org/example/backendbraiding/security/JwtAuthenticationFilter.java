@@ -31,8 +31,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         
-        // Admin endpoints must always be filtered
-        if (path.equals("/api/categories/admin")) {
+        // Admin endpoints must always be filtered (require JWT token)
+        if (method.equals("GET") && 
+            (path.equals("/api/categories/admin") ||
+             path.equals("/api/categories/admin/summaries") ||
+             path.startsWith("/api/categories/admin/"))) {
             return false;
         }
         
