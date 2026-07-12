@@ -5,14 +5,17 @@ import org.example.backendbraiding.dto.AdminServiceItemDTO;
 import org.example.backendbraiding.dto.AdminSubcategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
 import org.example.backendbraiding.dto.CategorySummaryDTO;
+import org.example.backendbraiding.dto.ImageResponse;
 import org.example.backendbraiding.dto.LengthOptionDTO;
 import org.example.backendbraiding.dto.SubcategoryGalleryDTO;
 import org.example.backendbraiding.dto.SubcategorySummaryDTO;
 import org.example.backendbraiding.model.Category;
+import org.example.backendbraiding.model.GalleryImage;
 import org.example.backendbraiding.model.LengthOption;
 import org.example.backendbraiding.model.ServiceItem;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
+import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -28,13 +31,16 @@ import java.util.stream.Collectors;
 public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final GalleryImageRepository galleryImageRepository;
 
     public CategoryService(
             CategoryRepository categoryRepository,
-            SubcategoryRepository subcategoryRepository
+            SubcategoryRepository subcategoryRepository,
+            GalleryImageRepository galleryImageRepository
     ) {
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
+        this.galleryImageRepository = galleryImageRepository;
     }
 
     @org.springframework.cache.annotation.Cacheable(value = "allCategories")
@@ -456,6 +462,22 @@ public class CategoryService {
             itemDtos = subcategory.getItems().stream().map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
         }
         dto.setItems(itemDtos);
+
+        // Include gallery images so frontend doesn't need a second request
+        List<GalleryImage> galleryImages = galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId());
+        List<ImageResponse> galleryDtos = galleryImages.stream().map(img -> {
+            ImageResponse r = new ImageResponse();
+            r.setId(img.getId());
+            r.setImageUrl(img.getImageUrl());
+            r.setThumbnailUrl(img.getThumbnailUrl());
+            r.setTitle(img.getTitle());
+            r.setAltText(img.getAltText());
+            r.setDisplayOrder(img.getDisplayOrder());
+            r.setSubcategoryId(subcategory.getId());
+            r.setSubcategoryName(subcategory.getName());
+            return r;
+        }).collect(Collectors.toList());
+        dto.setGalleryImages(galleryDtos);
 
         return dto;
     }

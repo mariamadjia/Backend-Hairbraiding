@@ -12,4 +12,5 @@ public class AdminSubcategoryDTO {
     private String image;
     private Integer displayOrder;
     private List<AdminServiceItemDTO> items;
+    private List<ImageResponse> galleryImages;
 }
