@@ -2,6 +2,7 @@ package org.example.backendbraiding.service;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.backendbraiding.dto.AvailableSlotDTO;
 import org.example.backendbraiding.dto.BlockedTimeSlotDTO;
 import org.example.backendbraiding.dto.BusinessHoursDTO;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AvailabilityService {
     
     private final BusinessHoursRepository businessHoursRepository;
@@ -44,21 +46,29 @@ public class AvailabilityService {
     // Business Hours Management
     @Transactional
     public BusinessHoursDTO saveBusinessHours(BusinessHoursDTO dto) {
+        log.info("saveBusinessHours - Starting save for day: {}, isOpen: {}", dto.getDayOfWeek(), dto.getIsOpen());
+        
         // Validate business hours
         if (dto.getIsOpen() && dto.getCloseTime().isBefore(dto.getOpenTime())) {
+            log.error("saveBusinessHours - Validation failed: Close time {} is before open time {}", dto.getCloseTime(), dto.getOpenTime());
             throw new IllegalArgumentException("Close time must be after open time");
         }
         
+        log.info("saveBusinessHours - Finding existing business hours for day: {}", dto.getDayOfWeek());
         BusinessHours hours = businessHoursRepository.findByDayOfWeek(dto.getDayOfWeek())
             .orElse(new BusinessHours());
         
+        log.info("saveBusinessHours - Existing hours found: {}", hours.getId() != null);
         hours.setDayOfWeek(dto.getDayOfWeek());
         hours.setOpenTime(dto.getOpenTime());
         hours.setCloseTime(dto.getCloseTime());
         hours.setIsOpen(dto.getIsOpen());
         hours.setNotes(dto.getNotes());
         
+        log.info("saveBusinessHours - Saving business hours to database");
         hours = businessHoursRepository.save(hours);
+        log.info("saveBusinessHours - Successfully saved business hours with ID: {}", hours.getId());
+        
         return mapToBusinessHoursDTO(hours);
     }
     
