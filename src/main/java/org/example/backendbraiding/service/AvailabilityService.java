@@ -6,6 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.backendbraiding.dto.AvailableSlotDTO;
 import org.example.backendbraiding.dto.BlockedTimeSlotDTO;
 import org.example.backendbraiding.dto.BusinessHoursDTO;
+import org.example.backendbraiding.dto.DayScheduleDTO;
+import org.example.backendbraiding.dto.TimeSlotDTO;
+import org.example.backendbraiding.dto.WeeklyScheduleDTO;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
 import org.springframework.cache.annotation.Cacheable;
@@ -21,12 +24,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Slf4j
 public class AvailabilityService {
-    
+
     private final BusinessHoursRepository businessHoursRepository;
     private final BlockedTimeSlotRepository blockedTimeSlotRepository;
     private final AppointmentSettingsRepository settingsRepository;
     private final AppointmentRepository appointmentRepository;
     private final AdminRepository adminRepository;
+    private final TimeSlotRepository timeSlotRepository;
     
     @PostConstruct
     public void initializeDefaultSettings() {
@@ -50,18 +54,78 @@ public class AvailabilityService {
         if (dto.getIsOpen() && dto.getCloseTime().isBefore(dto.getOpenTime())) {
             throw new IllegalArgumentException("Close time must be after open time");
         }
-        
+
         BusinessHours hours = businessHoursRepository.findByDayOfWeek(dto.getDayOfWeek())
             .orElse(new BusinessHours());
-        
+
         hours.setDayOfWeek(dto.getDayOfWeek());
         hours.setOpenTime(dto.getOpenTime());
         hours.setCloseTime(dto.getCloseTime());
         hours.setIsOpen(dto.getIsOpen());
         hours.setNotes(dto.getNotes());
-        
+
         hours = businessHoursRepository.save(hours);
         return mapToBusinessHoursDTO(hours);
+    }
+
+    // Bulk Schedule Management
+    @Transactional
+    public void saveWeeklySchedule(WeeklyScheduleDTO dto) {
+        if (dto == null || dto.getDays() == null) {
+            return;
+        }
+
+        for (DayScheduleDTO day : dto.getDays()) {
+            String dayKey = day.getDayOfWeek();
+            DayOfWeek dayOfWeek = DayOfWeek.valueOf(dayKey);
+
+            List<TimeSlotDTO> slots = day.getTimeSlots() != null
+                    ? day.getTimeSlots()
+                    : List.of();
+
+            boolean isOpen = Boolean.TRUE.equals(day.getIsAvailable()) && !slots.isEmpty();
+
+            BusinessHours hours = businessHoursRepository.findByDayOfWeek(dayOfWeek)
+                    .orElse(new BusinessHours());
+
+            hours.setDayOfWeek(dayOfWeek);
+            hours.setIsOpen(isOpen);
+
+            if (!isOpen) {
+                hours.setOpenTime(LocalTime.of(0, 0));
+                hours.setCloseTime(LocalTime.of(0, 0));
+                businessHoursRepository.save(hours);
+
+                timeSlotRepository.deleteByDayOfWeek(dayKey);
+                continue;
+            }
+
+            LocalTime openTime = LocalTime.parse(slots.get(0).getStartTime());
+            LocalTime closeTime = LocalTime.parse(slots.get(slots.size() - 1).getEndTime());
+
+            hours.setOpenTime(openTime);
+            hours.setCloseTime(closeTime);
+            businessHoursRepository.save(hours);
+
+            timeSlotRepository.deleteByDayOfWeek(dayKey);
+
+            List<TimeSlot> entities = new ArrayList<>();
+
+            for (int i = 0; i < slots.size(); i++) {
+                TimeSlotDTO slotDto = slots.get(i);
+
+                TimeSlot slot = new TimeSlot();
+                slot.setDayOfWeek(dayKey);
+                slot.setStartTime(LocalTime.parse(slotDto.getStartTime()));
+                slot.setEndTime(LocalTime.parse(slotDto.getEndTime()));
+                slot.setCapacity(slotDto.getCapacity() != null ? slotDto.getCapacity() : 1);
+                slot.setSlotOrder(i);
+
+                entities.add(slot);
+            }
+
+            timeSlotRepository.saveAll(entities);
+        }
     }
     
     public List<BusinessHoursDTO> getAllBusinessHours() {

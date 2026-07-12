@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.backendbraiding.dto.AvailableSlotDTO;
 import org.example.backendbraiding.dto.BlockedTimeSlotDTO;
 import org.example.backendbraiding.dto.BusinessHoursDTO;
+import org.example.backendbraiding.dto.WeeklyScheduleDTO;
 import org.example.backendbraiding.service.AvailabilityService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,14 @@ public class AvailabilityController {
     public ResponseEntity<BusinessHoursDTO> saveBusinessHours(@RequestBody BusinessHoursDTO dto) {
         BusinessHoursDTO saved = availabilityService.saveBusinessHours(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    // Bulk Schedule Endpoint
+    @PostMapping("/schedule")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> saveWeeklySchedule(@RequestBody WeeklyScheduleDTO dto) {
+        availabilityService.saveWeeklySchedule(dto);
+        return ResponseEntity.noContent().build();
     }
     
     @GetMapping("/business-hours")

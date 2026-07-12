@@ -30,15 +30,28 @@ public class CustomerService {
         this.appointmentRepository = appointmentRepository;
     }
 
-    @org.springframework.cache.annotation.Cacheable(value = "customers")
+    @org.springframework.cache.annotation.Cacheable(value = "customers", key = "#pageable.pageNumber + '-' + #pageable.pageSize + '-' + #pageable.sort")
     public Page<CustomerSummaryDTO> getAllCustomers(Pageable pageable) {
         log.info("Fetching all customers with pagination");
         
         Page<Customer> customersPage = customerRepository.findAll(pageable);
         List<Customer> customers = customersPage.getContent();
         
+        // Batch fetch all appointments for these customers in one query
+        List<Long> customerIds = customers.stream()
+                .map(Customer::getId)
+                .collect(Collectors.toList());
+        
+        List<Appointment> allAppointments = customerIds.isEmpty() 
+                ? List.of() 
+                : appointmentRepository.findByCustomerIdIn(customerIds);
+        
+        // Group appointments by customer ID
+        Map<Long, List<Appointment>> appointmentsByCustomer = allAppointments.stream()
+                .collect(Collectors.groupingBy(app -> app.getCustomer().getId()));
+        
         List<CustomerSummaryDTO> customerSummaries = customers.stream()
-                .map(this::mapToSummaryDTO)
+                .map(customer -> mapToSummaryDTO(customer, appointmentsByCustomer.getOrDefault(customer.getId(), List.of())))
                 .collect(Collectors.toList());
         
         return new PageImpl<>(customerSummaries, pageable, customersPage.getTotalElements());
@@ -56,9 +69,7 @@ public class CustomerService {
         return mapToDetailDTO(customer, appointments);
     }
 
-    private CustomerSummaryDTO mapToSummaryDTO(Customer customer) {
-        List<Appointment> appointments = appointmentRepository.findByCustomerId(customer.getId());
-        
+    private CustomerSummaryDTO mapToSummaryDTO(Customer customer, List<Appointment> appointments) {
         LocalDateTime lastAppointment = appointments.stream()
                 .map(Appointment::getAppointmentDateTime)
                 .max(Comparator.naturalOrder())

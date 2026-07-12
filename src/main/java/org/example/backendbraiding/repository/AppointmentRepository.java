@@ -21,6 +21,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     
     List<Appointment> findByCustomerId(Long customerId);
     
+    @Query("SELECT a FROM Appointment a WHERE a.customer.id IN :customerIds")
+    List<Appointment> findByCustomerIdIn(@Param("customerIds") List<Long> customerIds);
+    
     @Query("SELECT a FROM Appointment a WHERE a.appointmentDateTime BETWEEN :startDate AND :endDate")
     List<Appointment> findAppointmentsBetweenDates(
         @Param("startDate") LocalDateTime startDate, 
