@@ -24,6 +24,7 @@ public class CacheConfig {
             new ConcurrentMapCache("allCategories"),
             new ConcurrentMapCache("availableSlots"),
             new ConcurrentMapCache("appointments"),
+            new ConcurrentMapCache("customers"),
             new ConcurrentMapCache("homepageSettings")
         ));
         
