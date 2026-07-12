@@ -50,7 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                (path.startsWith("/api/subcategories/") && method.equals("GET")) ||
                (path.startsWith("/api/services/") && method.equals("GET")) ||
                (path.startsWith("/api/time-slots/") && method.equals("GET")) ||
-               (path.startsWith("/api/availability/") && method.equals("GET"));
+               path.startsWith("/api/availability/");
         
         System.out.println("JWT Filter - Should skip: " + skip);
         return skip;
