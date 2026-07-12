@@ -75,7 +75,8 @@ public class AvailabilityService {
             return;
         }
 
-        for (DayScheduleDTO day : dto.getDays()) {
+        // Process all days in parallel for better performance
+        dto.getDays().parallelStream().forEach(day -> {
             String dayKey = day.getDayOfWeek();
             DayOfWeek dayOfWeek = DayOfWeek.valueOf(dayKey);
 
@@ -97,7 +98,7 @@ public class AvailabilityService {
                 businessHoursRepository.save(hours);
 
                 timeSlotRepository.deleteByDayOfWeek(dayKey);
-                continue;
+                return;
             }
 
             LocalTime openTime = LocalTime.parse(slots.get(0).getStartTime());
@@ -125,7 +126,7 @@ public class AvailabilityService {
             }
 
             timeSlotRepository.saveAll(entities);
-        }
+        });
     }
     
     public List<BusinessHoursDTO> getAllBusinessHours() {
