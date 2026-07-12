@@ -55,6 +55,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/categories/admin/{slug}").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/categories/admin/{categorySlug}/subcategories").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/subcategories/admin/{slug}").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/gallery").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/categories/gallery-cards").permitAll()
