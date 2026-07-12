@@ -2,6 +2,7 @@ package org.example.backendbraiding.controller;
 
 import org.example.backendbraiding.dto.AdminCategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
+import org.example.backendbraiding.dto.CategorySummaryDTO;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.service.CategoryService;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,17 @@ public class CategoryController {
     @GetMapping("/admin")
     public ResponseEntity<Map<String, Object>> getAllCategoriesForAdmin() {
         return ResponseEntity.ok(categoryService.getAllCategoriesForAdmin());
+    }
+
+    // New optimized endpoints for admin lazy loading
+    @GetMapping("/admin/summaries")
+    public ResponseEntity<List<CategorySummaryDTO>> getCategorySummariesForAdmin() {
+        return ResponseEntity.ok(categoryService.getCategorySummariesForAdmin());
+    }
+
+    @GetMapping("/admin/{slug}")
+    public ResponseEntity<AdminCategoryDTO> getCategoryBySlugForAdmin(@PathVariable String slug) {
+        return ResponseEntity.ok(categoryService.getCategoryBySlugForAdmin(slug));
     }
 
     @GetMapping("/gallery")

@@ -58,26 +58,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
+        String path = request.getRequestURI();
+        String method = request.getMethod();
         String token = getJwtFromRequest(request);
+
+        log.info("JWT Filter - Path: {}, Method: {}, Token present: {}", path, method, StringUtils.hasText(token));
 
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
             String email = jwtTokenProvider.getEmailFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
 
-            log.debug("JWT Authentication - Email: {}, Raw Role: {}", email, role);
+            log.info("JWT Authentication - Email: {}, Raw Role: {}", email, role);
 
             // Spring Security's hasRole() automatically adds ROLE_ prefix, so we need to strip it if present
             // If role is "ROLE_ADMIN", strip to "ADMIN" for hasRole() to work correctly
             String authority = role.startsWith("ROLE_") ? role.substring(5) : role;
             String finalAuthority = "ROLE_" + authority;
 
+            log.info("JWT Authentication - Final Authority: {}", finalAuthority);
+
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     email, null, Collections.singletonList(new SimpleGrantedAuthority(finalAuthority)));
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            log.info("JWT Authentication - Successfully authenticated: {} with authorities: {}", email, authentication.getAuthorities());
         } else {
-            log.debug("JWT Authentication - No valid token found for request: {}", request.getRequestURI());
+            log.warn("JWT Authentication - No valid token found for request: {}", path);
         }
 
         filterChain.doFilter(request, response);

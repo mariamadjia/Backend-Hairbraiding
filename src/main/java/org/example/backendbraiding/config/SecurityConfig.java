@@ -51,6 +51,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/booking/fix-image-paths").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/booking/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/categories/admin/summaries").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/categories/admin/{slug}").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/categories/**").authenticated()
                 .requestMatchers(HttpMethod.PUT, "/api/categories/**").authenticated()
