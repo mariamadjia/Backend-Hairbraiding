@@ -29,15 +29,8 @@ public class AvailabilityController {
     // Business Hours Endpoints
     @PostMapping("/business-hours")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BusinessHoursDTO> saveBusinessHours(@RequestBody BusinessHoursDTO dto, Authentication authentication) {
-        log.info("saveBusinessHours called - Day: {}, Open: {}, Close: {}, IsOpen: {}", 
-            dto.getDayOfWeek(), dto.getOpenTime(), dto.getCloseTime(), dto.getIsOpen());
-        log.info("Authentication: {}, Authorities: {}", 
-            authentication != null ? authentication.getName() : "null",
-            authentication != null ? authentication.getAuthorities() : "null");
-        
+    public ResponseEntity<BusinessHoursDTO> saveBusinessHours(@RequestBody BusinessHoursDTO dto) {
         BusinessHoursDTO saved = availabilityService.saveBusinessHours(dto);
-        log.info("Business hours saved successfully for day: {}", dto.getDayOfWeek());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
     

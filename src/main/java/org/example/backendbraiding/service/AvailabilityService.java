@@ -46,29 +46,29 @@ public class AvailabilityService {
     // Business Hours Management
     @Transactional
     public BusinessHoursDTO saveBusinessHours(BusinessHoursDTO dto) {
-        log.info("saveBusinessHours - Starting save for day: {}, isOpen: {}", dto.getDayOfWeek(), dto.getIsOpen());
+        long startTime = System.currentTimeMillis();
         
         // Validate business hours
         if (dto.getIsOpen() && dto.getCloseTime().isBefore(dto.getOpenTime())) {
-            log.error("saveBusinessHours - Validation failed: Close time {} is before open time {}", dto.getCloseTime(), dto.getOpenTime());
             throw new IllegalArgumentException("Close time must be after open time");
         }
         
-        log.info("saveBusinessHours - Finding existing business hours for day: {}", dto.getDayOfWeek());
+        long dbStartTime = System.currentTimeMillis();
         BusinessHours hours = businessHoursRepository.findByDayOfWeek(dto.getDayOfWeek())
             .orElse(new BusinessHours());
+        log.info("findByDayOfWeek took {}ms", System.currentTimeMillis() - dbStartTime);
         
-        log.info("saveBusinessHours - Existing hours found: {}", hours.getId() != null);
         hours.setDayOfWeek(dto.getDayOfWeek());
         hours.setOpenTime(dto.getOpenTime());
         hours.setCloseTime(dto.getCloseTime());
         hours.setIsOpen(dto.getIsOpen());
         hours.setNotes(dto.getNotes());
         
-        log.info("saveBusinessHours - Saving business hours to database");
+        long saveStartTime = System.currentTimeMillis();
         hours = businessHoursRepository.save(hours);
-        log.info("saveBusinessHours - Successfully saved business hours with ID: {}", hours.getId());
+        log.info("save took {}ms", System.currentTimeMillis() - saveStartTime);
         
+        log.info("Total saveBusinessHours took {}ms for day: {}", System.currentTimeMillis() - startTime, dto.getDayOfWeek());
         return mapToBusinessHoursDTO(hours);
     }
     
