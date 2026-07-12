@@ -1,6 +1,7 @@
 package org.example.backendbraiding.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.backendbraiding.dto.AvailableSlotDTO;
 import org.example.backendbraiding.dto.BlockedTimeSlotDTO;
 import org.example.backendbraiding.dto.BusinessHoursDTO;
@@ -20,15 +21,23 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/availability")
 @RequiredArgsConstructor
+@Slf4j
 public class AvailabilityController {
-    
+
     private final AvailabilityService availabilityService;
-    
+
     // Business Hours Endpoints
     @PostMapping("/business-hours")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<BusinessHoursDTO> saveBusinessHours(@RequestBody BusinessHoursDTO dto) {
+    public ResponseEntity<BusinessHoursDTO> saveBusinessHours(@RequestBody BusinessHoursDTO dto, Authentication authentication) {
+        log.info("saveBusinessHours called - Day: {}, Open: {}, Close: {}, IsOpen: {}", 
+            dto.getDayOfWeek(), dto.getOpenTime(), dto.getCloseTime(), dto.getIsOpen());
+        log.info("Authentication: {}, Authorities: {}", 
+            authentication != null ? authentication.getName() : "null",
+            authentication != null ? authentication.getAuthorities() : "null");
+        
         BusinessHoursDTO saved = availabilityService.saveBusinessHours(dto);
+        log.info("Business hours saved successfully for day: {}", dto.getDayOfWeek());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
     
