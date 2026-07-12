@@ -46,6 +46,7 @@ public class Category {
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonIgnore
+    @BatchSize(size = 50)
     private List<ServiceItem> items = new ArrayList<>();
 
     @CreationTimestamp

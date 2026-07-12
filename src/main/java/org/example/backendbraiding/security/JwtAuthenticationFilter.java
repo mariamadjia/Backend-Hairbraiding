@@ -31,12 +31,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         
-        // Admin endpoints must always be filtered (require JWT token)
-        if (method.equals("GET") && 
-            (path.equals("/api/categories/admin") ||
-             path.equals("/api/categories/admin/summaries") ||
-             path.startsWith("/api/categories/admin/") ||
-             path.startsWith("/api/subcategories/admin/"))) {
+        // Admin read endpoints must always run through this filter so the JWT can be read.
+        // Do this before the public GET category/subcategory skip rules below.
+        if (path.equals("/api/categories/admin") ||
+            path.startsWith("/api/categories/admin/") ||
+            path.startsWith("/api/subcategories/admin/")) {
             return false;
         }
         
@@ -49,8 +48,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.startsWith("/api/booking/") ||
                (path.startsWith("/api/gallery/image/")) ||
                (path.startsWith("/api/gallery") && method.equals("GET")) ||
-               (path.startsWith("/api/categories/") && method.equals("GET")) ||
-               (path.startsWith("/api/subcategories/") && method.equals("GET")) ||
+               (path.equals("/api/categories") && method.equals("GET")) ||
+               (path.startsWith("/api/categories/slug/") && method.equals("GET")) ||
+               (path.startsWith("/api/subcategories/") && method.equals("GET") && !path.startsWith("/api/subcategories/admin/")) ||
                (path.startsWith("/api/services/") && method.equals("GET")) ||
                (path.startsWith("/api/time-slots/") && method.equals("GET")) ||
                (path.startsWith("/api/availability/") && method.equals("GET"));
@@ -66,29 +66,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         String token = getJwtFromRequest(request);
 
-        log.info("JWT Filter - Path: {}, Method: {}, Token present: {}", path, method, StringUtils.hasText(token));
+        log.debug("JWT Filter - Path: {}, Method: {}, Token present: {}", path, method, StringUtils.hasText(token));
 
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
             String email = jwtTokenProvider.getEmailFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
 
-            log.info("JWT Authentication - Email: {}, Raw Role: {}", email, role);
+            log.debug("JWT Authentication - Email: {}, Raw Role: {}", email, role);
 
             // Spring Security's hasRole() automatically adds ROLE_ prefix, so we need to strip it if present
             // If role is "ROLE_ADMIN", strip to "ADMIN" for hasRole() to work correctly
             String authority = role.startsWith("ROLE_") ? role.substring(5) : role;
             String finalAuthority = "ROLE_" + authority;
 
-            log.info("JWT Authentication - Final Authority: {}", finalAuthority);
+            log.debug("JWT Authentication - Final Authority: {}", finalAuthority);
 
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                     email, null, Collections.singletonList(new SimpleGrantedAuthority(finalAuthority)));
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
-            log.info("JWT Authentication - Successfully authenticated: {} with authorities: {}", email, authentication.getAuthorities());
+            log.debug("JWT Authentication - Successfully authenticated: {} with authorities: {}", email, authentication.getAuthorities());
         } else {
-            log.warn("JWT Authentication - No valid token found for request: {}", path);
+            log.debug("JWT Authentication - No valid token found for request: {}", path);
         }
 
         filterChain.doFilter(request, response);

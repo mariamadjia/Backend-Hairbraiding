@@ -21,6 +21,8 @@ public class CacheConfig {
         // Configure caches with different TTLs
         cacheManager.setCaches(Arrays.asList(
             new ConcurrentMapCache("bookingCategory"),
+            new ConcurrentMapCache("bookingCategories"),
+            new ConcurrentMapCache("publicCategories"),
             new ConcurrentMapCache("allCategories"),
             new ConcurrentMapCache("availableSlots"),
             new ConcurrentMapCache("appointments"),

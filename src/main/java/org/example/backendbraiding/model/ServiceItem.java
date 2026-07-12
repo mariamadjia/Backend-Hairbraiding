@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class ServiceItem {
     @ElementCollection
     @CollectionTable(name = "service_item_images", joinColumns = @JoinColumn(name = "service_item_id"))
     @Column(name = "image_url")
+    @BatchSize(size = 50)
     private List<String> images = new ArrayList<>();
 
     private String link;
@@ -42,14 +44,17 @@ public class ServiceItem {
     @ElementCollection
     @CollectionTable(name = "service_item_sizes", joinColumns = @JoinColumn(name = "service_item_id"))
     @Column(name = "size")
+    @BatchSize(size = 50)
     private List<String> availableSizes = new ArrayList<>();
 
     @ElementCollection
     @CollectionTable(name = "service_item_textures", joinColumns = @JoinColumn(name = "service_item_id"))
     @Column(name = "texture")
+    @BatchSize(size = 50)
     private List<String> hairTextures = new ArrayList<>();
 
     @OneToMany(mappedBy = "serviceItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @BatchSize(size = 50)
     private List<LengthOption> lengthOptions = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)

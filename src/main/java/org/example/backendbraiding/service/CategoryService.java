@@ -43,7 +43,7 @@ public class CategoryService {
         this.galleryImageRepository = galleryImageRepository;
     }
 
-    @org.springframework.cache.annotation.Cacheable(value = "allCategories")
+    @org.springframework.cache.annotation.Cacheable(value = "publicCategories")
     public Map<String, Object> getAllCategories() {
         List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
         return Map.of(
@@ -53,7 +53,7 @@ public class CategoryService {
     }
 
     @Transactional(readOnly = true)
-    @org.springframework.cache.annotation.Cacheable(value = "allCategories")
+    @org.springframework.cache.annotation.Cacheable(value = "bookingCategories")
     public List<Category> getAllCategoriesData() {
         List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
         // Force-load all lazy collections within the transaction
@@ -272,7 +272,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category createCategory(Category category) {
         if (categoryRepository.existsBySlug(category.getSlug())) {
             throw new RuntimeException("Category with slug already exists");
@@ -281,7 +281,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = getCategoryById(id);
         category.setName(categoryDetails.getName());
@@ -295,14 +295,14 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteCategory(Long id) {
         Category category = getCategoryById(id);
         categoryRepository.delete(category);
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
         Category category = getCategoryById(id);
         category.setFlippingImages(flippingImages);
@@ -341,33 +341,45 @@ public class CategoryService {
         Category category = categoryRepository.findBySlugForAdmin(slug)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
-        // Force-load all lazy collections within the transaction using split queries
-        // This avoids MultipleBagFetchException by loading collections separately
-        category.getFlippingImages().size();
+        // Keep the category endpoint lightweight. Loading all service items and
+        // length options here was the 20-30 second bottleneck. Full pricing data
+        // should be loaded from /api/subcategories/admin/{slug} only after a
+        // specific subcategory is opened.
         category.getSubcategories().size();
-        
-        // Load subcategories with their items
-        category.getSubcategories().forEach(sub -> {
-            sub.getItems().size();
-            // Load length options for each item
-            sub.getItems().forEach(item -> {
-                item.getLengthOptions().size();
-                item.getImages().size();
-                item.getAvailableSizes().size();
-                item.getHairTextures().size();
-            });
-        });
+        category.getFlippingImages().size();
 
-        // Load direct category items
-        category.getItems().forEach(item -> {
-            item.getLengthOptions().size();
-            item.getImages().size();
-            item.getAvailableSizes().size();
-            item.getHairTextures().size();
-        });
+        return mapToAdminCategoryShellDTO(category);
+    }
 
-        // Map to DTO
-        return mapToAdminCategoryDTO(category);
+    private AdminCategoryDTO mapToAdminCategoryShellDTO(Category category) {
+        AdminCategoryDTO dto = new AdminCategoryDTO();
+        dto.setId(category.getId());
+        dto.setName(category.getName());
+        dto.setSlug(category.getSlug());
+        dto.setSummary(category.getSummary());
+        dto.setImage(category.getImage());
+        dto.setDisplayOrder(category.getDisplayOrder());
+        dto.setFlippingImages(category.getFlippingImages() != null ? category.getFlippingImages() : new ArrayList<>());
+
+        List<AdminSubcategoryDTO> subDtos = new ArrayList<>();
+        if (category.getSubcategories() != null) {
+            subDtos = category.getSubcategories().stream().map(sub -> {
+                AdminSubcategoryDTO subDto = new AdminSubcategoryDTO();
+                subDto.setId(sub.getId());
+                subDto.setName(sub.getName());
+                subDto.setSlug(sub.getSlug());
+                subDto.setSummary(sub.getSummary());
+                subDto.setImage(sub.getImage());
+                subDto.setDisplayOrder(sub.getDisplayOrder());
+                subDto.setItems(new ArrayList<>());
+                subDto.setGalleryImages(new ArrayList<>());
+                return subDto;
+            }).collect(Collectors.toList());
+        }
+        dto.setSubcategories(subDtos);
+        dto.setItems(new ArrayList<>());
+
+        return dto;
     }
 
     private AdminCategoryDTO mapToAdminCategoryDTO(Category category) {
