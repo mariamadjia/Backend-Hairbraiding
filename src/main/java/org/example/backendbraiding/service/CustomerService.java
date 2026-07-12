@@ -51,13 +51,13 @@ public class CustomerService {
         Customer customer = customerRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
         
-        List<Appointment> appointments = appointmentRepository.findByCustomer_Id(id);
+        List<Appointment> appointments = appointmentRepository.findByCustomerId(id);
         
         return mapToDetailDTO(customer, appointments);
     }
 
     private CustomerSummaryDTO mapToSummaryDTO(Customer customer) {
-        List<Appointment> appointments = appointmentRepository.findByCustomer_Id(customer.getId());
+        List<Appointment> appointments = appointmentRepository.findByCustomerId(customer.getId());
         
         LocalDateTime lastAppointment = appointments.stream()
                 .map(Appointment::getAppointmentDateTime)
@@ -113,13 +113,27 @@ public class CustomerService {
                 : totalSpent.divide(BigDecimal.valueOf(appointments.size()), 2, java.math.RoundingMode.HALF_UP);
         
         List<CustomerDetailDTO.AppointmentSummaryDTO> appointmentSummaries = appointments.stream()
-                .map(app -> new CustomerDetailDTO.AppointmentSummaryDTO(
-                        app.getId(),
-                        app.getService() != null ? app.getService().getName() : "Unknown",
-                        app.getAppointmentDateTime(),
-                        app.getStatus().name(),
-                        app.getAmountPaid()
-                ))
+                .map(app -> {
+                    try {
+                        String priceStr = app.getPrice() != null ? app.getPrice() : "0";
+                        BigDecimal amountPaid = new BigDecimal(priceStr);
+                        return new CustomerDetailDTO.AppointmentSummaryDTO(
+                                app.getId(),
+                                app.getService() != null ? app.getService().getName() : "Unknown",
+                                app.getAppointmentDateTime(),
+                                app.getStatus().name(),
+                                amountPaid
+                        );
+                    } catch (Exception e) {
+                        return new CustomerDetailDTO.AppointmentSummaryDTO(
+                                app.getId(),
+                                app.getService() != null ? app.getService().getName() : "Unknown",
+                                app.getAppointmentDateTime(),
+                                app.getStatus().name(),
+                                BigDecimal.ZERO
+                        );
+                    }
+                })
                 .collect(Collectors.toList());
         
         return new CustomerDetailDTO(
