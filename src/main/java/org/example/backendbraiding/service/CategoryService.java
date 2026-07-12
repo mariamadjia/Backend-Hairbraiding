@@ -7,6 +7,7 @@ import org.example.backendbraiding.dto.CategoryGalleryDTO;
 import org.example.backendbraiding.dto.CategorySummaryDTO;
 import org.example.backendbraiding.dto.LengthOptionDTO;
 import org.example.backendbraiding.dto.SubcategoryGalleryDTO;
+import org.example.backendbraiding.dto.SubcategorySummaryDTO;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.model.LengthOption;
 import org.example.backendbraiding.model.ServiceItem;
@@ -400,6 +401,59 @@ public class CategoryService {
         List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
         if (category.getItems() != null) {
             itemDtos = category.getItems().stream().map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
+        }
+        dto.setItems(itemDtos);
+
+        return dto;
+    }
+
+    // New optimized methods for subcategory lazy loading
+
+    @Transactional(readOnly = true)
+    public List<SubcategorySummaryDTO> getSubcategorySummariesForAdmin(String categorySlug) {
+        List<Subcategory> subcategories = subcategoryRepository.findSubcategorySummariesByCategorySlug(categorySlug);
+        return subcategories.stream().map(sub -> {
+            SubcategorySummaryDTO dto = new SubcategorySummaryDTO();
+            dto.setId(sub.getId());
+            dto.setName(sub.getName());
+            dto.setSlug(sub.getSlug());
+            dto.setDisplayOrder(sub.getDisplayOrder());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public AdminSubcategoryDTO getSubcategoryBySlugForAdmin(String slug) {
+        Subcategory subcategory = subcategoryRepository.findBySlugForAdmin(slug)
+                .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+
+        // Force-load lazy collections within the transaction using split queries
+        subcategory.getItems().size();
+        
+        // Load items with their length options
+        subcategory.getItems().forEach(item -> {
+            item.getLengthOptions().size();
+            item.getImages().size();
+            item.getAvailableSizes().size();
+            item.getHairTextures().size();
+        });
+
+        // Map to DTO
+        return mapToAdminSubcategoryDTO(subcategory);
+    }
+
+    private AdminSubcategoryDTO mapToAdminSubcategoryDTO(Subcategory subcategory) {
+        AdminSubcategoryDTO dto = new AdminSubcategoryDTO();
+        dto.setId(subcategory.getId());
+        dto.setName(subcategory.getName());
+        dto.setSlug(subcategory.getSlug());
+        dto.setSummary(subcategory.getSummary());
+        dto.setImage(subcategory.getImage());
+        dto.setDisplayOrder(subcategory.getDisplayOrder());
+
+        List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
+        if (subcategory.getItems() != null) {
+            itemDtos = subcategory.getItems().stream().map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
         }
         dto.setItems(itemDtos);
 

@@ -1,9 +1,11 @@
 package org.example.backendbraiding.controller;
 
 import jakarta.validation.Valid;
+import org.example.backendbraiding.dto.AdminSubcategoryDTO;
 import org.example.backendbraiding.dto.SubcategoryRequestDTO;
 import org.example.backendbraiding.dto.SubcategoryUpdateDTO;
 import org.example.backendbraiding.model.Subcategory;
+import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,10 +17,12 @@ import java.util.Map;
 @RequestMapping("/api/subcategories")
 public class SubcategoryController {
     private final SubcategoryService subcategoryService;
+    private final CategoryService categoryService;
     private final org.example.backendbraiding.repository.SubcategoryRepository subcategoryRepository;
 
-    public SubcategoryController(SubcategoryService subcategoryService, org.example.backendbraiding.repository.SubcategoryRepository subcategoryRepository) {
+    public SubcategoryController(SubcategoryService subcategoryService, CategoryService categoryService, org.example.backendbraiding.repository.SubcategoryRepository subcategoryRepository) {
         this.subcategoryService = subcategoryService;
+        this.categoryService = categoryService;
         this.subcategoryRepository = subcategoryRepository;
     }
 
@@ -30,6 +34,12 @@ public class SubcategoryController {
     @GetMapping("/category/{categoryId}")
     public ResponseEntity<java.util.List<Subcategory>> getSubcategoriesByCategory(@PathVariable Long categoryId) {
         return ResponseEntity.ok(subcategoryRepository.findByCategoryIdOrderByDisplayOrderAsc(categoryId));
+    }
+
+    // New optimized endpoint for admin lazy loading
+    @GetMapping("/admin/{slug}")
+    public ResponseEntity<AdminSubcategoryDTO> getSubcategoryBySlugForAdmin(@PathVariable String slug) {
+        return ResponseEntity.ok(categoryService.getSubcategoryBySlugForAdmin(slug));
     }
 
     @PostMapping

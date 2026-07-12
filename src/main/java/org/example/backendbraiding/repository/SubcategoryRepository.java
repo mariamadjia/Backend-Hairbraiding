@@ -27,4 +27,12 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
     List<Subcategory> findGalleryCardImageSources(
             @Param("categoryIds") List<Long> categoryIds
     );
+
+    // New lightweight summary query for admin - subcategories within a category
+    @Query("SELECT s FROM Subcategory s WHERE s.category.slug = :categorySlug ORDER BY s.displayOrder ASC")
+    List<Subcategory> findSubcategorySummariesByCategorySlug(@Param("categorySlug") String categorySlug);
+
+    // Single subcategory with full details - split queries to avoid MultipleBagFetchException
+    @Query("SELECT s FROM Subcategory s WHERE s.slug = :slug")
+    Optional<Subcategory> findBySlugForAdmin(@Param("slug") String slug);
 }
