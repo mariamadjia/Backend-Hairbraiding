@@ -35,6 +35,7 @@ public class CategoryService {
         this.subcategoryRepository = subcategoryRepository;
     }
 
+    @org.springframework.cache.annotation.Cacheable(value = "allCategories")
     public Map<String, Object> getAllCategories() {
         List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
         return Map.of(

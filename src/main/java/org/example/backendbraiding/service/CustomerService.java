@@ -6,6 +6,8 @@ import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.model.Customer;
 import org.example.backendbraiding.repository.AppointmentRepository;
 import org.example.backendbraiding.repository.CustomerRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -25,14 +27,15 @@ public class CustomerService {
         this.customerRepository = customerRepository;
     }
 
-    public List<CustomerSummaryDTO> getAllCustomers() {
+    @org.springframework.cache.annotation.Cacheable(value = "customers")
+    public Page<CustomerSummaryDTO> getAllCustomers(Pageable pageable) {
         List<Appointment> allAppointments = appointmentRepository.findAll();
         
         // Aggregate customer data from appointments
         Map<Long, List<Appointment>> appointmentsByCustomer = allAppointments.stream()
                 .collect(Collectors.groupingBy(a -> a.getCustomer().getId()));
         
-        return appointmentsByCustomer.entrySet().stream()
+        List<CustomerSummaryDTO> allCustomers = appointmentsByCustomer.entrySet().stream()
                 .map(entry -> {
                     Customer customer = entry.getValue().get(0).getCustomer();
                     List<Appointment> customerAppointments = entry.getValue();
@@ -66,6 +69,14 @@ public class CustomerService {
                 })
                 .sorted(Comparator.comparing(CustomerSummaryDTO::getLastAppointmentDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
+        
+        // Apply pagination manually since we're aggregating data
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), allCustomers.size());
+        
+        List<CustomerSummaryDTO> paginatedCustomers = allCustomers.subList(start, end);
+        
+        return new org.springframework.data.domain.PageImpl<>(paginatedCustomers, pageable, allCustomers.size());
     }
 
     public CustomerDetailDTO getCustomerDetails(Long customerId) {

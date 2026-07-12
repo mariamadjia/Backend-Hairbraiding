@@ -9,6 +9,10 @@ import org.example.backendbraiding.dto.AppointmentSettingsDTO;
 import org.example.backendbraiding.model.Admin;
 import org.example.backendbraiding.repository.AdminRepository;
 import org.example.backendbraiding.service.AppointmentService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -36,15 +40,24 @@ public class AppointmentController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AppointmentResponseDTO>> getAllAppointments() {
-        List<AppointmentResponseDTO> appointments = appointmentService.getAllAppointments();
+    public ResponseEntity<Page<AppointmentResponseDTO>> getAllAppointments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "appointmentDateTime") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<AppointmentResponseDTO> appointments = appointmentService.getAllAppointments(pageable);
         return ResponseEntity.ok(appointments);
     }
 
     @GetMapping("/pending")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AppointmentResponseDTO>> getPendingAppointments() {
-        List<AppointmentResponseDTO> appointments = appointmentService.getPendingAppointments();
+    public ResponseEntity<Page<AppointmentResponseDTO>> getPendingAppointments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("appointmentDateTime").ascending());
+        Page<AppointmentResponseDTO> appointments = appointmentService.getPendingAppointments(pageable);
         return ResponseEntity.ok(appointments);
     }
 
@@ -57,9 +70,12 @@ public class AppointmentController {
 
     @GetMapping("/status/{status}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AppointmentResponseDTO>> getAppointmentsByStatus(
-            @PathVariable String status) {
-        List<AppointmentResponseDTO> appointments = appointmentService.getAppointmentsByStatus(status);
+    public ResponseEntity<Page<AppointmentResponseDTO>> getAppointmentsByStatus(
+            @PathVariable String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("appointmentDateTime").descending());
+        Page<AppointmentResponseDTO> appointments = appointmentService.getAppointmentsByStatus(status, pageable);
         return ResponseEntity.ok(appointments);
     }
 

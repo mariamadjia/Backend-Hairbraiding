@@ -8,6 +8,8 @@ import org.example.backendbraiding.dto.AppointmentResponseDTO;
 import org.example.backendbraiding.dto.AppointmentSettingsDTO;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,6 +82,7 @@ public class AppointmentService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
     public AppointmentResponseDTO approveAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
             .orElseThrow(() -> new RuntimeException("Appointment not found"));
@@ -123,6 +126,7 @@ public class AppointmentService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
     public AppointmentResponseDTO denyAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
             .orElseThrow(() -> new RuntimeException("Appointment not found"));
@@ -163,20 +167,19 @@ public class AppointmentService {
         return mapToResponseDTO(updatedAppointment);
     }
 
-    public List<AppointmentResponseDTO> getPendingAppointments() {
-        return appointmentRepository.findByStatus(Appointment.AppointmentStatus.PENDING)
-            .stream()
-            .map(this::mapToResponseDTO)
-            .collect(Collectors.toList());
+    @org.springframework.cache.annotation.Cacheable(value = "appointments", key = "'pending'")
+    public Page<AppointmentResponseDTO> getPendingAppointments(Pageable pageable) {
+        return appointmentRepository.findByStatus(Appointment.AppointmentStatus.PENDING, pageable)
+            .map(this::mapToResponseDTO);
     }
 
-    public List<AppointmentResponseDTO> getAllAppointments() {
-        return appointmentRepository.findAll()
-            .stream()
-            .map(this::mapToResponseDTO)
-            .collect(Collectors.toList());
+    @org.springframework.cache.annotation.Cacheable(value = "appointments", key = "'all'")
+    public Page<AppointmentResponseDTO> getAllAppointments(Pageable pageable) {
+        return appointmentRepository.findAll(pageable)
+            .map(this::mapToResponseDTO);
     }
 
+    @org.springframework.cache.annotation.Cacheable(value = "appointments", key = "'upcoming'")
     public List<AppointmentResponseDTO> getUpcomingAppointments() {
         return appointmentRepository.findUpcomingAppointments(LocalDateTime.now())
             .stream()
@@ -184,13 +187,11 @@ public class AppointmentService {
             .collect(Collectors.toList());
     }
 
-    public List<AppointmentResponseDTO> getAppointmentsByStatus(String status) {
+    public Page<AppointmentResponseDTO> getAppointmentsByStatus(String status, Pageable pageable) {
         try {
             Appointment.AppointmentStatus appointmentStatus = Appointment.AppointmentStatus.valueOf(status.toUpperCase());
-            return appointmentRepository.findByStatus(appointmentStatus)
-                .stream()
-                .map(this::mapToResponseDTO)
-                .collect(Collectors.toList());
+            return appointmentRepository.findByStatus(appointmentStatus, pageable)
+                .map(this::mapToResponseDTO);
         } catch (IllegalArgumentException e) {
             throw new RuntimeException("Invalid appointment status: " + status + ". Valid values are: PENDING, APPROVED, DENIED, CANCELLED, COMPLETED");
         }
