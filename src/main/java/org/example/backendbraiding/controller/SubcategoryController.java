@@ -8,7 +8,6 @@ import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -43,13 +42,11 @@ public class SubcategoryController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Subcategory> createSubcategory(@Valid @RequestBody SubcategoryRequestDTO request) {
         return ResponseEntity.ok(subcategoryService.createSubcategory(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Subcategory> updateSubcategory(
             @PathVariable Long id,
             @Valid @RequestBody SubcategoryUpdateDTO request) {
@@ -57,7 +54,6 @@ public class SubcategoryController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteSubcategory(@PathVariable Long id) {
         subcategoryService.deleteSubcategory(id);
         return ResponseEntity.ok(Map.of("message", "Subcategory deleted successfully"));
