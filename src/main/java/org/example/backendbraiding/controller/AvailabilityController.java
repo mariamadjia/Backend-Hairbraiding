@@ -27,7 +27,7 @@ public class AvailabilityController {
     
     // Business Hours Endpoints
     @PostMapping("/business-hours")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BusinessHoursDTO> saveBusinessHours(@RequestBody BusinessHoursDTO dto) {
         BusinessHoursDTO saved = availabilityService.saveBusinessHours(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);

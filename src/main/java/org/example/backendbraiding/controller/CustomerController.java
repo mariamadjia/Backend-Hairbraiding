@@ -20,14 +20,14 @@ public class CustomerController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<CustomerSummaryDTO>> getAllCustomers() {
         List<CustomerSummaryDTO> customers = customerService.getAllCustomers();
         return ResponseEntity.ok(customers);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<CustomerDetailDTO> getCustomerDetails(@PathVariable Long id) {
         CustomerDetailDTO details = customerService.getCustomerDetails(id);
         return ResponseEntity.ok(details);
