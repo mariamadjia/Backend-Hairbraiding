@@ -33,6 +33,7 @@ public class AppointmentService {
     private final BlockedTimeSlotRepository blockedTimeSlotRepository;
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "customers"}, allEntries = true)
     public AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO) {
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
             .orElseGet(this::createDefaultSettings);
@@ -82,7 +83,7 @@ public class AppointmentService {
     }
 
     @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "customers"}, allEntries = true)
     public AppointmentResponseDTO approveAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
             .orElseThrow(() -> new RuntimeException("Appointment not found"));
@@ -126,7 +127,7 @@ public class AppointmentService {
     }
 
     @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "customers"}, allEntries = true)
     public AppointmentResponseDTO denyAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
             .orElseThrow(() -> new RuntimeException("Appointment not found"));

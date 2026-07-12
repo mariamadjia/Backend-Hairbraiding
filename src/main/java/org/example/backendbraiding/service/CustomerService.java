@@ -29,13 +29,15 @@ public class CustomerService {
 
     @org.springframework.cache.annotation.Cacheable(value = "customers")
     public Page<CustomerSummaryDTO> getAllCustomers(Pageable pageable) {
-        List<Appointment> allAppointments = appointmentRepository.findAll();
+        // Get paginated appointments for better performance
+        Page<Appointment> appointmentsPage = appointmentRepository.findAll(pageable);
+        List<Appointment> appointments = appointmentsPage.getContent();
         
         // Aggregate customer data from appointments
-        Map<Long, List<Appointment>> appointmentsByCustomer = allAppointments.stream()
+        Map<Long, List<Appointment>> appointmentsByCustomer = appointments.stream()
                 .collect(Collectors.groupingBy(a -> a.getCustomer().getId()));
         
-        List<CustomerSummaryDTO> allCustomers = appointmentsByCustomer.entrySet().stream()
+        List<CustomerSummaryDTO> customers = appointmentsByCustomer.entrySet().stream()
                 .map(entry -> {
                     Customer customer = entry.getValue().get(0).getCustomer();
                     List<Appointment> customerAppointments = entry.getValue();
@@ -70,13 +72,7 @@ public class CustomerService {
                 .sorted(Comparator.comparing(CustomerSummaryDTO::getLastAppointmentDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
         
-        // Apply pagination manually since we're aggregating data
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), allCustomers.size());
-        
-        List<CustomerSummaryDTO> paginatedCustomers = allCustomers.subList(start, end);
-        
-        return new org.springframework.data.domain.PageImpl<>(paginatedCustomers, pageable, allCustomers.size());
+        return new org.springframework.data.domain.PageImpl<>(customers, pageable, appointmentsPage.getTotalElements());
     }
 
     public CustomerDetailDTO getCustomerDetails(Long customerId) {

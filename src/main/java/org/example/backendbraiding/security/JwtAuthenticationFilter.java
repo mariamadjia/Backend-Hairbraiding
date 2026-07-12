@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -15,6 +16,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Collections;
 
+@Slf4j
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -29,11 +31,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         
-        System.out.println("JWT Filter - Path: " + path + ", Method: " + method);
-        
         // Admin endpoints must always be filtered
         if (path.equals("/api/categories/admin")) {
-            System.out.println("JWT Filter - Admin endpoint, MUST filter");
             return false;
         }
         
@@ -52,7 +51,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                (path.startsWith("/api/time-slots/") && method.equals("GET")) ||
                path.startsWith("/api/availability/");
         
-        System.out.println("JWT Filter - Should skip: " + skip);
         return skip;
     }
 
@@ -66,14 +64,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String email = jwtTokenProvider.getEmailFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
 
+            log.debug("JWT Authentication - Email: {}, Raw Role: {}", email, role);
+
             // Spring Security's hasRole() automatically adds ROLE_ prefix, so we need to strip it if present
             // If role is "ROLE_ADMIN", strip to "ADMIN" for hasRole() to work correctly
             String authority = role.startsWith("ROLE_") ? role.substring(5) : role;
+            String finalAuthority = "ROLE_" + authority;
+
+            log.debug("JWT Authentication - Parsed Authority: {}, Final Authority: {}", authority, finalAuthority);
+
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    email, null, Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + authority)));
+                    email, null, Collections.singletonList(new SimpleGrantedAuthority(finalAuthority)));
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            log.debug("JWT Authentication - Successfully authenticated user: {} with authorities: {}",
+                email, authentication.getAuthorities());
+        } else {
+            log.debug("JWT Authentication - No valid token found for request: {}", request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
