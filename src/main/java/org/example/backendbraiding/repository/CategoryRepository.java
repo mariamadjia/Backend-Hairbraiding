@@ -40,15 +40,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     
     boolean existsBySlug(String slug);
 
-    // New lightweight summary query for admin
-    @Query("""
-        SELECT new org.example.backendbraiding.dto.CategorySummaryDTO(
-            c.id, c.name, c.slug, c.displayOrder
-        )
-        FROM Category c
-        ORDER BY c.displayOrder ASC
-    """)
-    List<CategorySummaryDTO> findCategorySummaries();
+    // New lightweight summary query for admin - fetch entities and map in service
+    @Query("SELECT c FROM Category c ORDER BY c.displayOrder ASC")
+    List<Category> findCategorySummaries();
 
     // Single category with full details - split queries to avoid MultipleBagFetchException
     @Query("SELECT c FROM Category c WHERE c.slug = :slug")
