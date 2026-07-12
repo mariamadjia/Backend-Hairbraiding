@@ -10,12 +10,19 @@ import java.util.List;
 
 @Repository
 public interface GalleryImageRepository extends JpaRepository<GalleryImage, Long> {
-    List<GalleryImage> findByCategoryIdOrderByDisplayOrderAsc(Long categoryId);
-    List<GalleryImage> findBySubcategoryIdOrderByDisplayOrderAsc(Long subcategoryId);
+    @Query("SELECT g FROM GalleryImage g LEFT JOIN FETCH g.category LEFT JOIN FETCH g.subcategory WHERE g.category.id = :categoryId ORDER BY g.displayOrder ASC")
+    List<GalleryImage> findByCategoryIdOrderByDisplayOrderAsc(@Param("categoryId") Long categoryId);
+
+    @Query("SELECT g FROM GalleryImage g LEFT JOIN FETCH g.category LEFT JOIN FETCH g.subcategory WHERE g.subcategory.id = :subcategoryId ORDER BY g.displayOrder ASC")
+    List<GalleryImage> findBySubcategoryIdOrderByDisplayOrderAsc(@Param("subcategoryId") Long subcategoryId);
+
     List<GalleryImage> findByServiceItemIdOrderByDisplayOrderAsc(Long serviceItemId);
     List<GalleryImage> findByIsFeaturedTrueOrderByDisplayOrderAsc();
     List<GalleryImage> findByIsHeroTrueOrderByDisplayOrderAsc();
     long countByIsHeroTrue();
+
+    @Query("SELECT COALESCE(MAX(g.displayOrder), 0) FROM GalleryImage g")
+    Integer findMaxDisplayOrder();
     
     @Query("SELECT g FROM GalleryImage g WHERE " +
            "LOWER(g.title) LIKE LOWER(CONCAT('%', :search, '%')) OR " +

@@ -164,11 +164,8 @@ public class GalleryImageService {
         }
 
         // Set display order (last)
-        Integer maxOrder = imageRepository.findAll().stream()
-                .map(GalleryImage::getDisplayOrder)
-                .max(Integer::compareTo)
-                .orElse(0);
-        image.setDisplayOrder(maxOrder + 1);
+        Integer maxOrder = imageRepository.findMaxDisplayOrder();
+        image.setDisplayOrder((maxOrder != null ? maxOrder : 0) + 1);
 
         GalleryImage saved = imageRepository.save(image);
         
