@@ -302,6 +302,16 @@ public class GalleryImageService {
     @Transactional
     @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ImageResponse registerImageUrl(String imageUrl, String title, Long categoryId, Long subcategoryId) {
+        // Guard: if this URL is already a gallery record for this subcategory, return it as-is
+        if (subcategoryId != null) {
+            List<GalleryImage> existing = imageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(subcategoryId);
+            for (GalleryImage g : existing) {
+                if (imageUrl.equals(g.getImageUrl())) {
+                    return convertToResponse(g);
+                }
+            }
+        }
+
         GalleryImage image = new GalleryImage();
         image.setTitle(title != null && !title.isBlank() ? title : "Image");
         image.setImageUrl(imageUrl);

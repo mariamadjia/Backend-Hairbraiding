@@ -7,6 +7,7 @@ import org.example.backendbraiding.exception.SlugAlreadyExistsException;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
+import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -16,11 +17,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class SubcategoryService {
     private final SubcategoryRepository subcategoryRepository;
     private final CategoryRepository categoryRepository;
+    private final GalleryImageRepository galleryImageRepository;
     private final ImageSyncService imageSyncService;
 
-    public SubcategoryService(SubcategoryRepository subcategoryRepository, CategoryRepository categoryRepository, ImageSyncService imageSyncService) {
+    public SubcategoryService(SubcategoryRepository subcategoryRepository, CategoryRepository categoryRepository, GalleryImageRepository galleryImageRepository, ImageSyncService imageSyncService) {
         this.subcategoryRepository = subcategoryRepository;
         this.categoryRepository = categoryRepository;
+        this.galleryImageRepository = galleryImageRepository;
         this.imageSyncService = imageSyncService;
     }
 
@@ -101,6 +104,10 @@ public class SubcategoryService {
     @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteSubcategory(Long id) {
         Subcategory subcategory = getSubcategoryById(id);
+        // Delete gallery images first — they have no cascade from the subcategory side
+        galleryImageRepository.deleteAll(
+                galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(id)
+        );
         subcategoryRepository.delete(subcategory);
     }
     
