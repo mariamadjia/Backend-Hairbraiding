@@ -298,6 +298,9 @@ public class CategoryService {
     @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteCategory(Long id) {
         Category category = getCategoryById(id);
+        // Remove gallery images first to avoid FK constraint violations
+        List<GalleryImage> galleryImages = galleryImageRepository.findByCategoryIdOrderByDisplayOrderAsc(id);
+        galleryImageRepository.deleteAll(galleryImages);
         categoryRepository.delete(category);
     }
 
