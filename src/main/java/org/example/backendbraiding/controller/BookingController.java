@@ -1,10 +1,12 @@
 package org.example.backendbraiding.controller;
 
 import org.example.backendbraiding.model.Category;
+import org.example.backendbraiding.model.GalleryImage;
 import org.example.backendbraiding.model.LengthOption;
 import org.example.backendbraiding.model.ServiceItem;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
+import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
@@ -24,13 +26,16 @@ public class BookingController {
     private final SubcategoryService subcategoryService;
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final GalleryImageRepository galleryImageRepository;
 
-    public BookingController(CategoryService categoryService, SubcategoryService subcategoryService, 
-                           CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository) {
+    public BookingController(CategoryService categoryService, SubcategoryService subcategoryService,
+                           CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
+                           GalleryImageRepository galleryImageRepository) {
         this.categoryService = categoryService;
         this.subcategoryService = subcategoryService;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
+        this.galleryImageRepository = galleryImageRepository;
     }
 
     @GetMapping
@@ -52,7 +57,15 @@ public class BookingController {
                 bookingSubcategory.put("name", subcategory.getName());
                 bookingSubcategory.put("slug", subcategory.getSlug());
                 bookingSubcategory.put("summary", subcategory.getSummary());
-                bookingSubcategory.put("image", subcategory.getImage());
+
+                List<String> subcategoryImages = galleryImageRepository
+                        .findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId())
+                        .stream()
+                        .map(GalleryImage::getImageUrl)
+                        .filter(Objects::nonNull)
+                        .toList();
+                bookingSubcategory.put("images", subcategoryImages);
+                bookingSubcategory.put("image", !subcategoryImages.isEmpty() ? subcategoryImages.get(0) : subcategory.getImage());
 
                 List<Map<String, Object>> bookingItems = new ArrayList<>();
 
@@ -131,7 +144,15 @@ public class BookingController {
             bookingSubcategory.put("name", subcategory.getName());
             bookingSubcategory.put("slug", subcategory.getSlug());
             bookingSubcategory.put("summary", subcategory.getSummary());
-            bookingSubcategory.put("image", subcategory.getImage());
+
+            List<String> subcategoryImages = galleryImageRepository
+                    .findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId())
+                    .stream()
+                    .map(GalleryImage::getImageUrl)
+                    .filter(Objects::nonNull)
+                    .toList();
+            bookingSubcategory.put("images", subcategoryImages);
+            bookingSubcategory.put("image", !subcategoryImages.isEmpty() ? subcategoryImages.get(0) : subcategory.getImage());
 
             List<Map<String, Object>> bookingItems = new ArrayList<>();
 

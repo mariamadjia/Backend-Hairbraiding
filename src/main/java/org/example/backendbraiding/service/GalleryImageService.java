@@ -5,6 +5,7 @@ import org.example.backendbraiding.dto.ImageUpdateRequest;
 import org.example.backendbraiding.dto.ImageUploadRequest;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,6 +98,7 @@ public class GalleryImageService {
     }
 
     @Transactional
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
         // Validate file
         validateFile(file);
@@ -178,6 +180,7 @@ public class GalleryImageService {
     }
 
     @Transactional
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ImageResponse updateImage(Long id, ImageUpdateRequest request) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
@@ -228,6 +231,7 @@ public class GalleryImageService {
     }
 
     @Transactional
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteImage(Long id) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
@@ -263,6 +267,7 @@ public class GalleryImageService {
     }
 
     @Transactional
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void reorderImages(List<Long> imageIds) {
         for (int i = 0; i < imageIds.size(); i++) {
             final int displayOrder = i;
