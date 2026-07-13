@@ -120,6 +120,20 @@ public class GalleryController {
         return ResponseEntity.ok(Map.of("message", "Images reordered successfully"));
     }
 
+    @PostMapping("/register-url")
+    public ResponseEntity<ImageResponse> registerImageUrl(@RequestBody Map<String, Object> body) {
+        String imageUrl = (String) body.get("imageUrl");
+        String title = (String) body.get("title");
+        Long categoryId = body.get("categoryId") != null ? Long.valueOf(body.get("categoryId").toString()) : null;
+        Long subcategoryId = body.get("subcategoryId") != null ? Long.valueOf(body.get("subcategoryId").toString()) : null;
+
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return ResponseEntity.ok(galleryImageService.registerImageUrl(imageUrl, title, categoryId, subcategoryId));
+    }
+
     @CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
     @GetMapping("/image/{filename:.+}")
     public ResponseEntity<Resource> serveImage(@PathVariable String filename) {

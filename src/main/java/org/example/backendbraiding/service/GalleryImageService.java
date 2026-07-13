@@ -299,6 +299,39 @@ public class GalleryImageService {
         }
     }
 
+    @Transactional
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    public ImageResponse registerImageUrl(String imageUrl, String title, Long categoryId, Long subcategoryId) {
+        GalleryImage image = new GalleryImage();
+        image.setTitle(title != null && !title.isBlank() ? title : "Image");
+        image.setImageUrl(imageUrl);
+        image.setThumbnailUrl(imageUrl);
+
+        if (categoryId != null) {
+            Category category = categoryRepository.findById(categoryId)
+                    .orElseThrow(() -> new RuntimeException("Category not found"));
+            image.setCategory(category);
+        }
+
+        if (subcategoryId != null) {
+            Subcategory subcategory = subcategoryRepository.findById(subcategoryId)
+                    .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+            image.setSubcategory(subcategory);
+        }
+
+        Integer maxOrder = imageRepository.findMaxDisplayOrder();
+        image.setDisplayOrder((maxOrder != null ? maxOrder : 0) + 1);
+        image.setUploadedBy("system");
+
+        GalleryImage saved = imageRepository.save(image);
+
+        if (saved.getSubcategory() != null) {
+            imageSyncService.syncGalleryToSubcategoryImage(saved.getSubcategory().getId());
+        }
+
+        return convertToResponse(saved);
+    }
+
     private void validateFile(MultipartFile file) {
         if (file.isEmpty()) {
             throw new RuntimeException("File is empty");
