@@ -58,13 +58,13 @@ public class BookingController {
                 bookingSubcategory.put("slug", subcategory.getSlug());
                 bookingSubcategory.put("summary", subcategory.getSummary());
 
-                List<String> subcategoryImages = galleryImageRepository
-                        .findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId())
-                        .stream()
+                List<GalleryImage> galleryImages = getSubcategoryGalleryImages(subcategory.getId());
+                List<String> subcategoryImages = galleryImages.stream()
                         .map(GalleryImage::getImageUrl)
                         .filter(Objects::nonNull)
                         .toList();
                 bookingSubcategory.put("images", subcategoryImages);
+                bookingSubcategory.put("galleryImages", mapGalleryImages(galleryImages));
                 bookingSubcategory.put("image", !subcategoryImages.isEmpty() ? subcategoryImages.get(0) : subcategory.getImage());
 
                 List<Map<String, Object>> bookingItems = new ArrayList<>();
@@ -145,13 +145,13 @@ public class BookingController {
             bookingSubcategory.put("slug", subcategory.getSlug());
             bookingSubcategory.put("summary", subcategory.getSummary());
 
-            List<String> subcategoryImages = galleryImageRepository
-                    .findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId())
-                    .stream()
+            List<GalleryImage> galleryImages = getSubcategoryGalleryImages(subcategory.getId());
+            List<String> subcategoryImages = galleryImages.stream()
                     .map(GalleryImage::getImageUrl)
                     .filter(Objects::nonNull)
                     .toList();
             bookingSubcategory.put("images", subcategoryImages);
+            bookingSubcategory.put("galleryImages", mapGalleryImages(galleryImages));
             bookingSubcategory.put("image", !subcategoryImages.isEmpty() ? subcategoryImages.get(0) : subcategory.getImage());
 
             List<Map<String, Object>> bookingItems = new ArrayList<>();
@@ -202,6 +202,30 @@ public class BookingController {
         bookingCategory.put("subcategories", bookingSubcategories);
 
         return bookingCategory;
+    }
+
+    private List<GalleryImage> getSubcategoryGalleryImages(Long subcategoryId) {
+        if (subcategoryId == null) {
+            return List.of();
+        }
+
+        return galleryImageRepository
+                .findBySubcategoryIdOrderByDisplayOrderAsc(subcategoryId);
+    }
+
+    private List<Map<String, Object>> mapGalleryImages(List<GalleryImage> images) {
+        return images.stream()
+                .map(image -> {
+                    Map<String, Object> galleryImage = new LinkedHashMap<>();
+                    galleryImage.put("id", image.getId());
+                    galleryImage.put("imageUrl", image.getImageUrl());
+                    galleryImage.put("thumbnailUrl", image.getThumbnailUrl());
+                    galleryImage.put("title", image.getTitle());
+                    galleryImage.put("altText", image.getAltText());
+                    galleryImage.put("displayOrder", image.getDisplayOrder());
+                    return galleryImage;
+                })
+                .toList();
     }
 
     @PostMapping("/populate-images")

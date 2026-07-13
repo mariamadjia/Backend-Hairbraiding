@@ -112,9 +112,13 @@ public class ImageSyncService {
         if (subcategory.getImage() != null && 
             subcategory.getImage().equals(deletedImage.getImageUrl())) {
             
-            // Find remaining gallery images for this subcategory
+            // Find remaining gallery images for this subcategory. Exclude the image
+            // being deleted because this method may be called before delete/flush.
             List<GalleryImage> remainingImages = galleryImageRepository
-                    .findBySubcategoryIdOrderByDisplayOrderAsc(subcategoryId);
+                    .findBySubcategoryIdOrderByDisplayOrderAsc(subcategoryId)
+                    .stream()
+                    .filter(image -> !image.getId().equals(deletedImage.getId()))
+                    .toList();
 
             if (remainingImages.isEmpty()) {
                 // No more images, clear subcategory image

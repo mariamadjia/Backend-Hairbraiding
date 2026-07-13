@@ -235,10 +235,11 @@ public class GalleryImageService {
     public void deleteImage(Long id) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
-        
-        // Sync to subcategory before deletion
-        imageSyncService.handleGalleryImageDeletion(image);
-        
+
+        Long subcategoryId = image.getSubcategory() != null
+                ? image.getSubcategory().getId()
+                : null;
+
         // Delete physical file
         try {
             String filename = Paths.get(image.getImageUrl())
@@ -264,18 +265,37 @@ public class GalleryImageService {
         }
 
         imageRepository.delete(image);
+        imageRepository.flush();
+
+        // Sync after deletion so the deleted image is not selected again
+        if (subcategoryId != null) {
+            imageSyncService.syncGalleryToSubcategoryImage(subcategoryId);
+        }
     }
 
     @Transactional
     @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void reorderImages(List<Long> imageIds) {
+        java.util.Set<Long> affectedSubcategoryIds = new java.util.HashSet<>();
+
         for (int i = 0; i < imageIds.size(); i++) {
             final int displayOrder = i;
             Long imageId = imageIds.get(i);
             imageRepository.findById(imageId).ifPresent(image -> {
                 image.setDisplayOrder(displayOrder);
                 imageRepository.save(image);
+
+                if (image.getSubcategory() != null) {
+                    affectedSubcategoryIds.add(image.getSubcategory().getId());
+                }
             });
+        }
+
+        imageRepository.flush();
+
+        // Keep subcategory.image aligned with the first reordered gallery image
+        for (Long subcategoryId : affectedSubcategoryIds) {
+            imageSyncService.syncGalleryToSubcategoryImage(subcategoryId);
         }
     }
 
