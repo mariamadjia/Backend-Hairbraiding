@@ -1,5 +1,6 @@
 package org.example.backendbraiding.service;
 
+import org.example.backendbraiding.model.GalleryImage;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;

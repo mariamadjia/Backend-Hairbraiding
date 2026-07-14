@@ -3,11 +3,14 @@ package org.example.backendbraiding.controller;
 import org.example.backendbraiding.dto.AdminCategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
 import org.example.backendbraiding.dto.CategorySummaryDTO;
+import org.example.backendbraiding.dto.CompleteCategoryRequest;
 import org.example.backendbraiding.dto.SubcategorySummaryDTO;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.service.CategoryService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
 
 import java.util.List;
 import java.util.Map;
@@ -102,6 +105,11 @@ public class CategoryController {
     @PostMapping
     public ResponseEntity<Category> createCategory(@RequestBody Category category) {
         return ResponseEntity.ok(categoryService.createCategory(category));
+    }
+
+    @PostMapping("/complete")
+    public ResponseEntity<Category> createCompleteCategory(@Valid @RequestBody CompleteCategoryRequest request) {
+        return ResponseEntity.ok(categoryService.createCompleteCategory(request));
     }
 
     @PutMapping("/{id}")

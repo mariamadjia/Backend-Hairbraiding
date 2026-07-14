@@ -5,6 +5,7 @@ import org.example.backendbraiding.dto.AdminServiceItemDTO;
 import org.example.backendbraiding.dto.AdminSubcategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
 import org.example.backendbraiding.dto.CategorySummaryDTO;
+import org.example.backendbraiding.dto.CompleteCategoryRequest;
 import org.example.backendbraiding.dto.ImageResponse;
 import org.example.backendbraiding.dto.LengthOptionDTO;
 import org.example.backendbraiding.dto.SubcategoryGalleryDTO;
@@ -285,6 +286,113 @@ public class CategoryService {
             throw new RuntimeException("Category with slug already exists");
         }
         return categoryRepository.save(category);
+    }
+
+    @Transactional
+    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    public Category createCompleteCategory(CompleteCategoryRequest request) {
+        Category existing = categoryRepository.findBySlug(request.getSlug()).orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+
+        Category category = new Category();
+        category.setName(request.getName().trim());
+        category.setSlug(request.getSlug().trim());
+        category.setDisplayOrder(categoryRepository.findAll().size());
+
+        List<GalleryImage> categoryImages = getGalleryImages(request.getCategoryImageIds());
+        category.setFlippingImages(categoryImages.stream().map(GalleryImage::getImageUrl).collect(Collectors.toList()));
+
+        for (int subIndex = 0; subIndex < request.getSubcategories().size(); subIndex++) {
+            CompleteCategoryRequest.SubcategoryInput subInput = request.getSubcategories().get(subIndex);
+            String subSlug = generateSlug(subInput.getName());
+            if (subcategoryRepository.findBySlug(subSlug).isPresent()) {
+                throw new IllegalArgumentException("Subcategory slug already exists: " + subSlug);
+            }
+
+            Subcategory subcategory = new Subcategory();
+            subcategory.setName(subInput.getName().trim());
+            subcategory.setSlug(subSlug);
+            subcategory.setDisplayOrder(subIndex);
+            subcategory.setCategory(category);
+            category.getSubcategories().add(subcategory);
+
+            for (CompleteCategoryRequest.ServiceInput serviceInput : subInput.getSizes()) {
+                ServiceItem serviceItem = new ServiceItem();
+                serviceItem.setName(serviceInput.getName().trim());
+                serviceItem.setPrice("");
+                serviceItem.setDescription("");
+                serviceItem.setSubcategory(subcategory);
+                subcategory.getItems().add(serviceItem);
+
+                for (CompleteCategoryRequest.LengthInput lengthInput : serviceInput.getLengths()) {
+                    LengthOption option = new LengthOption();
+                    option.setName(lengthInput.getName().trim());
+                    option.setPrice(lengthInput.getPrice().trim());
+                    option.setNotes(lengthInput.getNotes());
+                    option.setDuration(lengthInput.getDuration());
+                    option.setServiceItem(serviceItem);
+                    serviceItem.getLengthOptions().add(option);
+                }
+            }
+        }
+
+        Category saved = categoryRepository.saveAndFlush(category);
+        attachCompleteCategoryImages(saved, request, categoryImages);
+        return saved;
+    }
+
+    private List<GalleryImage> getGalleryImages(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) return new ArrayList<>();
+        List<GalleryImage> images = galleryImageRepository.findAllById(ids);
+        if (images.size() != ids.size()) {
+            throw new IllegalArgumentException("One or more uploaded images were not found");
+        }
+        return images;
+    }
+
+    private void attachCompleteCategoryImages(Category category, CompleteCategoryRequest request, List<GalleryImage> categoryImages) {
+        categoryImages.forEach(image -> image.setCategory(category));
+        List<GalleryImage> changedImages = new ArrayList<>(categoryImages);
+
+        for (int subIndex = 0; subIndex < request.getSubcategories().size(); subIndex++) {
+            CompleteCategoryRequest.SubcategoryInput subInput = request.getSubcategories().get(subIndex);
+            Subcategory subcategory = category.getSubcategories().get(subIndex);
+            List<GalleryImage> subImages = getGalleryImages(subInput.getImageIds());
+            subImages.forEach(image -> {
+                image.setCategory(category);
+                image.setSubcategory(subcategory);
+            });
+            if (!subImages.isEmpty()) subcategory.setImage(subImages.get(0).getImageUrl());
+            changedImages.addAll(subImages);
+
+            for (int sizeIndex = 0; sizeIndex < subInput.getSizes().size(); sizeIndex++) {
+                CompleteCategoryRequest.ServiceInput serviceInput = subInput.getSizes().get(sizeIndex);
+                ServiceItem serviceItem = subcategory.getItems().get(sizeIndex);
+                for (int lengthIndex = 0; lengthIndex < serviceInput.getLengths().size(); lengthIndex++) {
+                    Long imageId = serviceInput.getLengths().get(lengthIndex).getImageId();
+                    if (imageId == null) continue;
+                    GalleryImage image = galleryImageRepository.findById(imageId)
+                            .orElseThrow(() -> new IllegalArgumentException("Uploaded length image was not found: " + imageId));
+                    image.setCategory(category);
+                    image.setSubcategory(subcategory);
+                    image.setServiceItem(serviceItem);
+                    serviceItem.getLengthOptions().get(lengthIndex).setImageUrl(image.getImageUrl());
+                    changedImages.add(image);
+                }
+            }
+        }
+
+        galleryImageRepository.saveAll(changedImages);
+    }
+
+    private String generateSlug(String name) {
+        return name.toLowerCase()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-")
+                .replaceAll("-+", "-")
+                .trim();
     }
 
     @Transactional
