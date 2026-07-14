@@ -7,6 +7,8 @@ import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class GalleryImageService {
+    private static final Logger log = LoggerFactory.getLogger(GalleryImageService.class);
     private final GalleryImageRepository imageRepository;
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
@@ -262,7 +265,7 @@ public class GalleryImageService {
 
             resolvedFilePath = filePath;
         } catch (Exception e) {
-            System.err.println("Could not resolve file path for deletion: " + e.getMessage());
+            log.warn("Could not resolve file path for deletion: {}", e.getMessage());
         }
 
         // Commit DB deletion first — if this throws, the file is untouched
@@ -279,7 +282,7 @@ public class GalleryImageService {
             try {
                 Files.deleteIfExists(resolvedFilePath);
             } catch (IOException e) {
-                System.err.println("Failed to delete file after DB commit: " + e.getMessage());
+                log.error("Failed to delete file after DB commit: {}", e.getMessage());
             }
         }
     }

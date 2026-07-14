@@ -4,11 +4,14 @@ import com.vonage.client.VonageClient;
 import com.vonage.client.sms.MessageStatus;
 import com.vonage.client.sms.SmsSubmissionResponse;
 import com.vonage.client.sms.messages.TextMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class SmsService {
+    private static final Logger log = LoggerFactory.getLogger(SmsService.class);
 
     @Value("${vonage.api.key}")
     private String apiKey;
@@ -39,22 +42,18 @@ public class SmsService {
                 formattedPhone = "+" + formattedPhone;
             }
             
-            System.out.println("=== SMS DEBUG ===");
-            System.out.println("From (sender): " + fromPhoneNumber);
-            System.out.println("To (recipient): " + formattedPhone);
-            System.out.println("Message: " + messageBody);
+            log.debug("SMS sending: from={} to={} message={}", fromPhoneNumber, formattedPhone, messageBody);
             
             TextMessage message = new TextMessage(fromPhoneNumber, formattedPhone, messageBody);
             SmsSubmissionResponse response = getVonageClient().getSmsClient().submitMessage(message);
             
             if (response.getMessages().get(0).getStatus() == MessageStatus.OK) {
-                System.out.println("SMS sent successfully to " + formattedPhone + ". Message ID: " + response.getMessages().get(0).getId());
+                log.info("SMS sent successfully to {}. Message ID: {}", formattedPhone, response.getMessages().get(0).getId());
             } else {
-                System.err.println("SMS failed: " + response.getMessages().get(0).getErrorText());
+                log.error("SMS failed: {}", response.getMessages().get(0).getErrorText());
             }
         } catch (Exception e) {
-            System.err.println("Failed to send SMS to " + toPhoneNumber + ": " + e.getMessage());
-            e.printStackTrace();
+            log.error("Failed to send SMS to {}: {}", toPhoneNumber, e.getMessage(), e);
         }
     }
 

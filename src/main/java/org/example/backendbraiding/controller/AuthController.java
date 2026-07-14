@@ -2,12 +2,15 @@ package org.example.backendbraiding.controller;
 
 import org.example.backendbraiding.dto.*;
 import org.example.backendbraiding.service.AuthService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
     private final AuthService authService;
 
     public AuthController(AuthService authService) {
@@ -16,9 +19,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        // Login endpoint - validates credentials and returns JWT token
-        System.out.println("========== LOGIN ENDPOINT HIT ==========");
-        System.out.println("Email: " + request.getEmail());
+        log.info("Login attempt for: {}", request.getEmail());
         return ResponseEntity.ok(authService.login(request));
     }
 

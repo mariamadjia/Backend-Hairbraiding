@@ -4,6 +4,8 @@ import org.example.backendbraiding.model.GalleryImage;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,7 @@ import java.util.List;
  */
 @Service
 public class ImageSyncService {
+    private static final Logger log = LoggerFactory.getLogger(ImageSyncService.class);
     private final GalleryImageRepository galleryImageRepository;
     private final SubcategoryRepository subcategoryRepository;
 
@@ -53,7 +56,7 @@ public class ImageSyncService {
             galleryImage.setIsHero(false);
             
             galleryImageRepository.save(galleryImage);
-            System.out.println("Created gallery image for subcategory: " + subcategory.getName());
+            log.info("Created gallery image for subcategory: {}", subcategory.getName());
         } else {
             // Update first gallery image
             GalleryImage firstImage = existingImages.get(0);
@@ -62,7 +65,7 @@ public class ImageSyncService {
             firstImage.setTitle(subcategory.getName());
             
             galleryImageRepository.save(firstImage);
-            System.out.println("Updated gallery image for subcategory: " + subcategory.getName());
+            log.info("Updated gallery image for subcategory: {}", subcategory.getName());
         }
     }
 
@@ -88,7 +91,7 @@ public class ImageSyncService {
         }
 
         subcategoryRepository.save(subcategory);
-        System.out.println("Synced gallery to subcategory image: " + subcategory.getName());
+        log.info("Synced gallery to subcategory image: {}", subcategory.getName());
     }
 
     /**
@@ -123,11 +126,11 @@ public class ImageSyncService {
             if (remainingImages.isEmpty()) {
                 // No more images, clear subcategory image
                 subcategory.setImage(null);
-                System.out.println("Cleared subcategory image (no gallery images left): " + subcategory.getName());
+                log.info("Cleared subcategory image (no gallery images left): {}", subcategory.getName());
             } else {
                 // Set to next available image
                 subcategory.setImage(remainingImages.get(0).getImageUrl());
-                System.out.println("Updated subcategory image to next gallery image: " + subcategory.getName());
+                log.info("Updated subcategory image to next gallery image: {}", subcategory.getName());
             }
 
             subcategoryRepository.save(subcategory);
