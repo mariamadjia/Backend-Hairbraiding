@@ -32,7 +32,12 @@ public interface SubcategoryRepository extends JpaRepository<Subcategory, Long> 
     @Query("SELECT s FROM Subcategory s WHERE s.category.slug = :categorySlug ORDER BY s.displayOrder ASC")
     List<Subcategory> findSubcategorySummariesByCategorySlug(@Param("categorySlug") String categorySlug);
 
-    // Single subcategory with full details - split queries to avoid MultipleBagFetchException
-    @Query("SELECT s FROM Subcategory s WHERE s.slug = :slug")
+    // Single subcategory for admin: eagerly fetch items in one query.
+    // LengthOptions are loaded via a separate query to avoid MultipleBagFetchException.
+    @Query("""
+        SELECT DISTINCT s FROM Subcategory s
+        LEFT JOIN FETCH s.items
+        WHERE s.slug = :slug
+    """)
     Optional<Subcategory> findBySlugForAdmin(@Param("slug") String slug);
 }

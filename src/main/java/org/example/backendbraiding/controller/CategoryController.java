@@ -68,6 +68,37 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getCategoryBySlug(slug));
     }
 
+    @PutMapping("/slug/{slug}")
+    public ResponseEntity<Category> updateCategoryBySlug(
+            @PathVariable String slug,
+            @RequestBody Map<String, Object> updates) {
+        Category category = categoryService.getCategoryBySlug(slug);
+        return ResponseEntity.ok(
+                (Category) categoryController_applyUpdates(category, updates, true));
+    }
+
+    @DeleteMapping("/slug/{slug}")
+    public ResponseEntity<Map<String, String>> deleteCategoryBySlug(@PathVariable String slug) {
+        Category category = categoryService.getCategoryBySlug(slug);
+        categoryService.deleteCategory(category.getId());
+        return ResponseEntity.ok(Map.of("message", "Category deleted successfully"));
+    }
+
+    private Object categoryController_applyUpdates(Category category, Map<String, Object> updates, boolean save) {
+        if (updates.containsKey("name")) category.setName(updates.get("name").toString());
+        if (updates.containsKey("slug")) category.setSlug(updates.get("slug").toString());
+        if (updates.containsKey("summary")) category.setSummary(updates.get("summary").toString());
+        if (updates.containsKey("image")) category.setImage(updates.get("image").toString());
+        if (updates.containsKey("displayOrder") && updates.get("displayOrder") != null)
+            category.setDisplayOrder(Integer.parseInt(updates.get("displayOrder").toString()));
+        if (updates.containsKey("flippingImages")) {
+            @SuppressWarnings("unchecked")
+            List<String> fi = (List<String>) updates.get("flippingImages");
+            category.setFlippingImages(fi);
+        }
+        return save ? categoryService.updateCategory(category.getId(), category) : category;
+    }
+
     @PostMapping
     public ResponseEntity<Category> createCategory(@RequestBody Category category) {
         return ResponseEntity.ok(categoryService.createCategory(category));

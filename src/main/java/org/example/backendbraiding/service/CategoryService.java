@@ -344,13 +344,6 @@ public class CategoryService {
         Category category = categoryRepository.findBySlugForAdmin(slug)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
-        // Keep the category endpoint lightweight. Loading all service items and
-        // length options here was the 20-30 second bottleneck. Full pricing data
-        // should be loaded from /api/subcategories/admin/{slug} only after a
-        // specific subcategory is opened.
-        category.getSubcategories().size();
-        category.getFlippingImages().size();
-
         return mapToAdminCategoryShellDTO(category);
     }
 
@@ -448,10 +441,8 @@ public class CategoryService {
         Subcategory subcategory = subcategoryRepository.findBySlugForAdmin(slug)
                 .orElseThrow(() -> new RuntimeException("Subcategory not found"));
 
-        // Force-load lazy collections within the transaction using split queries
-        subcategory.getItems().size();
-        
-        // Load items with their length options
+        // Items are JOIN FETCHed. Load lengthOptions + element collections via
+        // separate queries (avoids MultipleBagFetchException).
         subcategory.getItems().forEach(item -> {
             item.getLengthOptions().size();
             item.getImages().size();
@@ -459,7 +450,6 @@ public class CategoryService {
             item.getHairTextures().size();
         });
 
-        // Map to DTO
         return mapToAdminSubcategoryDTO(subcategory);
     }
 
