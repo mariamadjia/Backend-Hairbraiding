@@ -1,6 +1,5 @@
 package org.example.backendbraiding.service;
 
-import org.example.backendbraiding.model.GalleryImage;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
@@ -94,46 +93,4 @@ public class ImageSyncService {
         log.info("Synced gallery to subcategory image: {}", subcategory.getName());
     }
 
-    /**
-     * When a gallery image is deleted, update subcategory.image if needed
-     */
-    @Transactional
-    public void handleGalleryImageDeletion(GalleryImage deletedImage) {
-        if (deletedImage.getSubcategory() == null) {
-            return;
-        }
-
-        Long subcategoryId = deletedImage.getSubcategory().getId();
-        Subcategory subcategory = subcategoryRepository.findById(subcategoryId)
-                .orElse(null);
-
-        if (subcategory == null) {
-            return;
-        }
-
-        // Check if the deleted image was the subcategory's main image
-        if (subcategory.getImage() != null && 
-            subcategory.getImage().equals(deletedImage.getImageUrl())) {
-            
-            // Find remaining gallery images for this subcategory. Exclude the image
-            // being deleted because this method may be called before delete/flush.
-            List<GalleryImage> remainingImages = galleryImageRepository
-                    .findBySubcategoryIdOrderByDisplayOrderAsc(subcategoryId)
-                    .stream()
-                    .filter(image -> !image.getId().equals(deletedImage.getId()))
-                    .toList();
-
-            if (remainingImages.isEmpty()) {
-                // No more images, clear subcategory image
-                subcategory.setImage(null);
-                log.info("Cleared subcategory image (no gallery images left): {}", subcategory.getName());
-            } else {
-                // Set to next available image
-                subcategory.setImage(remainingImages.get(0).getImageUrl());
-                log.info("Updated subcategory image to next gallery image: {}", subcategory.getName());
-            }
-
-            subcategoryRepository.save(subcategory);
-        }
-    }
 }

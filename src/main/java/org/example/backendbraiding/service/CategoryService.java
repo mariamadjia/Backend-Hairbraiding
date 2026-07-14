@@ -169,14 +169,20 @@ public class CategoryService {
             dto.setFlippingImages(cat.getFlippingImages());
             dto.setDisplayOrder(cat.getDisplayOrder());
 
-            // Don't load subcategories items - just the basic subcategory data
             List<SubcategoryGalleryDTO> subDtos = cat.getSubcategories().stream().map(sub -> {
                 SubcategoryGalleryDTO subDto = new SubcategoryGalleryDTO();
                 subDto.setId(sub.getId());
                 subDto.setName(sub.getName());
                 subDto.setSlug(sub.getSlug());
                 subDto.setImage(sub.getImage());
-                // Subcategory doesn't have images field, leave as null
+                List<String> galleryUrls = galleryImageRepository
+                        .findBySubcategoryIdOrderByDisplayOrderAsc(sub.getId())
+                        .stream()
+                        .map(GalleryImage::getImageUrl)
+                        .collect(Collectors.toList());
+                subDto.setImages(galleryUrls.isEmpty() && sub.getImage() != null
+                        ? List.of(sub.getImage())
+                        : galleryUrls);
                 return subDto;
             }).collect(Collectors.toList());
 
