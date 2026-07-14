@@ -118,6 +118,9 @@ public class ServiceItemService {
                     if (optionData.containsKey("notes") && optionData.get("notes") != null) {
                         option.setNotes(optionData.get("notes").toString());
                     }
+                    if (optionData.containsKey("imageUrl") && optionData.get("imageUrl") != null) {
+                        option.setImageUrl(optionData.get("imageUrl").toString());
+                    }
                     option.setServiceItem(service);
                     service.getLengthOptions().add(option);
                 }

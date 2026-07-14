@@ -21,6 +21,9 @@ public class LengthOption {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_item_id", nullable = false)
     @JsonIgnore

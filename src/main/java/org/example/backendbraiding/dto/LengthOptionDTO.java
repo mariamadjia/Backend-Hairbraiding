@@ -9,4 +9,5 @@ public class LengthOptionDTO {
     private String price;
     private String duration;
     private String notes;
+    private String imageUrl;
 }

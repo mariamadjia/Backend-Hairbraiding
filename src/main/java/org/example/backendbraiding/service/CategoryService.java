@@ -150,6 +150,7 @@ public class CategoryService {
             optDto.setPrice(opt.getPrice());
             optDto.setDuration(opt.getDuration());
             optDto.setNotes(opt.getNotes());
+            optDto.setImageUrl(opt.getImageUrl());
             return optDto;
         }).collect(Collectors.toList());
         dto.setLengthOptions(lengthOptionDtos);
