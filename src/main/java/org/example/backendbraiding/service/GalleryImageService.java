@@ -240,7 +240,9 @@ public class GalleryImageService {
                 ? image.getSubcategory().getId()
                 : null;
 
-        // Delete physical file
+        // Resolve the physical file path BEFORE touching the DB,
+        // but only delete the file AFTER the DB commit succeeds.
+        Path resolvedFilePath = null;
         try {
             String filename = Paths.get(image.getImageUrl())
                     .getFileName()
@@ -258,18 +260,27 @@ public class GalleryImageService {
                 throw new IllegalStateException("Invalid image file path");
             }
 
-            Files.deleteIfExists(filePath);
-        } catch (IOException e) {
-            // Log error but continue with database deletion
-            System.err.println("Failed to delete file: " + e.getMessage());
+            resolvedFilePath = filePath;
+        } catch (Exception e) {
+            System.err.println("Could not resolve file path for deletion: " + e.getMessage());
         }
 
+        // Commit DB deletion first — if this throws, the file is untouched
         imageRepository.delete(image);
         imageRepository.flush();
 
-        // Sync after deletion so the deleted image is not selected again
+        // Sync after DB commit so the deleted image is not selected again
         if (subcategoryId != null) {
             imageSyncService.syncGalleryToSubcategoryImage(subcategoryId);
+        }
+
+        // Now safe to delete the physical file
+        if (resolvedFilePath != null) {
+            try {
+                Files.deleteIfExists(resolvedFilePath);
+            } catch (IOException e) {
+                System.err.println("Failed to delete file after DB commit: " + e.getMessage());
+            }
         }
     }
 
