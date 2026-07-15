@@ -483,7 +483,23 @@ public class CategoryService {
                 subDto.setImage(sub.getImage());
                 subDto.setDisplayOrder(sub.getDisplayOrder());
                 subDto.setItems(new ArrayList<>());
-                subDto.setGalleryImages(new ArrayList<>());
+                
+                // Include gallery images for this subcategory
+                List<GalleryImage> galleryImages = galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(sub.getId());
+                List<ImageResponse> galleryDtos = galleryImages.stream().map(img -> {
+                    ImageResponse r = new ImageResponse();
+                    r.setId(img.getId());
+                    r.setImageUrl(img.getImageUrl());
+                    r.setThumbnailUrl(img.getThumbnailUrl());
+                    r.setTitle(img.getTitle());
+                    r.setAltText(img.getAltText());
+                    r.setDisplayOrder(img.getDisplayOrder());
+                    r.setSubcategoryId(sub.getId());
+                    r.setSubcategoryName(sub.getName());
+                    return r;
+                }).collect(Collectors.toList());
+                subDto.setGalleryImages(galleryDtos);
+                
                 return subDto;
             }).collect(Collectors.toList());
         }
