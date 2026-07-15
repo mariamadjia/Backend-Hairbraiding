@@ -459,10 +459,16 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public AdminCategoryDTO getCategoryBySlugForAdmin(String slug) {
-        Category category = categoryRepository.findBySlugForAdmin(slug)
-                .orElseThrow(() -> new RuntimeException("Category not found"));
+        try {
+            Category category = categoryRepository.findBySlugForAdmin(slug)
+                    .orElseThrow(() -> new RuntimeException("Category not found"));
 
-        return mapToAdminCategoryShellDTO(category);
+            return mapToAdminCategoryShellDTO(category);
+        } catch (Exception e) {
+            System.err.println("Error fetching category by slug for admin: " + slug);
+            e.printStackTrace();
+            throw new RuntimeException("Failed to fetch category: " + e.getMessage(), e);
+        }
     }
 
     private AdminCategoryDTO mapToAdminCategoryShellDTO(Category category) {
