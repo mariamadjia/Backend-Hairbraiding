@@ -44,12 +44,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     @Query("SELECT c FROM Category c ORDER BY c.displayOrder ASC")
     List<Category> findCategorySummaries();
 
-    // Single category for admin: eagerly fetch subcategories + flippingImages in one query.
-    // Items/lengthOptions are loaded separately to avoid MultipleBagFetchException.
+    // Single category for admin: eagerly fetch subcategories only.
+    // flippingImages is loaded separately to avoid MultipleBagFetchException.
     @Query("""
         SELECT DISTINCT c FROM Category c
         LEFT JOIN FETCH c.subcategories
-        LEFT JOIN FETCH c.flippingImages
         WHERE c.slug = :slug
     """)
     Optional<Category> findBySlugForAdmin(@org.springframework.data.repository.query.Param("slug") String slug);

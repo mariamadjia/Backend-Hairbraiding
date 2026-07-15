@@ -463,6 +463,11 @@ public class CategoryService {
             Category category = categoryRepository.findBySlugForAdmin(slug)
                     .orElseThrow(() -> new RuntimeException("Category not found"));
 
+            // Access flippingImages to trigger lazy loading (avoids MultipleBagFetchException)
+            if (category.getFlippingImages() != null) {
+                category.getFlippingImages().size();
+            }
+
             return mapToAdminCategoryShellDTO(category);
         } catch (Exception e) {
             System.err.println("Error fetching category by slug for admin: " + slug);
