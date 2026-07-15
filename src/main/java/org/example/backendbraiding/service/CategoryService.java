@@ -494,20 +494,30 @@ public class CategoryService {
                 subDto.setItems(new ArrayList<>());
                 
                 // Include gallery images for this subcategory
-                List<GalleryImage> galleryImages = galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(sub.getId());
-                List<ImageResponse> galleryDtos = galleryImages.stream().map(img -> {
-                    ImageResponse r = new ImageResponse();
-                    r.setId(img.getId());
-                    r.setImageUrl(img.getImageUrl());
-                    r.setThumbnailUrl(img.getThumbnailUrl());
-                    r.setTitle(img.getTitle());
-                    r.setAltText(img.getAltText());
-                    r.setDisplayOrder(img.getDisplayOrder());
-                    r.setSubcategoryId(sub.getId());
-                    r.setSubcategoryName(sub.getName());
-                    return r;
-                }).collect(Collectors.toList());
-                subDto.setGalleryImages(galleryDtos);
+                try {
+                    if (sub.getId() != null) {
+                        List<GalleryImage> galleryImages = galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(sub.getId());
+                        List<ImageResponse> galleryDtos = galleryImages.stream().map(img -> {
+                            ImageResponse r = new ImageResponse();
+                            r.setId(img.getId());
+                            r.setImageUrl(img.getImageUrl());
+                            r.setThumbnailUrl(img.getThumbnailUrl());
+                            r.setTitle(img.getTitle());
+                            r.setAltText(img.getAltText());
+                            r.setDisplayOrder(img.getDisplayOrder());
+                            r.setSubcategoryId(sub.getId());
+                            r.setSubcategoryName(sub.getName());
+                            return r;
+                        }).collect(Collectors.toList());
+                        subDto.setGalleryImages(galleryDtos);
+                    } else {
+                        subDto.setGalleryImages(new ArrayList<>());
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error fetching gallery images for subcategory: " + sub.getId());
+                    e.printStackTrace();
+                    subDto.setGalleryImages(new ArrayList<>());
+                }
                 
                 return subDto;
             }).collect(Collectors.toList());
