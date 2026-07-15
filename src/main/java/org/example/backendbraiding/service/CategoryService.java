@@ -406,6 +406,9 @@ public class CategoryService {
         if (categoryDetails.getDisplayOrder() != null) {
             category.setDisplayOrder(categoryDetails.getDisplayOrder());
         }
+        if (categoryDetails.getFlippingImages() != null) {
+            category.setFlippingImages(new ArrayList<>(categoryDetails.getFlippingImages()));
+        }
         return categoryRepository.save(category);
     }
 

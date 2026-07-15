@@ -53,6 +53,20 @@ public class ServiceItemController {
         service.setName(serviceData.get("name").toString());
         service.setPrice(serviceData.getOrDefault("price", "").toString());
         service.setDescription(serviceData.getOrDefault("description", "").toString());
+        service.setNotes(serviceData.getOrDefault("notes", "").toString());
+        service.setImage(serviceData.getOrDefault("image", "").toString());
+        service.setLink(serviceData.getOrDefault("link", "").toString());
+        service.setObjectPosition(serviceData.getOrDefault("objectPosition", "").toString());
+
+        if (serviceData.containsKey("images") && serviceData.get("images") instanceof List) {
+            service.setImages((List<String>) serviceData.get("images"));
+        }
+        if (serviceData.containsKey("availableSizes") && serviceData.get("availableSizes") instanceof List) {
+            service.setAvailableSizes((List<String>) serviceData.get("availableSizes"));
+        }
+        if (serviceData.containsKey("hairTextures") && serviceData.get("hairTextures") instanceof List) {
+            service.setHairTextures((List<String>) serviceData.get("hairTextures"));
+        }
         
         // Handle category
         if (serviceData.containsKey("category")) {
@@ -91,6 +105,9 @@ public class ServiceItemController {
                 }
                 if (optionData.containsKey("notes")) {
                     option.setNotes(optionData.get("notes").toString());
+                }
+                if (optionData.containsKey("imageUrl") && optionData.get("imageUrl") != null) {
+                    option.setImageUrl(optionData.get("imageUrl").toString());
                 }
                 option.setServiceItem(service);
                 lengthOptions.add(option);
