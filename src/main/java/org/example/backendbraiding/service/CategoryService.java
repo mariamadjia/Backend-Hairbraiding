@@ -265,11 +265,19 @@ public class CategoryService {
             // Eagerly load all nested relationships for caching
             category.getSubcategories().forEach(sub -> {
                 sub.getItems().forEach(item -> {
-                    item.getLengthOptions().size(); // Force load
+                    item.getSizePhotos().size();
+                    item.getImages().size();
+                    item.getAvailableSizes().size();
+                    item.getHairTextures().size();
+                    item.getLengthOptions().size();
                 });
             });
             category.getItems().forEach(item -> {
-                item.getLengthOptions().size(); // Force load
+                item.getSizePhotos().size();
+                item.getImages().size();
+                item.getAvailableSizes().size();
+                item.getHairTextures().size();
+                item.getLengthOptions().size();
             });
         }
         return category;
@@ -367,19 +375,10 @@ public class CategoryService {
                 CompleteCategoryRequest.ServiceInput serviceInput = subInput.getSizes().get(sizeIndex);
                 ServiceItem serviceItem = subcategory.getItems().get(sizeIndex);
 
-                // Handle size photos
-                List<Long> sizePhotoIds = serviceInput.getSizePhotoIds();
-                if (sizePhotoIds != null && !sizePhotoIds.isEmpty()) {
-                    List<GalleryImage> sizeImages = getGalleryImages(sizePhotoIds);
-                    List<String> sizeImageUrls = new ArrayList<>();
-                    sizeImages.forEach(image -> {
-                        image.setCategory(category);
-                        image.setSubcategory(subcategory);
-                        image.setServiceItem(serviceItem);
-                        sizeImageUrls.add(image.getImageUrl());
-                        changedImages.add(image);
-                    });
-                    serviceItem.setSizePhotos(sizeImageUrls);
+                // Handle size photos - use simple URLs, not GalleryImage
+                List<String> sizePhotos = serviceInput.getSizePhotos();
+                if (sizePhotos != null && !sizePhotos.isEmpty()) {
+                    serviceItem.setSizePhotos(new ArrayList<>(sizePhotos));
                 }
 
                 for (int lengthIndex = 0; lengthIndex < serviceInput.getLengths().size(); lengthIndex++) {

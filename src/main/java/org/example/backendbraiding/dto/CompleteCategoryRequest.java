@@ -40,7 +40,7 @@ public class CompleteCategoryRequest {
         @NotBlank
         private String name;
 
-        private List<Long> sizePhotoIds = new ArrayList<>();
+        private List<String> sizePhotos = new ArrayList<>();
 
         @Valid
         @NotEmpty
