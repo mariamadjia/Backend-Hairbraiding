@@ -49,6 +49,12 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getCategoryBySlugForAdmin(slug));
     }
 
+    @GetMapping("/exists/{slug}")
+    public ResponseEntity<Map<String, Boolean>> categoryExists(@PathVariable String slug) {
+        boolean exists = categoryService.categoryExistsBySlug(slug);
+        return ResponseEntity.ok(Map.of("exists", exists));
+    }
+
     // New optimized endpoints for subcategory lazy loading
     @GetMapping("/admin/{categorySlug}/subcategories")
     @PreAuthorize("hasRole('ADMIN')")

@@ -19,8 +19,10 @@ import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -283,6 +285,10 @@ public class CategoryService {
         return category;
     }
 
+    public boolean categoryExistsBySlug(String slug) {
+        return categoryRepository.existsBySlug(slug);
+    }
+
     @Transactional
     @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category createCategory(Category category) {
@@ -295,9 +301,11 @@ public class CategoryService {
     @Transactional
     @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category createCompleteCategory(CompleteCategoryRequest request) {
-        Category existing = categoryRepository.findBySlug(request.getSlug()).orElse(null);
-        if (existing != null) {
-            return existing;
+        if (categoryRepository.existsBySlug(request.getSlug())) {
+            throw new ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "Category with this name already exists"
+            );
         }
 
         Category category = new Category();
