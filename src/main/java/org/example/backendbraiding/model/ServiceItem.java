@@ -37,6 +37,12 @@ public class ServiceItem {
     @BatchSize(size = 50)
     private List<String> images = new ArrayList<>();
 
+    @ElementCollection
+    @CollectionTable(name = "service_item_size_photos", joinColumns = @JoinColumn(name = "service_item_id"))
+    @Column(name = "image_url")
+    @BatchSize(size = 50)
+    private List<String> sizePhotos = new ArrayList<>();
+
     private String link;
 
     private String objectPosition;

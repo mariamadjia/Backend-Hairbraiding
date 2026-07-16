@@ -40,6 +40,8 @@ public class CompleteCategoryRequest {
         @NotBlank
         private String name;
 
+        private List<Long> sizePhotoIds = new ArrayList<>();
+
         @Valid
         @NotEmpty
         private List<LengthInput> lengths = new ArrayList<>();

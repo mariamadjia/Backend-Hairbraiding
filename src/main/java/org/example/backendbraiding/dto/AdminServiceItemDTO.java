@@ -12,6 +12,7 @@ public class AdminServiceItemDTO {
     private String notes;
     private String image;
     private List<String> images;
+    private List<String> sizePhotos;
     private String link;
     private String objectPosition;
     private List<String> availableSizes;

@@ -138,6 +138,7 @@ public class CategoryService {
         dto.setNotes(item.getNotes());
         dto.setImage(item.getImage());
         dto.setImages(item.getImages());
+        dto.setSizePhotos(item.getSizePhotos());
         dto.setLink(item.getLink());
         dto.setObjectPosition(item.getObjectPosition());
         dto.setAvailableSizes(item.getAvailableSizes());
@@ -370,6 +371,22 @@ public class CategoryService {
             for (int sizeIndex = 0; sizeIndex < subInput.getSizes().size(); sizeIndex++) {
                 CompleteCategoryRequest.ServiceInput serviceInput = subInput.getSizes().get(sizeIndex);
                 ServiceItem serviceItem = subcategory.getItems().get(sizeIndex);
+
+                // Handle size photos
+                List<Long> sizePhotoIds = serviceInput.getSizePhotoIds();
+                if (sizePhotoIds != null && !sizePhotoIds.isEmpty()) {
+                    List<GalleryImage> sizeImages = getGalleryImages(sizePhotoIds);
+                    List<String> sizeImageUrls = new ArrayList<>();
+                    sizeImages.forEach(image -> {
+                        image.setCategory(category);
+                        image.setSubcategory(subcategory);
+                        image.setServiceItem(serviceItem);
+                        sizeImageUrls.add(image.getImageUrl());
+                        changedImages.add(image);
+                    });
+                    serviceItem.setSizePhotos(sizeImageUrls);
+                }
+
                 for (int lengthIndex = 0; lengthIndex < serviceInput.getLengths().size(); lengthIndex++) {
                     Long imageId = serviceInput.getLengths().get(lengthIndex).getImageId();
                     if (imageId == null) continue;
@@ -601,6 +618,7 @@ public class CategoryService {
         subcategory.getItems().forEach(item -> {
             item.getLengthOptions().size();
             item.getImages().size();
+            item.getSizePhotos().size();
             item.getAvailableSizes().size();
             item.getHairTextures().size();
         });
