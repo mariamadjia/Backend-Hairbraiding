@@ -288,11 +288,6 @@ public class GalleryImageService {
         }
 
         imageRepository.flush();
-
-        // Keep subcategory.image aligned with the first reordered gallery image
-        for (Long subcategoryId : affectedSubcategoryIds) {
-            imageSyncService.syncGalleryToSubcategoryImage(subcategoryId);
-        }
     }
 
     @Transactional
@@ -330,10 +325,6 @@ public class GalleryImageService {
         image.setUploadedBy("system");
 
         GalleryImage saved = imageRepository.save(image);
-
-        if (saved.getSubcategory() != null) {
-            imageSyncService.syncGalleryToSubcategoryImage(saved.getSubcategory().getId());
-        }
 
         return convertToResponse(saved);
     }
