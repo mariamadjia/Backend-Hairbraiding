@@ -20,7 +20,7 @@ public class AdminController {
     private static final Logger log = LoggerFactory.getLogger(AdminController.class);
     private static final String UPLOAD_DIR = System.getenv("UPLOAD_DIR") != null 
         ? System.getenv("UPLOAD_DIR") 
-        : "public/uploads";
+        : "public";
 
     @PostMapping("/upload")
     @PreAuthorize("hasRole('ADMIN')")
@@ -37,7 +37,13 @@ public class AdminController {
             }
 
             // Create upload directory if it doesn't exist
-            Path uploadPath = Paths.get(UPLOAD_DIR);
+            String uploadDir = UPLOAD_DIR;
+            if (!uploadDir.endsWith("/")) {
+                uploadDir += "/";
+            }
+            uploadDir += "uploads/";
+            
+            Path uploadPath = Paths.get(uploadDir);
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
             }
