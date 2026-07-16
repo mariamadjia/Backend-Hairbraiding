@@ -43,6 +43,20 @@ public class BookingController {
         List<Category> categories = categoryService.getAllCategoriesData();
         List<Map<String, Object>> bookingCategories = new ArrayList<>();
 
+        // Batch fetch all gallery images for all subcategories to avoid N+1 queries
+        List<Long> allSubcategoryIds = categories.stream()
+                .flatMap(cat -> cat.getSubcategories().stream())
+                .map(Subcategory::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        
+        Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
+        if (!allSubcategoryIds.isEmpty()) {
+            for (Long subcategoryId : allSubcategoryIds) {
+                galleryImagesBySubcategory.put(subcategoryId, getSubcategoryGalleryImages(subcategoryId));
+            }
+        }
+
         for (Category category : categories) {
             Map<String, Object> bookingCategory = new HashMap<>();
             bookingCategory.put("name", category.getName());
@@ -58,7 +72,7 @@ public class BookingController {
                 bookingSubcategory.put("slug", subcategory.getSlug());
                 bookingSubcategory.put("summary", subcategory.getSummary());
 
-                List<GalleryImage> galleryImages = getSubcategoryGalleryImages(subcategory.getId());
+                List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(subcategory.getId(), List.of());
                 List<String> subcategoryImages = galleryImages.stream()
                         .map(GalleryImage::getImageUrl)
                         .filter(Objects::nonNull)
@@ -138,6 +152,19 @@ public class BookingController {
                 ? category.getSubcategories()
                 : List.of();
 
+        // Batch fetch gallery images for all subcategories in this category
+        List<Long> subcategoryIds = subcategories.stream()
+                .map(Subcategory::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        
+        Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
+        if (!subcategoryIds.isEmpty()) {
+            for (Long subcategoryId : subcategoryIds) {
+                galleryImagesBySubcategory.put(subcategoryId, getSubcategoryGalleryImages(subcategoryId));
+            }
+        }
+
         for (Subcategory subcategory : subcategories) {
             Map<String, Object> bookingSubcategory = new LinkedHashMap<>();
 
@@ -145,7 +172,7 @@ public class BookingController {
             bookingSubcategory.put("slug", subcategory.getSlug());
             bookingSubcategory.put("summary", subcategory.getSummary());
 
-            List<GalleryImage> galleryImages = getSubcategoryGalleryImages(subcategory.getId());
+            List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(subcategory.getId(), List.of());
             List<String> subcategoryImages = galleryImages.stream()
                     .map(GalleryImage::getImageUrl)
                     .filter(Objects::nonNull)

@@ -12,7 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "subcategories")
+@Table(name = "subcategories", indexes = {
+    @Index(name = "idx_subcategory_category_display", columnList = "category_id, display_order"),
+    @Index(name = "idx_subcategory_slug", columnList = "slug")
+})
 @Data
 public class Subcategory {
     @Id

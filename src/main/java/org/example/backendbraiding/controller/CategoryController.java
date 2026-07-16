@@ -8,6 +8,7 @@ import org.example.backendbraiding.dto.SubcategorySummaryDTO;
 import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.service.CategoryService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -30,23 +31,27 @@ public class CategoryController {
     }
 
     @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getAllCategoriesForAdmin() {
         return ResponseEntity.ok(categoryService.getAllCategoriesForAdmin());
     }
 
     // New optimized endpoints for admin lazy loading
     @GetMapping("/admin/summaries")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<CategorySummaryDTO>> getCategorySummariesForAdmin() {
         return ResponseEntity.ok(categoryService.getCategorySummariesForAdmin());
     }
 
     @GetMapping("/admin/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AdminCategoryDTO> getCategoryBySlugForAdmin(@PathVariable String slug) {
         return ResponseEntity.ok(categoryService.getCategoryBySlugForAdmin(slug));
     }
 
     // New optimized endpoints for subcategory lazy loading
     @GetMapping("/admin/{categorySlug}/subcategories")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<SubcategorySummaryDTO>> getSubcategorySummariesForAdmin(@PathVariable String categorySlug) {
         return ResponseEntity.ok(categoryService.getSubcategorySummariesForAdmin(categorySlug));
     }
@@ -72,6 +77,7 @@ public class CategoryController {
     }
 
     @PutMapping("/slug/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Category> updateCategoryBySlug(
             @PathVariable String slug,
             @RequestBody Map<String, Object> updates) {
@@ -81,6 +87,7 @@ public class CategoryController {
     }
 
     @DeleteMapping("/slug/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteCategoryBySlug(@PathVariable String slug) {
         Category category = categoryService.getCategoryBySlug(slug);
         categoryService.deleteCategory(category.getId());
@@ -103,16 +110,19 @@ public class CategoryController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Category> createCategory(@RequestBody Category category) {
         return ResponseEntity.ok(categoryService.createCategory(category));
     }
 
     @PostMapping("/complete")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Category> createCompleteCategory(@Valid @RequestBody CompleteCategoryRequest request) {
         return ResponseEntity.ok(categoryService.createCompleteCategory(request));
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Category> updateCategory(@PathVariable Long id, @RequestBody Map<String, Object> updates) {
         Category category = categoryService.getCategoryById(id);
         
@@ -137,12 +147,14 @@ public class CategoryController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> deleteCategory(@PathVariable Long id) {
         categoryService.deleteCategory(id);
         return ResponseEntity.ok(Map.of("message", "Category deleted successfully"));
     }
 
     @PutMapping("/{id}/flipping-images")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Category> updateFlippingImages(
             @PathVariable Long id,
             @RequestBody List<String> flippingImages) {
@@ -150,6 +162,7 @@ public class CategoryController {
     }
 
     @PostMapping("/reorder")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> reorderCategories(@RequestBody List<Long> categoryIds) {
         categoryService.reorderCategories(categoryIds);
         return ResponseEntity.ok(Map.of("message", "Categories reordered successfully"));

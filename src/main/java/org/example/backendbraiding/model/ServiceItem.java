@@ -12,7 +12,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "service_items")
+@Table(name = "service_items", indexes = {
+    @Index(name = "idx_service_item_category", columnList = "category_id"),
+    @Index(name = "idx_service_item_subcategory", columnList = "subcategory_id"),
+    @Index(name = "idx_service_item_name", columnList = "name")
+})
 @Data
 public class ServiceItem {
     @Id

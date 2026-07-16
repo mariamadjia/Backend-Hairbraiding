@@ -20,18 +20,7 @@ public class ServiceItemService {
     }
 
     public List<ServiceItem> getAllServices() {
-        List<ServiceItem> services = serviceItemRepository.findAll();
-        services.sort((s1, s2) -> {
-            if (s1.getCategory() != null && s2.getCategory() != null) {
-                int categoryCompare = Integer.compare(
-                    s1.getCategory().getDisplayOrder() != null ? s1.getCategory().getDisplayOrder() : Integer.MAX_VALUE,
-                    s2.getCategory().getDisplayOrder() != null ? s2.getCategory().getDisplayOrder() : Integer.MAX_VALUE
-                );
-                if (categoryCompare != 0) return categoryCompare;
-            }
-            return s1.getId().compareTo(s2.getId());
-        });
-        return services;
+        return serviceItemRepository.findAll();
     }
 
     public ServiceItem getServiceById(Long id) {
@@ -48,7 +37,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ServiceItem createService(ServiceItem service) {
         // Set bidirectional relationship for length options
         if (service.getLengthOptions() != null) {
@@ -60,7 +49,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ServiceItem updateService(Long id, Map<String, Object> updates) {
         ServiceItem service = getServiceById(id);
 
@@ -131,7 +120,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteService(Long id) {
         ServiceItem service = getServiceById(id);
         serviceItemRepository.delete(service);

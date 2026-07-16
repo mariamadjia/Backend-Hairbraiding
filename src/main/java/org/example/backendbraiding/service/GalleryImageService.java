@@ -101,7 +101,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
         // Validate file
         validateFile(file);
@@ -183,7 +183,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ImageResponse updateImage(Long id, ImageUpdateRequest request) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
@@ -234,7 +234,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteImage(Long id) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
@@ -288,7 +288,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void reorderImages(List<Long> imageIds) {
         java.util.Set<Long> affectedSubcategoryIds = new java.util.HashSet<>();
 
@@ -314,7 +314,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public ImageResponse registerImageUrl(String imageUrl, String title, Long categoryId, Long subcategoryId) {
         // Guard: if this URL is already a gallery record for this subcategory, return it as-is
         if (subcategoryId != null) {

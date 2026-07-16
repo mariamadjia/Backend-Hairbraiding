@@ -21,6 +21,8 @@ import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class CategoryService {
+    private static final Logger log = LoggerFactory.getLogger(CategoryService.class);
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final GalleryImageRepository galleryImageRepository;
@@ -56,15 +59,7 @@ public class CategoryService {
     @Transactional(readOnly = true)
     @org.springframework.cache.annotation.Cacheable(value = "bookingCategories")
     public List<Category> getAllCategoriesData() {
-        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
-        // Force-load all lazy collections within the transaction
-        for (Category category : categories) {
-            category.getSubcategories().forEach(sub -> {
-                sub.getItems().forEach(item -> item.getLengthOptions().size());
-            });
-            category.getItems().forEach(item -> item.getLengthOptions().size());
-        }
-        return categories;
+        return categoryRepository.findAllForBooking();
     }
 
     @Transactional(readOnly = true)
@@ -281,7 +276,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category createCategory(Category category) {
         if (categoryRepository.existsBySlug(category.getSlug())) {
             throw new RuntimeException("Category with slug already exists");
@@ -290,7 +285,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category createCompleteCategory(CompleteCategoryRequest request) {
         Category existing = categoryRepository.findBySlug(request.getSlug()).orElse(null);
         if (existing != null) {
@@ -413,9 +408,10 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = getCategoryById(id);
+        String oldSlug = category.getSlug();
         category.setName(categoryDetails.getName());
         category.setSlug(categoryDetails.getSlug());
         category.setSummary(categoryDetails.getSummary());
@@ -426,11 +422,16 @@ public class CategoryService {
         if (categoryDetails.getFlippingImages() != null) {
             category.setFlippingImages(new ArrayList<>(categoryDetails.getFlippingImages()));
         }
-        return categoryRepository.save(category);
+        Category saved = categoryRepository.save(category);
+        // Evict specific cache entry if slug changed
+        if (!oldSlug.equals(saved.getSlug())) {
+            // Cache will be evicted by allEntries, but this is more explicit
+        }
+        return saved;
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public void deleteCategory(Long id) {
         Category category = getCategoryById(id);
         // Remove gallery images first to avoid FK constraint violations
@@ -440,7 +441,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategory", "bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
         Category category = getCategoryById(id);
         category.setFlippingImages(flippingImages);
@@ -449,14 +450,22 @@ public class CategoryService {
 
     @Transactional
     public void reorderCategories(List<Long> categoryIds) {
+        // Bulk update all categories at once for better performance
+        List<Category> categories = categoryRepository.findAllById(categoryIds);
+        Map<Long, Category> categoryMap = categories.stream()
+                .collect(Collectors.toMap(Category::getId, category -> category));
+        
+        List<Category> updatedCategories = new ArrayList<>();
         for (int i = 0; i < categoryIds.size(); i++) {
-            final int displayOrder = i;
             Long categoryId = categoryIds.get(i);
-            categoryRepository.findById(categoryId).ifPresent(category -> {
-                category.setDisplayOrder(displayOrder);
-                categoryRepository.save(category);
-            });
+            Category category = categoryMap.get(categoryId);
+            if (category != null) {
+                category.setDisplayOrder(i);
+                updatedCategories.add(category);
+            }
         }
+        
+        categoryRepository.saveAll(updatedCategories);
     }
 
     // New optimized methods for admin lazy loading
@@ -487,8 +496,7 @@ public class CategoryService {
 
             return mapToAdminCategoryShellDTO(category);
         } catch (Exception e) {
-            System.err.println("Error fetching category by slug for admin: " + slug);
-            e.printStackTrace();
+            log.error("Error fetching category by slug for admin: {}", slug, e);
             throw new RuntimeException("Failed to fetch category: " + e.getMessage(), e);
         }
     }
@@ -536,8 +544,7 @@ public class CategoryService {
                         subDto.setGalleryImages(new ArrayList<>());
                     }
                 } catch (Exception e) {
-                    System.err.println("Error fetching gallery images for subcategory: " + sub.getId());
-                    e.printStackTrace();
+                    log.error("Error fetching gallery images for subcategory: {}", sub.getId(), e);
                     subDto.setGalleryImages(new ArrayList<>());
                 }
                 
