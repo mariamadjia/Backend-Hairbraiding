@@ -15,9 +15,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
 
     @Query("""
         SELECT DISTINCT c FROM Category c
-        LEFT JOIN FETCH c.subcategories sub
-        LEFT JOIN FETCH sub.items si
-        LEFT JOIN FETCH si.lengthOptions
+        LEFT JOIN FETCH c.subcategories
         ORDER BY c.displayOrder ASC
     """)
     List<Category> findAllWithSubcategoriesAndItems();
@@ -35,9 +33,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     @Query("""
         SELECT DISTINCT c
         FROM Category c
-        LEFT JOIN FETCH c.subcategories sub
-        LEFT JOIN FETCH sub.items si
-        LEFT JOIN FETCH si.lengthOptions
+        LEFT JOIN FETCH c.subcategories
         WHERE c.slug = :slug
     """)
     Optional<Category> findBySlugWithAllData(@org.springframework.data.repository.query.Param("slug") String slug);
@@ -60,9 +56,7 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     // Optimized query for booking data - fetch all needed relationships in one query
     @Query("""
         SELECT DISTINCT c FROM Category c
-        LEFT JOIN FETCH c.subcategories sub
-        LEFT JOIN FETCH sub.items si
-        LEFT JOIN FETCH si.lengthOptions
+        LEFT JOIN FETCH c.subcategories
         ORDER BY c.displayOrder ASC
     """)
     List<Category> findAllForBooking();

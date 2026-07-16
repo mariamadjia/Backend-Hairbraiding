@@ -2,6 +2,7 @@ package org.example.backendbraiding.controller;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cache.CacheManager;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,11 @@ public class AdminController {
     private static final String UPLOAD_DIR = System.getenv("UPLOAD_DIR") != null 
         ? System.getenv("UPLOAD_DIR") 
         : "public";
+    private final CacheManager cacheManager;
+
+    public AdminController(CacheManager cacheManager) {
+        this.cacheManager = cacheManager;
+    }
 
     @PostMapping("/upload")
     @PreAuthorize("hasRole('ADMIN')")
@@ -66,6 +72,23 @@ public class AdminController {
         } catch (IOException e) {
             log.error("Failed to upload file", e);
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to upload file"));
+        }
+    }
+
+    @PostMapping("/clear-cache")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> clearCache() {
+        try {
+            cacheManager.getCacheNames().forEach(cacheName -> {
+                if (cacheManager.getCache(cacheName) != null) {
+                    cacheManager.getCache(cacheName).clear();
+                    log.info("Cleared cache: {}", cacheName);
+                }
+            });
+            return ResponseEntity.ok(Map.of("message", "Cache cleared successfully"));
+        } catch (Exception e) {
+            log.error("Failed to clear cache", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to clear cache"));
         }
     }
 }

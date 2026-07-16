@@ -43,7 +43,10 @@ public class BookingController {
 
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getBookingData() {
+        log.info("Fetching all booking data");
         List<Category> categories = categoryService.getAllCategoriesData();
+        log.info("Found {} categories", categories.size());
+        categories.forEach(cat -> log.info("Category: {} (slug: {})", cat.getName(), cat.getSlug()));
         List<Map<String, Object>> bookingCategories = new ArrayList<>();
 
         // Batch fetch all gallery images for all subcategories to avoid N+1 queries
