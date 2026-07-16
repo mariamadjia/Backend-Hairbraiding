@@ -12,7 +12,7 @@ public class WebConfig implements WebMvcConfigurer {
         // Get upload directory from environment variable or use default
         String uploadDir = System.getenv("UPLOAD_DIR") != null 
             ? System.getenv("UPLOAD_DIR") 
-            : "public/Gallery/uploads";
+            : "public";
         
         // Ensure path ends with /
         if (!uploadDir.endsWith("/")) {
@@ -21,7 +21,12 @@ public class WebConfig implements WebMvcConfigurer {
         
         // Serve static files from upload directory
         registry.addResourceHandler("/Gallery/**")
-                .addResourceLocations("file:" + uploadDir)
+                .addResourceLocations("file:" + uploadDir + "Gallery/")
                 .addResourceLocations("classpath:/static/Gallery/");
+        
+        // Serve uploaded files from uploads directory
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:" + uploadDir + "uploads/")
+                .addResourceLocations("classpath:/static/uploads/");
     }
 }
