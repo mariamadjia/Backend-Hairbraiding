@@ -99,6 +99,7 @@ public class BookingController {
                     bookingItem.put("notes", item.getNotes());
                     bookingItem.put("image", item.getImage());
                     bookingItem.put("images", item.getImages());
+                    bookingItem.put("sizePhotos", item.getSizePhotos());
                     bookingItem.put("link", item.getLink());
                     bookingItem.put("objectPosition", item.getObjectPosition());
                     bookingItem.put("availableSizes", item.getAvailableSizes());
@@ -206,6 +207,7 @@ public class BookingController {
                 bookingItem.put("notes", item.getNotes());
                 bookingItem.put("image", item.getImage());
                 bookingItem.put("images", item.getImages());
+                bookingItem.put("sizePhotos", item.getSizePhotos());
                 bookingItem.put("link", item.getLink());
                 bookingItem.put("objectPosition", item.getObjectPosition());
                 bookingItem.put("availableSizes", item.getAvailableSizes());
