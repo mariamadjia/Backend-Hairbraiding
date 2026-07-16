@@ -61,6 +61,9 @@ public class ServiceItemController {
         if (serviceData.containsKey("images") && serviceData.get("images") instanceof List) {
             service.setImages((List<String>) serviceData.get("images"));
         }
+        if (serviceData.containsKey("sizePhotos") && serviceData.get("sizePhotos") instanceof List) {
+            service.setSizePhotos((List<String>) serviceData.get("sizePhotos"));
+        }
         if (serviceData.containsKey("availableSizes") && serviceData.get("availableSizes") instanceof List) {
             service.setAvailableSizes((List<String>) serviceData.get("availableSizes"));
         }

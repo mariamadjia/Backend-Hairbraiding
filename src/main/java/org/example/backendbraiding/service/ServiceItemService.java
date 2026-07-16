@@ -77,6 +77,9 @@ public class ServiceItemService {
         if (updates.containsKey("images")) {
             service.setImages((List<String>) updates.get("images"));
         }
+        if (updates.containsKey("sizePhotos")) {
+            service.setSizePhotos((List<String>) updates.get("sizePhotos"));
+        }
         if (updates.containsKey("availableSizes")) {
             service.setAvailableSizes((List<String>) updates.get("availableSizes"));
         }
