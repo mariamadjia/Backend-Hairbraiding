@@ -18,6 +18,7 @@ import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.example.backendbraiding.util.SlugUtil;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -67,11 +68,6 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public Map<String, Object> getAllCategoriesForAdmin() {
         List<Category> categories = categoryRepository.findAllWithSubcategoriesAndItems();
-        // Force-load lengthOptions within the transaction
-        categories.forEach(cat -> {
-            cat.getSubcategories().forEach(sub -> sub.getItems().forEach(item -> item.getLengthOptions().size()));
-            cat.getItems().forEach(item -> item.getLengthOptions().size());
-        });
         List<AdminCategoryDTO> adminDtos = categories.stream().map(cat -> {
             AdminCategoryDTO dto = new AdminCategoryDTO();
             dto.setId(cat.getId());
@@ -159,6 +155,23 @@ public class CategoryService {
 
     public List<CategoryGalleryDTO> getAllCategoriesForGallery() {
         List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
+        
+        // Batch fetch all subcategory IDs
+        List<Long> allSubcategoryIds = categories.stream()
+                .flatMap(cat -> cat.getSubcategories().stream())
+                .map(Subcategory::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        
+        // Batch fetch all gallery images
+        Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
+        if (!allSubcategoryIds.isEmpty()) {
+            List<GalleryImage> allGalleryImages = galleryImageRepository
+                    .findBySubcategoryIdsOrderBySubcategoryAndDisplayOrder(allSubcategoryIds);
+            galleryImagesBySubcategory = allGalleryImages.stream()
+                    .collect(Collectors.groupingBy(img -> img.getSubcategory().getId()));
+        }
+        
         return categories.stream().map(cat -> {
             CategoryGalleryDTO dto = new CategoryGalleryDTO();
             dto.setId(cat.getId());
@@ -174,9 +187,9 @@ public class CategoryService {
                 subDto.setName(sub.getName());
                 subDto.setSlug(sub.getSlug());
                 subDto.setImage(sub.getImage());
-                List<String> galleryUrls = galleryImageRepository
-                        .findBySubcategoryIdOrderByDisplayOrderAsc(sub.getId())
-                        .stream()
+                
+                List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(sub.getId(), List.of());
+                List<String> galleryUrls = galleryImages.stream()
                         .map(GalleryImage::getImageUrl)
                         .collect(Collectors.toList());
                 subDto.setImages(galleryUrls.isEmpty() && sub.getImage() != null
@@ -262,26 +275,7 @@ public class CategoryService {
 
     @org.springframework.cache.annotation.Cacheable(value = "bookingCategory", key = "#slug")
     public Category getCategoryBySlugForBooking(String slug) {
-        Category category = categoryRepository.findBySlug(slug).orElse(null);
-        if (category != null) {
-            // Eagerly load all nested relationships for caching
-            category.getSubcategories().forEach(sub -> {
-                sub.getItems().forEach(item -> {
-                    item.getSizePhotos().size();
-                    item.getImages().size();
-                    item.getAvailableSizes().size();
-                    item.getHairTextures().size();
-                    item.getLengthOptions().size();
-                });
-            });
-            category.getItems().forEach(item -> {
-                item.getSizePhotos().size();
-                item.getImages().size();
-                item.getAvailableSizes().size();
-                item.getHairTextures().size();
-                item.getLengthOptions().size();
-            });
-        }
+        Category category = categoryRepository.findBySlugWithAllData(slug).orElse(null);
         return category;
     }
 
@@ -318,7 +312,7 @@ public class CategoryService {
 
         for (int subIndex = 0; subIndex < request.getSubcategories().size(); subIndex++) {
             CompleteCategoryRequest.SubcategoryInput subInput = request.getSubcategories().get(subIndex);
-            String subSlug = generateSlug(subInput.getName());
+            String subSlug = SlugUtil.generateSlug(subInput.getName());
             if (subcategoryRepository.findBySlug(subSlug).isPresent()) {
                 throw new IllegalArgumentException("Subcategory slug already exists: " + subSlug);
             }
@@ -404,14 +398,6 @@ public class CategoryService {
         }
 
         galleryImageRepository.saveAll(changedImages);
-    }
-
-    private String generateSlug(String name) {
-        return name.toLowerCase()
-                .replaceAll("[^a-z0-9\\s-]", "")
-                .replaceAll("\\s+", "-")
-                .replaceAll("-+", "-")
-                .trim();
     }
 
     @Transactional
@@ -501,14 +487,28 @@ public class CategoryService {
                 category.getFlippingImages().size();
             }
 
-            return mapToAdminCategoryShellDTO(category);
+            // Batch fetch gallery images for all subcategories
+            List<Long> subcategoryIds = category.getSubcategories().stream()
+                    .map(Subcategory::getId)
+                    .filter(Objects::nonNull)
+                    .toList();
+            
+            Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
+            if (!subcategoryIds.isEmpty()) {
+                List<GalleryImage> allGalleryImages = galleryImageRepository
+                        .findBySubcategoryIdsOrderBySubcategoryAndDisplayOrder(subcategoryIds);
+                galleryImagesBySubcategory = allGalleryImages.stream()
+                        .collect(Collectors.groupingBy(img -> img.getSubcategory().getId()));
+            }
+
+            return mapToAdminCategoryShellDTO(category, galleryImagesBySubcategory);
         } catch (Exception e) {
             log.error("Error fetching category by slug for admin: {}", slug, e);
             throw new RuntimeException("Failed to fetch category: " + e.getMessage(), e);
         }
     }
 
-    private AdminCategoryDTO mapToAdminCategoryShellDTO(Category category) {
+    private AdminCategoryDTO mapToAdminCategoryShellDTO(Category category, Map<Long, List<GalleryImage>> galleryImagesBySubcategory) {
         AdminCategoryDTO dto = new AdminCategoryDTO();
         dto.setId(category.getId());
         dto.setName(category.getName());
@@ -530,10 +530,10 @@ public class CategoryService {
                 subDto.setDisplayOrder(sub.getDisplayOrder());
                 subDto.setItems(new ArrayList<>());
                 
-                // Include gallery images for this subcategory
+                // Include gallery images for this subcategory from batch-fetched data
                 try {
                     if (sub.getId() != null) {
-                        List<GalleryImage> galleryImages = galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(sub.getId());
+                        List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(sub.getId(), List.of());
                         List<ImageResponse> galleryDtos = galleryImages.stream().map(img -> {
                             ImageResponse r = new ImageResponse();
                             r.setId(img.getId());
@@ -627,20 +627,14 @@ public class CategoryService {
         Subcategory subcategory = subcategoryRepository.findBySlugForAdmin(slug)
                 .orElseThrow(() -> new RuntimeException("Subcategory not found"));
 
-        // Items are JOIN FETCHed. Load lengthOptions + element collections via
-        // separate queries (avoids MultipleBagFetchException).
-        subcategory.getItems().forEach(item -> {
-            item.getLengthOptions().size();
-            item.getImages().size();
-            item.getSizePhotos().size();
-            item.getAvailableSizes().size();
-            item.getHairTextures().size();
-        });
+        // Batch fetch gallery images for this subcategory
+        List<GalleryImage> galleryImages = galleryImageRepository
+                .findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId());
 
-        return mapToAdminSubcategoryDTO(subcategory);
+        return mapToAdminSubcategoryDTO(subcategory, galleryImages);
     }
 
-    private AdminSubcategoryDTO mapToAdminSubcategoryDTO(Subcategory subcategory) {
+    private AdminSubcategoryDTO mapToAdminSubcategoryDTO(Subcategory subcategory, List<GalleryImage> galleryImages) {
         AdminSubcategoryDTO dto = new AdminSubcategoryDTO();
         dto.setId(subcategory.getId());
         dto.setName(subcategory.getName());
@@ -656,7 +650,6 @@ public class CategoryService {
         dto.setItems(itemDtos);
 
         // Include gallery images so frontend doesn't need a second request
-        List<GalleryImage> galleryImages = galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId());
         List<ImageResponse> galleryDtos = galleryImages.stream().map(img -> {
             ImageResponse r = new ImageResponse();
             r.setId(img.getId());

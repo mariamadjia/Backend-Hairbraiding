@@ -9,6 +9,7 @@ import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.example.backendbraiding.util.SlugUtil;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,13 +19,11 @@ public class SubcategoryService {
     private final SubcategoryRepository subcategoryRepository;
     private final CategoryRepository categoryRepository;
     private final GalleryImageRepository galleryImageRepository;
-    private final ImageSyncService imageSyncService;
 
-    public SubcategoryService(SubcategoryRepository subcategoryRepository, CategoryRepository categoryRepository, GalleryImageRepository galleryImageRepository, ImageSyncService imageSyncService) {
+    public SubcategoryService(SubcategoryRepository subcategoryRepository, CategoryRepository categoryRepository, GalleryImageRepository galleryImageRepository) {
         this.subcategoryRepository = subcategoryRepository;
         this.categoryRepository = categoryRepository;
         this.galleryImageRepository = galleryImageRepository;
-        this.imageSyncService = imageSyncService;
     }
 
     public Subcategory getSubcategoryById(Long id) {
@@ -39,7 +38,7 @@ public class SubcategoryService {
                 .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
         
         // Generate slug from name
-        String slug = generateSlug(request.getName());
+        String slug = SlugUtil.generateSlug(request.getName());
         
         // Check if slug already exists
         if (subcategoryRepository.findBySlug(slug).isPresent()) {
@@ -64,7 +63,7 @@ public class SubcategoryService {
         boolean imageUpdated = false;
         
         if (request.getName() != null && !request.getName().isBlank()) {
-            String newSlug = generateSlug(request.getName());
+            String newSlug = SlugUtil.generateSlug(request.getName());
             
             // Check if new slug already exists (and belongs to different subcategory)
             subcategoryRepository.findBySlug(newSlug).ifPresent(existing -> {
@@ -92,11 +91,6 @@ public class SubcategoryService {
         
         Subcategory saved = subcategoryRepository.save(subcategory);
         
-        // Sync to gallery if image was updated
-        if (imageUpdated) {
-            imageSyncService.syncSubcategoryImageToGallery(saved);
-        }
-        
         return saved;
     }
 
@@ -109,13 +103,5 @@ public class SubcategoryService {
                 galleryImageRepository.findBySubcategoryIdOrderByDisplayOrderAsc(id)
         );
         subcategoryRepository.delete(subcategory);
-    }
-    
-    private String generateSlug(String name) {
-        return name.toLowerCase()
-                .replaceAll("[^a-z0-9\\s-]", "")
-                .replaceAll("\\s+", "-")
-                .replaceAll("-+", "-")
-                .trim();
     }
 }

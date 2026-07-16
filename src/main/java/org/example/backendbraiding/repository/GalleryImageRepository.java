@@ -16,6 +16,9 @@ public interface GalleryImageRepository extends JpaRepository<GalleryImage, Long
     @Query("SELECT g FROM GalleryImage g LEFT JOIN FETCH g.category LEFT JOIN FETCH g.subcategory WHERE g.subcategory.id = :subcategoryId ORDER BY g.displayOrder ASC")
     List<GalleryImage> findBySubcategoryIdOrderByDisplayOrderAsc(@Param("subcategoryId") Long subcategoryId);
 
+    @Query("SELECT g FROM GalleryImage g LEFT JOIN FETCH g.category LEFT JOIN FETCH g.subcategory WHERE g.subcategory.id IN :subcategoryIds ORDER BY g.subcategory.id, g.displayOrder ASC")
+    List<GalleryImage> findBySubcategoryIdsOrderBySubcategoryAndDisplayOrder(@Param("subcategoryIds") List<Long> subcategoryIds);
+
     List<GalleryImage> findByServiceItemIdOrderByDisplayOrderAsc(Long serviceItemId);
     List<GalleryImage> findByIsFeaturedTrueOrderByDisplayOrderAsc();
     List<GalleryImage> findByIsHeroTrueOrderByDisplayOrderAsc();

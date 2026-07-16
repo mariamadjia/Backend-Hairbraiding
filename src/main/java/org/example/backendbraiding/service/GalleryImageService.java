@@ -30,7 +30,6 @@ public class GalleryImageService {
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final ServiceItemRepository serviceItemRepository;
-    private final ImageSyncService imageSyncService;
     
     // Use Render persistent disk if available, fallback to local for development
     private static final String UPLOAD_DIR = System.getenv("UPLOAD_DIR") != null 
@@ -44,13 +43,11 @@ public class GalleryImageService {
             GalleryImageRepository imageRepository,
             CategoryRepository categoryRepository,
             SubcategoryRepository subcategoryRepository,
-            ServiceItemRepository serviceItemRepository,
-            ImageSyncService imageSyncService) {
+            ServiceItemRepository serviceItemRepository) {
         this.imageRepository = imageRepository;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.serviceItemRepository = serviceItemRepository;
-        this.imageSyncService = imageSyncService;
     }
 
     public List<ImageResponse> getAllImages() {
@@ -174,11 +171,6 @@ public class GalleryImageService {
 
         GalleryImage saved = imageRepository.save(image);
         
-        // Sync to subcategory if this is a subcategory image
-        if (saved.getSubcategory() != null) {
-            imageSyncService.syncGalleryToSubcategoryImage(saved.getSubcategory().getId());
-        }
-        
         return convertToResponse(saved);
     }
 
@@ -225,11 +217,6 @@ public class GalleryImageService {
 
         GalleryImage updated = imageRepository.save(image);
         
-        // Sync to subcategory if this is a subcategory image
-        if (updated.getSubcategory() != null) {
-            imageSyncService.syncGalleryToSubcategoryImage(updated.getSubcategory().getId());
-        }
-        
         return convertToResponse(updated);
     }
 
@@ -271,11 +258,6 @@ public class GalleryImageService {
         // Commit DB deletion first — if this throws, the file is untouched
         imageRepository.delete(image);
         imageRepository.flush();
-
-        // Sync after DB commit so the deleted image is not selected again
-        if (subcategoryId != null) {
-            imageSyncService.syncGalleryToSubcategoryImage(subcategoryId);
-        }
 
         // Now safe to delete the physical file
         if (resolvedFilePath != null) {

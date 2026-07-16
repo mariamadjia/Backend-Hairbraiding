@@ -52,9 +52,10 @@ public class BookingController {
         
         Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
         if (!allSubcategoryIds.isEmpty()) {
-            for (Long subcategoryId : allSubcategoryIds) {
-                galleryImagesBySubcategory.put(subcategoryId, getSubcategoryGalleryImages(subcategoryId));
-            }
+            List<GalleryImage> allGalleryImages = galleryImageRepository
+                    .findBySubcategoryIdsOrderBySubcategoryAndDisplayOrder(allSubcategoryIds);
+            galleryImagesBySubcategory = allGalleryImages.stream()
+                    .collect(Collectors.groupingBy(img -> img.getSubcategory().getId()));
         }
 
         for (Category category : categories) {
@@ -161,9 +162,10 @@ public class BookingController {
         
         Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
         if (!subcategoryIds.isEmpty()) {
-            for (Long subcategoryId : subcategoryIds) {
-                galleryImagesBySubcategory.put(subcategoryId, getSubcategoryGalleryImages(subcategoryId));
-            }
+            List<GalleryImage> allGalleryImages = galleryImageRepository
+                    .findBySubcategoryIdsOrderBySubcategoryAndDisplayOrder(subcategoryIds);
+            galleryImagesBySubcategory = allGalleryImages.stream()
+                    .collect(Collectors.groupingBy(img -> img.getSubcategory().getId()));
         }
 
         for (Subcategory subcategory : subcategories) {
@@ -231,15 +233,6 @@ public class BookingController {
         bookingCategory.put("subcategories", bookingSubcategories);
 
         return bookingCategory;
-    }
-
-    private List<GalleryImage> getSubcategoryGalleryImages(Long subcategoryId) {
-        if (subcategoryId == null) {
-            return List.of();
-        }
-
-        return galleryImageRepository
-                .findBySubcategoryIdOrderByDisplayOrderAsc(subcategoryId);
     }
 
     private List<Map<String, Object>> mapGalleryImages(List<GalleryImage> images) {

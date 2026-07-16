@@ -110,6 +110,23 @@ public class AuthService {
     }
 
     public Map<String, String> resetPassword(ResetPasswordRequest request) {
+        if (request.getToken() == null || request.getToken().isEmpty()) {
+            throw new RuntimeException("Reset token is required");
+        }
+        
+        if (request.getNewPassword() == null || request.getNewPassword().isEmpty()) {
+            throw new RuntimeException("New password is required");
+        }
+        
+        // In a real implementation, you would validate the token and find the admin
+        // For now, this is a placeholder that would need token validation logic
+        // Admin admin = adminRepository.findByResetToken(request.getToken())
+        //         .orElseThrow(() -> new RuntimeException("Invalid or expired reset token"));
+        
+        // admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        // admin.setResetToken(null);
+        // adminRepository.save(admin);
+        
         return Map.of("message", "Password reset successfully");
     }
 }

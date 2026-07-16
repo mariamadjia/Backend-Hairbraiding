@@ -21,7 +21,12 @@ public class EmailService {
         message.setSubject("Password Reset Request");
         message.setText("To reset your password, use this token: " + resetToken);
         
-        // mailSender.send(message); // Uncomment when email is configured
-        log.info("Password reset email would be sent to: {} with token: {}", toEmail, resetToken);
+        try {
+            mailSender.send(message);
+            log.info("Password reset email sent to: {}", toEmail);
+        } catch (Exception e) {
+            log.error("Failed to send password reset email to: {}", toEmail, e);
+            throw new RuntimeException("Failed to send password reset email");
+        }
     }
 }
