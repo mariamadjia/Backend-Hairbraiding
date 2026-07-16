@@ -24,7 +24,9 @@ public class AdminController {
 
     @PostMapping("/upload")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file,
+                                                             @RequestHeader(value = "X-Forwarded-Proto", required = false) String protocol,
+                                                             @RequestHeader(value = "X-Forwarded-Host", required = false) String host) {
         try {
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "File is empty"));
@@ -58,7 +60,11 @@ public class AdminController {
             Path filePath = uploadPath.resolve(filename).normalize();
             Files.copy(file.getInputStream(), filePath);
 
-            String fileUrl = "/uploads/" + filename;
+            // Construct full URL
+            String baseUrl = protocol != null && host != null 
+                ? protocol + "://" + host 
+                : "http://localhost:8080";
+            String fileUrl = baseUrl + "/uploads/" + filename;
             log.info("File uploaded successfully: {}", fileUrl);
             
             return ResponseEntity.ok(Map.of("url", fileUrl));
