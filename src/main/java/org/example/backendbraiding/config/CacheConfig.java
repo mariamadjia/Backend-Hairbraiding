@@ -20,6 +20,7 @@ public class CacheConfig {
             "bookingCategories",
             "publicCategories",
             "allCategories",
+            "galleryCards",
             "availableSlots",
             "appointments",
             "customers",

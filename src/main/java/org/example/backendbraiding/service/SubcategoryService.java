@@ -32,7 +32,7 @@ public class SubcategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Subcategory createSubcategory(SubcategoryRequestDTO request) {
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new ResourceNotFoundException("Category", request.getCategoryId()));
@@ -57,7 +57,7 @@ public class SubcategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Subcategory updateSubcategory(Long id, SubcategoryUpdateDTO request) {
         Subcategory subcategory = getSubcategoryById(id);
         boolean imageUpdated = false;
@@ -95,7 +95,7 @@ public class SubcategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public void deleteSubcategory(Long id) {
         Subcategory subcategory = getSubcategoryById(id);
         // Delete gallery images first — they have no cascade from the subcategory side

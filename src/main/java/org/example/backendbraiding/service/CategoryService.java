@@ -233,6 +233,7 @@ public class CategoryService {
     }
 
     @Transactional(readOnly = true)
+    @org.springframework.cache.annotation.Cacheable(value = "galleryCards")
     public List<CategoryGalleryDTO> getAllCategoriesForGalleryCards() {
         List<Category> categories =
                 categoryRepository.findAllForGalleryCards();
@@ -325,7 +326,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Category createCategory(Category category) {
         if (categoryRepository.existsBySlug(category.getSlug())) {
             throw new RuntimeException("Category with slug already exists");
@@ -334,7 +335,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Category createCompleteCategory(CompleteCategoryRequest request) {
         if (categoryRepository.existsBySlug(request.getSlug())) {
             throw new ResponseStatusException(
@@ -442,7 +443,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Category updateCategory(Long id, Category categoryDetails) {
         Category category = getCategoryById(id);
         String oldSlug = category.getSlug();
@@ -465,7 +466,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public void deleteCategory(Long id) {
         Category category = getCategoryById(id);
         // Remove gallery images first to avoid FK constraint violations
@@ -475,7 +476,7 @@ public class CategoryService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
         Category category = getCategoryById(id);
         category.setFlippingImages(flippingImages);

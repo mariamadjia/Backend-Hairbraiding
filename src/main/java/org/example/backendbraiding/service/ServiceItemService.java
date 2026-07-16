@@ -37,7 +37,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public ServiceItem createService(ServiceItem service) {
         // Set bidirectional relationship for length options
         if (service.getLengthOptions() != null) {
@@ -49,7 +49,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public ServiceItem updateService(Long id, Map<String, Object> updates) {
         ServiceItem service = getServiceById(id);
 
@@ -123,7 +123,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public void deleteService(Long id) {
         ServiceItem service = getServiceById(id);
         serviceItemRepository.delete(service);
