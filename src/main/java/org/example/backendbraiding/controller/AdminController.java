@@ -60,6 +60,7 @@ public class AdminController {
 
             String fileUrl = "/uploads/" + filename;
             log.info("File uploaded successfully: {}", fileUrl);
+            log.info("Returning relative URL to frontend: {}", fileUrl);
             
             return ResponseEntity.ok(Map.of("url", fileUrl));
         } catch (IOException e) {
