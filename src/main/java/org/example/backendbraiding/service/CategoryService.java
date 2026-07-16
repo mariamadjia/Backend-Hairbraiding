@@ -166,12 +166,14 @@ public class CategoryService {
                 .toList();
         
         // Batch fetch all gallery images
-        Map<Long, List<GalleryImage>> galleryImagesBySubcategory = new HashMap<>();
+        final Map<Long, List<GalleryImage>> galleryImagesBySubcategory;
         if (!allSubcategoryIds.isEmpty()) {
             List<GalleryImage> allGalleryImages = galleryImageRepository
                     .findBySubcategoryIdsOrderBySubcategoryAndDisplayOrder(allSubcategoryIds);
             galleryImagesBySubcategory = allGalleryImages.stream()
                     .collect(Collectors.groupingBy(img -> img.getSubcategory().getId()));
+        } else {
+            galleryImagesBySubcategory = new HashMap<>();
         }
         
         return categories.stream().map(cat -> {
