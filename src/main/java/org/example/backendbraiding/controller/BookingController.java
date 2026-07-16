@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,6 +24,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/booking")
 public class BookingController {
+    private static final Logger log = LoggerFactory.getLogger(BookingController.class);
     private final CategoryService categoryService;
     private final SubcategoryService subcategoryService;
     private final CategoryRepository categoryRepository;
@@ -129,11 +132,13 @@ public class BookingController {
     public ResponseEntity<Map<String, Object>> getBookingCategoryBySlug(
             @PathVariable String slug
     ) {
+        log.info("Fetching booking category by slug: {}", slug);
         Category category = categoryService.getCategoryBySlugForBooking(slug);
         if (category == null) {
+            log.error("Booking category not found for slug: {}", slug);
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
-                    "Booking category not found"
+                    "Booking category not found: " + slug
             );
         }
 

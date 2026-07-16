@@ -18,10 +18,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         LEFT JOIN FETCH c.subcategories sub
         LEFT JOIN FETCH sub.items si
         LEFT JOIN FETCH si.lengthOptions
-        LEFT JOIN FETCH si.images
-        LEFT JOIN FETCH si.sizePhotos
-        LEFT JOIN FETCH si.availableSizes
-        LEFT JOIN FETCH si.hairTextures
         ORDER BY c.displayOrder ASC
     """)
     List<Category> findAllWithSubcategoriesAndItems();
@@ -42,10 +38,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         LEFT JOIN FETCH c.subcategories sub
         LEFT JOIN FETCH sub.items si
         LEFT JOIN FETCH si.lengthOptions
-        LEFT JOIN FETCH si.images
-        LEFT JOIN FETCH si.sizePhotos
-        LEFT JOIN FETCH si.availableSizes
-        LEFT JOIN FETCH si.hairTextures
         WHERE c.slug = :slug
     """)
     Optional<Category> findBySlugWithAllData(@org.springframework.data.repository.query.Param("slug") String slug);
@@ -71,10 +63,6 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
         LEFT JOIN FETCH c.subcategories sub
         LEFT JOIN FETCH sub.items si
         LEFT JOIN FETCH si.lengthOptions
-        LEFT JOIN FETCH si.images
-        LEFT JOIN FETCH si.sizePhotos
-        LEFT JOIN FETCH si.availableSizes
-        LEFT JOIN FETCH si.hairTextures
         ORDER BY c.displayOrder ASC
     """)
     List<Category> findAllForBooking();

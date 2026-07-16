@@ -64,12 +64,31 @@ public class CategoryService {
     @Transactional(readOnly = true)
     @org.springframework.cache.annotation.Cacheable(value = "bookingCategories")
     public List<Category> getAllCategoriesData() {
-        return categoryRepository.findAllForBooking();
+        List<Category> categories = categoryRepository.findAllForBooking();
+        // Force-load element collections to avoid lazy loading issues
+        categories.forEach(cat -> {
+            cat.getSubcategories().forEach(sub -> sub.getItems().forEach(item -> {
+                item.getImages().size();
+                item.getSizePhotos().size();
+                item.getAvailableSizes().size();
+                item.getHairTextures().size();
+            }));
+        });
+        return categories;
     }
 
     @Transactional(readOnly = true)
     public Map<String, Object> getAllCategoriesForAdmin() {
         List<Category> categories = categoryRepository.findAllWithSubcategoriesAndItems();
+        // Force-load element collections to avoid lazy loading issues
+        categories.forEach(cat -> {
+            cat.getSubcategories().forEach(sub -> sub.getItems().forEach(item -> {
+                item.getImages().size();
+                item.getSizePhotos().size();
+                item.getAvailableSizes().size();
+                item.getHairTextures().size();
+            }));
+        });
         List<AdminCategoryDTO> adminDtos = categories.stream().map(cat -> {
             AdminCategoryDTO dto = new AdminCategoryDTO();
             dto.setId(cat.getId());
@@ -280,6 +299,17 @@ public class CategoryService {
     @org.springframework.cache.annotation.Cacheable(value = "bookingCategory", key = "#slug")
     public Category getCategoryBySlugForBooking(String slug) {
         Category category = categoryRepository.findBySlugWithAllData(slug).orElse(null);
+        if (category != null) {
+            // Force-load element collections to avoid lazy loading issues
+            category.getSubcategories().forEach(sub -> {
+                sub.getItems().forEach(item -> {
+                    item.getImages().size();
+                    item.getSizePhotos().size();
+                    item.getAvailableSizes().size();
+                    item.getHairTextures().size();
+                });
+            });
+        }
         return category;
     }
 
