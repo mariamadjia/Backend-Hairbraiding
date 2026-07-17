@@ -63,17 +63,9 @@ public class SubcategoryService {
         boolean imageUpdated = false;
         
         if (request.getName() != null && !request.getName().isBlank()) {
-            String newSlug = SlugUtil.generateSlug(request.getName());
-            
-            // Check if new slug already exists (and belongs to different subcategory)
-            subcategoryRepository.findBySlug(newSlug).ifPresent(existing -> {
-                if (!existing.getId().equals(id)) {
-                    throw new SlugAlreadyExistsException(newSlug);
-                }
-            });
-            
+            // Only update the name, don't automatically change the slug
+            // Slug should only change if explicitly requested
             subcategory.setName(request.getName());
-            subcategory.setSlug(newSlug);
         }
         
         if (request.getSummary() != null) {
