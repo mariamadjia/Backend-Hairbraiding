@@ -304,6 +304,7 @@ public class AppointmentService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public AppointmentSettingsDTO updateSettings(AppointmentSettingsDTO dto, Long adminId) {
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
             .orElseGet(this::createDefaultSettings);

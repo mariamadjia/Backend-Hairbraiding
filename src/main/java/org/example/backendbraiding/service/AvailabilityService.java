@@ -50,7 +50,7 @@ public class AvailabilityService {
     
     // Business Hours Management
     @Transactional
-    @CacheEvict(value = "availableSlots", allEntries = true)
+    @CacheEvict(value = {"availableSlots", "recurringBlocks"}, allEntries = true)
     public BusinessHoursDTO saveBusinessHours(BusinessHoursDTO dto) {
         // Validate business hours
         if (dto.getIsOpen() && dto.getCloseTime().isBefore(dto.getOpenTime())) {
@@ -78,7 +78,7 @@ public class AvailabilityService {
 
     // Bulk Schedule Management
     @Transactional
-    @CacheEvict(value = "availableSlots", allEntries = true)
+    @CacheEvict(value = {"availableSlots", "recurringBlocks"}, allEntries = true)
     public void saveWeeklySchedule(WeeklyScheduleDTO dto) {
         if (dto == null || dto.getDays() == null) {
             return;
@@ -182,7 +182,7 @@ public class AvailabilityService {
     
     // Blocked Time Slots Management
     @Transactional
-    @CacheEvict(value = "availableSlots", allEntries = true)
+    @CacheEvict(value = {"availableSlots", "recurringBlocks"}, allEntries = true)
     public BlockedTimeSlotDTO createBlockedSlot(BlockedTimeSlotDTO dto, String adminEmail) {
         Admin admin = adminRepository.findByEmail(adminEmail)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
@@ -215,7 +215,7 @@ public class AvailabilityService {
     }
     
     @Transactional
-    @CacheEvict(value = "availableSlots", allEntries = true)
+    @CacheEvict(value = {"availableSlots", "recurringBlocks"}, allEntries = true)
     public void deleteBlockedSlot(Long id) {
         blockedTimeSlotRepository.deleteById(id);
     }
