@@ -33,13 +33,22 @@ public class AppointmentService {
     private final BlockedTimeSlotRepository blockedTimeSlotRepository;
 
     @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO) {
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
             .orElseGet(this::createDefaultSettings);
         
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
         validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), settings);
+        
+        // Double-check availability within transaction to prevent race conditions
+        LocalDateTime slotEnd = requestDTO.getAppointmentDateTime().plusMinutes(settings.getSlotDurationMinutes());
+        long currentCount = appointmentRepository.countByAppointmentDateTimeBetween(
+            requestDTO.getAppointmentDateTime(), slotEnd);
+        
+        if (currentCount >= settings.getMaxAppointmentsPerSlot()) {
+            throw new RuntimeException("This time slot is fully booked (race condition detected)");
+        }
         
         Customer customer = customerRepository.findByEmail(requestDTO.getEmail())
             .orElseGet(() -> {
@@ -60,7 +69,35 @@ public class AppointmentService {
         appointment.setSelectedService(requestDTO.getSelectedService() != null ? requestDTO.getSelectedService() : requestDTO.getServiceName());
         appointment.setSelectedSize(requestDTO.getSelectedSize());
         appointment.setSelectedLength(requestDTO.getSelectedLength());
-        appointment.setPrice(requestDTO.getPrice());
+        
+        // Validate and set price - use backend truth if service exists
+        if (requestDTO.getServiceId() != null) {
+            ServiceItem service = serviceItemRepository.findById(requestDTO.getServiceId())
+                .orElseThrow(() -> new RuntimeException("Service not found"));
+            
+            String servicePrice = service.getPrice();
+            if (requestDTO.getPrice() != null && !requestDTO.getPrice().equals(servicePrice)) {
+                log.warn("Price mismatch: frontend={}, backend={}", requestDTO.getPrice(), servicePrice);
+            }
+            appointment.setPrice(servicePrice);
+        } else if (requestDTO.getPrice() != null) {
+            // For services without ID, validate price format
+            try {
+                String priceStr = requestDTO.getPrice().replace("$", "").replace(",", "").trim();
+                if (priceStr.isEmpty()) {
+                    appointment.setPrice(null);
+                } else {
+                    java.math.BigDecimal price = new java.math.BigDecimal(priceStr);
+                    if (price.compareTo(java.math.BigDecimal.ZERO) < 0) {
+                        throw new RuntimeException("Price cannot be negative");
+                    }
+                    appointment.setPrice(requestDTO.getPrice());
+                }
+            } catch (NumberFormatException e) {
+                throw new RuntimeException("Invalid price format");
+            }
+        }
+        
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
 
         if (requestDTO.getServiceId() != null) {
@@ -205,7 +242,7 @@ public class AppointmentService {
     }
 
     public List<AppointmentResponseDTO> getAppointmentsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return appointmentRepository.findAppointmentsBetweenDates(startDate, endDate)
+        return appointmentRepository.findAppointmentsBetweenDates(startDate, endDate, Pageable.unpaged())
             .stream()
             .map(this::mapToResponseDTO)
             .collect(Collectors.toList());

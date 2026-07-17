@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 @Table(name = "appointments", indexes = {
     @Index(name = "idx_appointment_status_datetime", columnList = "status, appointment_date_time"),
     @Index(name = "idx_appointment_customer", columnList = "customer_id"),
-    @Index(name = "idx_appointment_datetime", columnList = "appointment_date_time")
+    @Index(name = "idx_appointment_datetime", columnList = "appointment_date_time"),
+    @Index(name = "idx_appointment_customer_datetime", columnList = "customer_id, appointment_date_time", unique = true)
 })
 @Data
 @NoArgsConstructor

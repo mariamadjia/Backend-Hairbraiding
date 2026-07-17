@@ -297,8 +297,8 @@ public class AvailabilityService {
         // Check if blocked (including recurring blocks)
         List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findOverlappingSlots(start, end);
         
-        // Check for recurring blocks that might apply to this slot
-        List<BlockedTimeSlot> allRecurringBlocks = blockedTimeSlotRepository.findByIsRecurringTrue();
+        // Check for recurring blocks that might apply to this slot (cached for performance)
+        List<BlockedTimeSlot> allRecurringBlocks = getAllRecurringBlocks();
         for (BlockedTimeSlot recurringBlock : allRecurringBlocks) {
             if (isRecurringBlockActive(recurringBlock, start, end, timezone)) {
                 blockedSlots.add(recurringBlock);
@@ -323,6 +323,11 @@ public class AvailabilityService {
         }
         
         return slot;
+    }
+    
+    @org.springframework.cache.annotation.Cacheable(value = "recurringBlocks")
+    public List<BlockedTimeSlot> getAllRecurringBlocks() {
+        return blockedTimeSlotRepository.findByIsRecurringTrue();
     }
     
     private boolean isRecurringBlockActive(BlockedTimeSlot recurringBlock, LocalDateTime slotStart, LocalDateTime slotEnd, ZoneId timezone) {
