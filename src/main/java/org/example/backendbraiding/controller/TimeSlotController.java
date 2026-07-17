@@ -18,15 +18,10 @@ public class TimeSlotController {
     }
 
     @GetMapping("/{dayOfWeek}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<TimeSlotDTO>> getTimeSlotsByDay(@PathVariable String dayOfWeek) {
         List<TimeSlotDTO> slots = timeSlotService.getTimeSlotsByDay(dayOfWeek);
         return ResponseEntity.ok(slots);
-    }
-    
-    @GetMapping
-    public ResponseEntity<List<TimeSlotDTO>> getAllTimeSlots() {
-        // This endpoint is not used but added for completeness
-        return ResponseEntity.ok(List.of());
     }
 
     @PostMapping("/{dayOfWeek}")
