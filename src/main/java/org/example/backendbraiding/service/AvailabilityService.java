@@ -230,9 +230,19 @@ public class AvailabilityService {
             return slots;
         }
         
-        // Get settings from database (guaranteed to exist due to @PostConstruct)
+        // Get settings from database, create default if not exists
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
-            .orElseThrow(() -> new RuntimeException("AppointmentSettings not found"));
+            .orElseGet(() -> {
+                AppointmentSettings defaultSettings = new AppointmentSettings();
+                defaultSettings.setSlotDurationMinutes(60);
+                defaultSettings.setMaxAppointmentsPerSlot(1);
+                defaultSettings.setAdvanceBookingDays(60);
+                defaultSettings.setBufferTimeBetweenAppointments(0);
+                defaultSettings.setRequireApproval(true);
+                defaultSettings.setAllowSameDayBooking(true);
+                defaultSettings.setTimezone("America/Los_Angeles");
+                return settingsRepository.save(defaultSettings);
+            });
         
         // Use provided timezone or fall back to configured timezone
         ZoneId zoneId;
