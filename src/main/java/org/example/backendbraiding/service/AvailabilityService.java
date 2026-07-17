@@ -75,58 +75,71 @@ public class AvailabilityService {
             return;
         }
 
-        // Process all days in parallel for better performance
-        dto.getDays().parallelStream().forEach(day -> {
-            String dayKey = day.getDayOfWeek();
-            DayOfWeek dayOfWeek = DayOfWeek.valueOf(dayKey);
+        log.info("Saving weekly schedule with {} days", dto.getDays().size());
 
-            List<TimeSlotDTO> slots = day.getTimeSlots() != null
-                    ? day.getTimeSlots()
-                    : List.of();
+        // Process all days sequentially to avoid transaction issues with parallel streams
+        dto.getDays().forEach(day -> {
+            try {
+                String dayKey = day.getDayOfWeek();
+                DayOfWeek dayOfWeek = DayOfWeek.valueOf(dayKey);
 
-            boolean isOpen = Boolean.TRUE.equals(day.getIsAvailable()) && !slots.isEmpty();
+                List<TimeSlotDTO> slots = day.getTimeSlots() != null
+                        ? day.getTimeSlots()
+                        : List.of();
 
-            BusinessHours hours = businessHoursRepository.findByDayOfWeek(dayOfWeek)
-                    .orElse(new BusinessHours());
+                boolean isOpen = Boolean.TRUE.equals(day.getIsAvailable()) && !slots.isEmpty();
 
-            hours.setDayOfWeek(dayOfWeek);
-            hours.setIsOpen(isOpen);
+                log.debug("Processing day {}: isOpen={}, slots={}", dayOfWeek, isOpen, slots.size());
 
-            if (!isOpen) {
-                hours.setOpenTime(LocalTime.of(0, 0));
-                hours.setCloseTime(LocalTime.of(0, 0));
+                BusinessHours hours = businessHoursRepository.findByDayOfWeek(dayOfWeek)
+                        .orElse(new BusinessHours());
+
+                hours.setDayOfWeek(dayOfWeek);
+                hours.setIsOpen(isOpen);
+
+                if (!isOpen) {
+                    hours.setOpenTime(LocalTime.of(0, 0));
+                    hours.setCloseTime(LocalTime.of(0, 0));
+                    businessHoursRepository.save(hours);
+
+                    timeSlotRepository.deleteByDayOfWeek(dayKey);
+                    log.debug("Day {} is closed, deleted time slots", dayOfWeek);
+                    return;
+                }
+
+                LocalTime openTime = LocalTime.parse(slots.get(0).getStartTime());
+                LocalTime closeTime = LocalTime.parse(slots.get(slots.size() - 1).getEndTime());
+
+                hours.setOpenTime(openTime);
+                hours.setCloseTime(closeTime);
                 businessHoursRepository.save(hours);
 
                 timeSlotRepository.deleteByDayOfWeek(dayKey);
-                return;
+
+                List<TimeSlot> entities = new ArrayList<>();
+
+                for (int i = 0; i < slots.size(); i++) {
+                    TimeSlotDTO slotDto = slots.get(i);
+
+                    TimeSlot slot = new TimeSlot();
+                    slot.setDayOfWeek(dayKey);
+                    slot.setStartTime(LocalTime.parse(slotDto.getStartTime()));
+                    slot.setEndTime(LocalTime.parse(slotDto.getEndTime()));
+                    slot.setCapacity(slotDto.getCapacity() != null ? slotDto.getCapacity() : 1);
+                    slot.setSlotOrder(i);
+
+                    entities.add(slot);
+                }
+
+                timeSlotRepository.saveAll(entities);
+                log.debug("Saved {} time slots for day {}", entities.size(), dayOfWeek);
+            } catch (Exception e) {
+                log.error("Error processing day {}: {}", day.getDayOfWeek(), e.getMessage(), e);
+                throw new RuntimeException("Failed to process day " + day.getDayOfWeek() + ": " + e.getMessage(), e);
             }
-
-            LocalTime openTime = LocalTime.parse(slots.get(0).getStartTime());
-            LocalTime closeTime = LocalTime.parse(slots.get(slots.size() - 1).getEndTime());
-
-            hours.setOpenTime(openTime);
-            hours.setCloseTime(closeTime);
-            businessHoursRepository.save(hours);
-
-            timeSlotRepository.deleteByDayOfWeek(dayKey);
-
-            List<TimeSlot> entities = new ArrayList<>();
-
-            for (int i = 0; i < slots.size(); i++) {
-                TimeSlotDTO slotDto = slots.get(i);
-
-                TimeSlot slot = new TimeSlot();
-                slot.setDayOfWeek(dayKey);
-                slot.setStartTime(LocalTime.parse(slotDto.getStartTime()));
-                slot.setEndTime(LocalTime.parse(slotDto.getEndTime()));
-                slot.setCapacity(slotDto.getCapacity() != null ? slotDto.getCapacity() : 1);
-                slot.setSlotOrder(i);
-
-                entities.add(slot);
-            }
-
-            timeSlotRepository.saveAll(entities);
         });
+
+        log.info("Successfully saved weekly schedule");
     }
     
     public List<BusinessHoursDTO> getAllBusinessHours() {
