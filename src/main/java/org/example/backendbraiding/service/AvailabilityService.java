@@ -66,6 +66,12 @@ public class AvailabilityService {
         hours.setNotes(dto.getNotes());
 
         hours = businessHoursRepository.save(hours);
+        
+        // If day is being closed, delete associated time slots
+        if (!dto.getIsOpen()) {
+            timeSlotRepository.deleteByDayOfWeek(dto.getDayOfWeek().name());
+        }
+        
         return mapToBusinessHoursDTO(hours);
     }
 
