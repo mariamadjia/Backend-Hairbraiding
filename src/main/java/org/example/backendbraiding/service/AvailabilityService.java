@@ -11,6 +11,7 @@ import org.example.backendbraiding.dto.TimeSlotDTO;
 import org.example.backendbraiding.dto.WeeklyScheduleDTO;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
