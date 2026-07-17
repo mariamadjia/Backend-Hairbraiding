@@ -94,8 +94,9 @@ public class AvailabilityController {
     // Available Slots Endpoint (Public - for customer booking)
     @GetMapping("/slots")
     public ResponseEntity<List<AvailableSlotDTO>> getAvailableSlots(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        List<AvailableSlotDTO> slots = availabilityService.getAvailableSlots(date);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false, defaultValue = "America/Los_Angeles") String timezone) {
+        List<AvailableSlotDTO> slots = availabilityService.getAvailableSlots(date, timezone);
         return ResponseEntity.ok(slots);
     }
 }

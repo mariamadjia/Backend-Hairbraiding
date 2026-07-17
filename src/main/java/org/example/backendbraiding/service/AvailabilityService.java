@@ -197,8 +197,8 @@ public class AvailabilityService {
     }
     
     // Available Slots Calculation
-    @Cacheable(value = "availableSlots", key = "#date")
-    public List<AvailableSlotDTO> getAvailableSlots(LocalDate date) {
+    @Cacheable(value = "availableSlots", key = "#date + '-' + #timezone")
+    public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone) {
         List<AvailableSlotDTO> slots = new ArrayList<>();
         
         // Get business hours for this day
@@ -211,8 +211,14 @@ public class AvailabilityService {
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
             .orElseThrow(() -> new RuntimeException("AppointmentSettings not found"));
         
-        // Get configured timezone
-        ZoneId timezone = ZoneId.of(settings.getTimezone());
+        // Use provided timezone or fall back to configured timezone
+        ZoneId zoneId;
+        try {
+            zoneId = ZoneId.of(timezone);
+        } catch (Exception e) {
+            // If invalid timezone provided, use the configured one
+            zoneId = ZoneId.of(settings.getTimezone());
+        }
         
         // Generate time slots using slotDurationMinutes
         LocalTime currentTime = businessHours.getOpenTime();
@@ -228,7 +234,7 @@ public class AvailabilityService {
         while (slotStart.isBefore(slotEnd)) {
             LocalDateTime currentSlotEnd = slotStart.plusMinutes(settings.getSlotDurationMinutes());
             
-            AvailableSlotDTO slot = checkSlotAvailability(slotStart, currentSlotEnd, settings, timezone);
+            AvailableSlotDTO slot = checkSlotAvailability(slotStart, currentSlotEnd, settings, zoneId);
             slots.add(slot);
             
             // Add buffer time between slots
