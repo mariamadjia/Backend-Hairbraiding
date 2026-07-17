@@ -18,6 +18,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/availability")
@@ -38,9 +39,17 @@ public class AvailabilityController {
     // Bulk Schedule Endpoint
     @PostMapping("/schedule")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> saveWeeklySchedule(@RequestBody WeeklyScheduleDTO dto) {
-        availabilityService.saveWeeklySchedule(dto);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> saveWeeklySchedule(@RequestBody WeeklyScheduleDTO dto) {
+        try {
+            availabilityService.saveWeeklySchedule(dto);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid schedule data: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to save weekly schedule", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to save schedule: " + e.getMessage()));
+        }
     }
     
     @GetMapping("/business-hours")

@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 import java.time.LocalTime;
 
 @Entity
-@Table(name = "time_slots")
+@Table(name = "time_slots", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"day_of_week", "start_time", "end_time"}, name = "uk_time_slot_day_time")
+})
 public class TimeSlot {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
