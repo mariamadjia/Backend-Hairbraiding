@@ -1,5 +1,9 @@
 package org.example.backendbraiding.controller;
 
+import org.example.backendbraiding.dto.SubcategoryUpdateDTO;
+import org.example.backendbraiding.model.Subcategory;
+import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.example.backendbraiding.service.SubcategoryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cache.CacheManager;
@@ -8,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.validation.Valid;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,9 +28,13 @@ public class AdminController {
         ? System.getenv("UPLOAD_DIR") 
         : "public";
     private final CacheManager cacheManager;
+    private final SubcategoryRepository subcategoryRepository;
+    private final SubcategoryService subcategoryService;
 
-    public AdminController(CacheManager cacheManager) {
+    public AdminController(CacheManager cacheManager, SubcategoryRepository subcategoryRepository, SubcategoryService subcategoryService) {
         this.cacheManager = cacheManager;
+        this.subcategoryRepository = subcategoryRepository;
+        this.subcategoryService = subcategoryService;
     }
 
     @PostMapping("/upload")
@@ -89,6 +98,22 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Failed to clear cache", e);
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to clear cache"));
+        }
+    }
+
+    @PutMapping("/subcategories/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Subcategory> updateSubcategoryBySlug(
+            @PathVariable String slug,
+            @Valid @RequestBody SubcategoryUpdateDTO request) {
+        try {
+            Subcategory subcategory = subcategoryRepository.findBySlug(slug)
+                    .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+            Subcategory updated = subcategoryService.updateSubcategory(subcategory.getId(), request);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            log.error("Failed to update subcategory with slug: {}", slug, e);
+            throw new RuntimeException("Failed to update subcategory: " + e.getMessage());
         }
     }
 }

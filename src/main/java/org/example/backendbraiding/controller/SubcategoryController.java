@@ -53,6 +53,35 @@ public class SubcategoryController {
         return ResponseEntity.ok(subcategoryService.updateSubcategory(id, request));
     }
 
+    @PutMapping("/slug/{slug}")
+    public ResponseEntity<Subcategory> updateSubcategoryBySlug(
+            @PathVariable String slug,
+            @Valid @RequestBody SubcategoryUpdateDTO request) {
+        Subcategory subcategory = subcategoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+        return ResponseEntity.ok(subcategoryService.updateSubcategory(subcategory.getId(), request));
+    }
+
+    @PutMapping("/admin/slug/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Subcategory> updateSubcategoryBySlugForAdmin(
+            @PathVariable String slug,
+            @Valid @RequestBody SubcategoryUpdateDTO request) {
+        Subcategory subcategory = subcategoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+        return ResponseEntity.ok(subcategoryService.updateSubcategory(subcategory.getId(), request));
+    }
+
+    @PutMapping("/admin/{slug}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Subcategory> updateSubcategoryBySlugAdmin(
+            @PathVariable String slug,
+            @Valid @RequestBody SubcategoryUpdateDTO request) {
+        Subcategory subcategory = subcategoryRepository.findBySlug(slug)
+                .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+        return ResponseEntity.ok(subcategoryService.updateSubcategory(subcategory.getId(), request));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> deleteSubcategory(@PathVariable Long id) {
         subcategoryService.deleteSubcategory(id);
