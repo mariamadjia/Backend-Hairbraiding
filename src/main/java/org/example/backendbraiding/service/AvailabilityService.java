@@ -85,7 +85,11 @@ public class AvailabilityService {
 
         log.info("Saving weekly schedule with {} days", dto.getDays().size());
 
-        // Process all days sequentially to avoid transaction issues with parallel streams
+        // Collect all operations to batch them for better performance
+        List<BusinessHours> businessHoursToSave = new ArrayList<>();
+        List<String> daysToDeleteSlots = new ArrayList<>();
+        List<TimeSlot> timeSlotsToSave = new ArrayList<>();
+
         dto.getDays().forEach(day -> {
             try {
                 String dayKey = day.getDayOfWeek();
@@ -108,10 +112,9 @@ public class AvailabilityService {
                 if (!isOpen) {
                     hours.setOpenTime(LocalTime.of(0, 0));
                     hours.setCloseTime(LocalTime.of(0, 0));
-                    businessHoursRepository.save(hours);
-
-                    timeSlotRepository.deleteByDayOfWeek(dayKey);
-                    log.debug("Day {} is closed, deleted time slots", dayOfWeek);
+                    businessHoursToSave.add(hours);
+                    daysToDeleteSlots.add(dayKey);
+                    log.debug("Day {} is closed, will delete time slots", dayOfWeek);
                     return;
                 }
 
@@ -120,11 +123,8 @@ public class AvailabilityService {
 
                 hours.setOpenTime(openTime);
                 hours.setCloseTime(closeTime);
-                businessHoursRepository.save(hours);
-
-                timeSlotRepository.deleteByDayOfWeek(dayKey);
-
-                List<TimeSlot> entities = new ArrayList<>();
+                businessHoursToSave.add(hours);
+                daysToDeleteSlots.add(dayKey);
 
                 for (int i = 0; i < slots.size(); i++) {
                     TimeSlotDTO slotDto = slots.get(i);
@@ -136,16 +136,33 @@ public class AvailabilityService {
                     slot.setCapacity(slotDto.getCapacity() != null ? slotDto.getCapacity() : 1);
                     slot.setSlotOrder(i);
 
-                    entities.add(slot);
+                    timeSlotsToSave.add(slot);
                 }
 
-                timeSlotRepository.saveAll(entities);
-                log.debug("Saved {} time slots for day {}", entities.size(), dayOfWeek);
+                log.debug("Collected {} time slots for day {}", slots.size(), dayOfWeek);
             } catch (Exception e) {
                 log.error("Error processing day {}: {}", day.getDayOfWeek(), e.getMessage(), e);
                 throw new RuntimeException("Failed to process day " + day.getDayOfWeek() + ": " + e.getMessage(), e);
             }
         });
+
+        // Batch delete all time slots
+        if (!daysToDeleteSlots.isEmpty()) {
+            log.debug("Deleting time slots for {} days", daysToDeleteSlots.size());
+            daysToDeleteSlots.forEach(timeSlotRepository::deleteByDayOfWeek);
+        }
+
+        // Batch save all business hours
+        if (!businessHoursToSave.isEmpty()) {
+            log.debug("Saving {} business hours", businessHoursToSave.size());
+            businessHoursRepository.saveAll(businessHoursToSave);
+        }
+
+        // Batch save all time slots
+        if (!timeSlotsToSave.isEmpty()) {
+            log.debug("Saving {} time slots", timeSlotsToSave.size());
+            timeSlotRepository.saveAll(timeSlotsToSave);
+        }
 
         log.info("Successfully saved weekly schedule");
     }
