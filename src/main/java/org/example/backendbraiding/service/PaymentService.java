@@ -40,22 +40,25 @@ public class PaymentService {
                 metadata.put("customerName", request.getCustomerName());
             }
 
-            PaymentIntentCreateParams params = PaymentIntentCreateParams.builder()
+            PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
                     .setAmount(request.getAmount())
                     .setCurrency(request.getCurrency())
-                    .setPaymentMethod(request.getPaymentMethodId())
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
-                    .setConfirm(true)
                     .putAllMetadata(metadata)
                     .setAutomaticPaymentMethods(
                             PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
                                     .setEnabled(true)
                                     .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
                                     .build()
-                    )
-                    .build();
+                    );
 
-            PaymentIntent paymentIntent = PaymentIntent.create(params);
+            // Only set payment method and confirm if provided
+            if (request.getPaymentMethodId() != null) {
+                paramsBuilder.setPaymentMethod(request.getPaymentMethodId());
+                paramsBuilder.setConfirm(true);
+            }
+
+            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
 
             if (request.getAppointmentId() != null) {
                 updateAppointmentWithPayment(
@@ -72,7 +75,7 @@ public class PaymentService {
                     .status(paymentIntent.getStatus())
                     .amount(paymentIntent.getAmount())
                     .currency(paymentIntent.getCurrency())
-                    .message("Payment authorized successfully. Awaiting admin approval.")
+                    .message("Payment intent created successfully.")
                     .appointmentId(request.getAppointmentId())
                     .build();
 

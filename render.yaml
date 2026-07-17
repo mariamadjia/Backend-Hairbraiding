@@ -20,3 +20,9 @@ services:
         sync: false
       - key: CORS_ALLOWED_ORIGINS
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
