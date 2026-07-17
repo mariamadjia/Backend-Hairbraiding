@@ -8,6 +8,7 @@ import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
