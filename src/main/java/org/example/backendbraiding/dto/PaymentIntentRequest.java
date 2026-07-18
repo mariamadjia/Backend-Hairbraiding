@@ -16,10 +16,9 @@ public class PaymentIntentRequest {
     
     @NotBlank(message = "Currency is required")
     private String currency = "usd";
-    
-    @NotBlank(message = "Payment method ID is required")
-    private String paymentMethodId;
-    
+
+    private String paymentMethodId; // Optional - will be created by Stripe confirmPayment
+
     private Long appointmentId;
     
     private String customerEmail;
