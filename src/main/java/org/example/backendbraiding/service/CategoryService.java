@@ -4,14 +4,10 @@ import org.example.backendbraiding.dto.AdminCategoryDTO;
 import org.example.backendbraiding.dto.AdminServiceItemDTO;
 import org.example.backendbraiding.dto.AdminSubcategoryDTO;
 import org.example.backendbraiding.dto.CategoryGalleryDTO;
-import org.example.backendbraiding.dto.CategoryPricingDTO;
 import org.example.backendbraiding.dto.CategorySummaryDTO;
 import org.example.backendbraiding.dto.CompleteCategoryRequest;
 import org.example.backendbraiding.dto.ImageResponse;
 import org.example.backendbraiding.dto.LengthOptionDTO;
-import org.example.backendbraiding.dto.LengthPricingDTO;
-import org.example.backendbraiding.dto.PricingDataDTO;
-import org.example.backendbraiding.dto.SizePricingDTO;
 import org.example.backendbraiding.dto.SubcategoryGalleryDTO;
 import org.example.backendbraiding.dto.SubcategorySummaryDTO;
 import org.example.backendbraiding.model.Category;
@@ -711,59 +707,5 @@ public class CategoryService {
         dto.setGalleryImages(galleryDtos);
 
         return dto;
-    }
-
-    @Transactional(readOnly = true)
-    public PricingDataDTO getPricingData() {
-        List<Category> categories = categoryRepository.findAllByOrderByDisplayOrderAsc();
-        
-        List<CategoryPricingDTO> categoryPricing = categories.stream().map(category -> {
-            CategoryPricingDTO catDto = new CategoryPricingDTO();
-            catDto.setName(category.getName());
-            
-            // Group by sizes (service items)
-            List<SizePricingDTO> sizes = new ArrayList<>();
-            
-            // Process category-level service items
-            if (category.getItems() != null) {
-                for (ServiceItem item : category.getItems()) {
-                    SizePricingDTO sizeDto = new SizePricingDTO();
-                    sizeDto.setName(item.getName());
-                    
-                    List<LengthPricingDTO> lengths = item.getLengthOptions().stream()
-                            .map(opt -> new LengthPricingDTO(opt.getName(), opt.getPrice()))
-                            .collect(Collectors.toList());
-                    sizeDto.setLengths(lengths);
-                    sizes.add(sizeDto);
-                }
-            }
-            
-            // Process subcategory-level service items
-            if (category.getSubcategories() != null) {
-                for (Subcategory sub : category.getSubcategories()) {
-                    if (sub.getItems() != null) {
-                        for (ServiceItem item : sub.getItems()) {
-                            SizePricingDTO sizeDto = new SizePricingDTO();
-                            sizeDto.setName(item.getName());
-                            
-                            List<LengthPricingDTO> lengths = item.getLengthOptions().stream()
-                                    .map(opt -> new LengthPricingDTO(opt.getName(), opt.getPrice()))
-                                    .collect(Collectors.toList());
-                            sizeDto.setLengths(lengths);
-                            sizes.add(sizeDto);
-                        }
-                    }
-                }
-            }
-            
-            catDto.setSizes(sizes);
-            return catDto;
-        }).collect(Collectors.toList());
-        
-        PricingDataDTO pricingData = new PricingDataDTO();
-        pricingData.setCategories(categoryPricing);
-        pricingData.setDepositAmount("$50");
-        
-        return pricingData;
     }
 }
