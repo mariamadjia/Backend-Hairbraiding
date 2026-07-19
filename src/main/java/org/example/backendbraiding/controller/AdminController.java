@@ -1,8 +1,10 @@
 package org.example.backendbraiding.controller;
 
+import org.example.backendbraiding.dto.PricingDataDTO;
 import org.example.backendbraiding.dto.SubcategoryUpdateDTO;
 import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,11 +32,13 @@ public class AdminController {
     private final CacheManager cacheManager;
     private final SubcategoryRepository subcategoryRepository;
     private final SubcategoryService subcategoryService;
+    private final CategoryService categoryService;
 
-    public AdminController(CacheManager cacheManager, SubcategoryRepository subcategoryRepository, SubcategoryService subcategoryService) {
+    public AdminController(CacheManager cacheManager, SubcategoryRepository subcategoryRepository, SubcategoryService subcategoryService, CategoryService categoryService) {
         this.cacheManager = cacheManager;
         this.subcategoryRepository = subcategoryRepository;
         this.subcategoryService = subcategoryService;
+        this.categoryService = categoryService;
     }
 
     @PostMapping("/upload")
@@ -114,6 +118,18 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Failed to update subcategory with slug: {}", slug, e);
             throw new RuntimeException("Failed to update subcategory: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/pricing")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<PricingDataDTO> getPricingData() {
+        try {
+            PricingDataDTO pricingData = categoryService.getPricingData();
+            return ResponseEntity.ok(pricingData);
+        } catch (Exception e) {
+            log.error("Failed to fetch pricing data", e);
+            throw new RuntimeException("Failed to fetch pricing data: " + e.getMessage());
         }
     }
 }
