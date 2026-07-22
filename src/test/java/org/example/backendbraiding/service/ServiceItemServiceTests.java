@@ -86,6 +86,33 @@ class ServiceItemServiceTests {
         verify(services, never()).delete(any());
     }
 
+    @Test
+    void restoresArchivedService() {
+        existing.setActive(false);
+        when(services.findById(3L)).thenReturn(Optional.of(existing));
+
+        ServiceItem restored = subject.restoreService(3L);
+
+        assertTrue(restored.isActive());
+        verify(services).save(existing);
+    }
+
+    @Test
+    void reordersServicesWithinSubcategory() {
+        ServiceItem second = new ServiceItem();
+        second.setId(5L);
+        second.setName("Medium");
+        second.setCategory(existing.getCategory());
+        second.setSubcategory(existing.getSubcategory());
+        when(services.findAllById(List.of(5L, 3L))).thenReturn(List.of(existing, second));
+
+        subject.reorderServices(List.of(5L, 3L));
+
+        assertEquals(0, second.getDisplayOrder());
+        assertEquals(1, existing.getDisplayOrder());
+        verify(services).saveAll(anyList());
+    }
+
     private ServiceItemRequest baseRequest() {
         ServiceItemRequest request = new ServiceItemRequest();
         request.setName("Small");

@@ -52,6 +52,11 @@ public class ServiceItemService {
         return serviceItemRepository.findBySubcategoryId(subcategoryId);
     }
 
+    @Transactional(readOnly = true)
+    public List<ServiceItem> getArchivedServices(Long subcategoryId) {
+        return serviceItemRepository.findArchived(subcategoryId);
+    }
+
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public ServiceItem createService(ServiceItemRequest request) {
@@ -164,6 +169,32 @@ public class ServiceItemService {
         ServiceItem service = getServiceById(id);
         service.setActive(false);
         serviceItemRepository.save(service);
+    }
+
+    @Transactional
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    public ServiceItem restoreService(Long id) {
+        ServiceItem service = serviceItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Archived service not found"));
+        if (service.isActive()) throw new IllegalStateException("Service is already active");
+        service.setActive(true);
+        return serviceItemRepository.save(service);
+    }
+
+    @Transactional
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    public void reorderServices(List<Long> serviceIds) {
+        List<ServiceItem> services = serviceItemRepository.findAllById(serviceIds);
+        if (services.size() != serviceIds.size() || services.stream().anyMatch(service -> !service.isActive())) {
+            throw new IllegalArgumentException("One or more services cannot be reordered");
+        }
+        Long subcategoryId = services.get(0).getSubcategory() == null ? null : services.get(0).getSubcategory().getId();
+        if (subcategoryId == null || services.stream().anyMatch(service -> service.getSubcategory() == null || !subcategoryId.equals(service.getSubcategory().getId()))) {
+            throw new IllegalArgumentException("Services must belong to the same subcategory");
+        }
+        Map<Long, ServiceItem> byId = services.stream().collect(java.util.stream.Collectors.toMap(ServiceItem::getId, service -> service));
+        for (int index = 0; index < serviceIds.size(); index++) byId.get(serviceIds.get(index)).setDisplayOrder(index);
+        serviceItemRepository.saveAll(services);
     }
 
     private record Relationship(Category category, Subcategory subcategory) {}

@@ -21,4 +21,7 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, Long> 
     List<ServiceItem> findAllByActiveTrueOrderByDisplayOrderAscIdAsc();
 
     java.util.Optional<ServiceItem> findByIdAndActiveTrue(Long id);
+
+    @Query("SELECT s FROM ServiceItem s WHERE s.active = false AND (:subcategoryId IS NULL OR s.subcategory.id = :subcategoryId) ORDER BY s.updatedAt DESC, s.id DESC")
+    List<ServiceItem> findArchived(@Param("subcategoryId") Long subcategoryId);
 }

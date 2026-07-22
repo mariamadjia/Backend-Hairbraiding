@@ -101,7 +101,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/hero-images").permitAll()
                 .requestMatchers("/api/hero-images/**").authenticated()
                 .requestMatchers("/api/upload/welcome-video").authenticated()
-                .requestMatchers("/api/admin/**").authenticated()
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
             )
             // Register the JWT filter's order first. Spring Security 7 requires a custom
