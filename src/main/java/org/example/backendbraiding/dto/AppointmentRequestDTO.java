@@ -41,6 +41,8 @@ public class AppointmentRequestDTO {
     private String selectedSize;
     
     private String selectedLength;
+
+    private Long lengthOptionId;
     
     private String price;
 

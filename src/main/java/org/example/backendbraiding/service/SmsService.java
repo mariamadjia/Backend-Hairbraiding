@@ -37,10 +37,13 @@ public class SmsService {
     public void sendSms(String toPhoneNumber, String messageBody) {
         try {
             // Format phone number to E.164 format (add + if missing)
-            String formattedPhone = toPhoneNumber;
-            if (!formattedPhone.startsWith("+")) {
-                formattedPhone = "+" + formattedPhone;
-            }
+            String formattedPhone = toPhoneNumber.trim();
+            boolean explicitlyInternational = formattedPhone.startsWith("+");
+            String digits = formattedPhone.replaceAll("\\D", "");
+            if (explicitlyInternational) formattedPhone = "+" + digits;
+            else if (digits.length() == 10) formattedPhone = "+1" + digits;
+            else if (digits.length() == 11 && digits.startsWith("1")) formattedPhone = "+" + digits;
+            else throw new IllegalArgumentException("Phone number must include a valid country code");
             
             log.debug("SMS sending: from={} to={} message={}", fromPhoneNumber, formattedPhone, messageBody);
             

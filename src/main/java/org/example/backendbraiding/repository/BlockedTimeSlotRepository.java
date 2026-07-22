@@ -20,7 +20,7 @@ public interface BlockedTimeSlotRepository extends JpaRepository<BlockedTimeSlot
     );
     
     @Query("SELECT b FROM BlockedTimeSlot b WHERE " +
-           "b.startDateTime >= :startDate AND b.endDateTime <= :endDate " +
+           "b.startDateTime < :endDate AND b.endDateTime > :startDate " +
            "ORDER BY b.startDateTime")
     List<BlockedTimeSlot> findByDateRange(
         @Param("startDate") LocalDateTime startDate,

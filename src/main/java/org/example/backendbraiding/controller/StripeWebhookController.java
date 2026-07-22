@@ -9,6 +9,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.repository.AppointmentRepository;
+import org.example.backendbraiding.repository.AppointmentSettingsRepository;
+import org.example.backendbraiding.service.PaymentService;
+import org.example.backendbraiding.dto.PaymentCaptureRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,11 +27,14 @@ import java.util.Optional;
 public class StripeWebhookController {
 
     private final AppointmentRepository appointmentRepository;
+    private final AppointmentSettingsRepository settingsRepository;
+    private final PaymentService paymentService;
 
     @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
 
     @PostMapping("/stripe")
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public ResponseEntity<String> handleStripeWebhook(
             @RequestBody String payload,
             @RequestHeader("Stripe-Signature") String sigHeader) {
@@ -121,6 +127,7 @@ public class StripeWebhookController {
         if (appointmentOpt.isPresent()) {
             Appointment appointment = appointmentOpt.get();
             appointment.setPaymentStatus(Appointment.PaymentStatus.FAILED);
+            appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
             appointmentRepository.save(appointment);
             log.info("Updated appointment {} payment status to FAILED", appointment.getId());
         }
@@ -143,6 +150,9 @@ public class StripeWebhookController {
         if (appointmentOpt.isPresent()) {
             Appointment appointment = appointmentOpt.get();
             appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+            if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
+                appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+            }
             appointmentRepository.save(appointment);
             log.info("Updated appointment {} payment status to CANCELLED", appointment.getId());
         }
@@ -167,8 +177,26 @@ public class StripeWebhookController {
             
             if (appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
                 appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
+                appointment.setPaymentPendingExpiresAt(null);
                 appointmentRepository.save(appointment);
                 log.info("Updated appointment {} payment status to AUTHORIZED", appointment.getId());
+
+                boolean requireApproval = settingsRepository.findFirstByOrderByIdDesc()
+                        .map(settings -> settings.getRequireApproval())
+                        .orElse(true);
+                if (!requireApproval) {
+                    try {
+                        paymentService.capturePayment(new PaymentCaptureRequest(paymentIntent.getId(), null));
+                        Appointment capturedAppointment = appointmentRepository.findById(appointment.getId())
+                                .orElseThrow(() -> new IllegalStateException("Appointment disappeared during capture"));
+                        capturedAppointment.setStatus(Appointment.AppointmentStatus.APPROVED);
+                        capturedAppointment.setApprovedAt(LocalDateTime.now());
+                        appointmentRepository.save(capturedAppointment);
+                    } catch (Exception e) {
+                        paymentService.markCaptureFailed(paymentIntent.getId(), e.getMessage());
+                        log.error("Automatic capture failed for appointment {}", appointment.getId(), e);
+                    }
+                }
             }
         }
     }

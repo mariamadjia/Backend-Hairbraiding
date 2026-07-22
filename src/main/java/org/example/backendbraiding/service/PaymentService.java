@@ -2,6 +2,7 @@ package org.example.backendbraiding.service;
 
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
+import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class PaymentService {
     private final BookingPaymentTokenService bookingPaymentTokenService;
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse createPaymentIntent(PaymentIntentRequest request) {
         if (!bookingPaymentTokenService.isValidForAppointment(request.getPaymentToken(), request.getAppointmentId())) {
             throw new IllegalArgumentException("Invalid or expired payment token");
@@ -39,6 +41,10 @@ public class PaymentService {
 
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Payment can only be authorized for a pending appointment");
+        }
+        if (appointment.getPaymentPendingExpiresAt() != null
+                && !appointment.getPaymentPendingExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException("Booking reservation has expired");
         }
 
         try {
@@ -64,6 +70,8 @@ public class PaymentService {
                                     .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
                                     .build()
                     )
+                    .build(), RequestOptions.builder()
+                    .setIdempotencyKey("booking-payment-intent-" + appointment.getId())
                     .build());
 
             appointment.setPaymentIntentId(paymentIntent.getId());
@@ -74,7 +82,7 @@ public class PaymentService {
             return paymentIntentResponse(paymentIntent, appointment.getId(), "Payment intent created successfully.");
         } catch (StripeException e) {
             log.error("Error creating payment intent: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to create payment intent");
+            throw new org.example.backendbraiding.exception.PaymentProcessingException("Payment provider could not create the authorization");
         }
     }
 
@@ -91,6 +99,7 @@ public class PaymentService {
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse capturePayment(PaymentCaptureRequest request) {
         try {
             PaymentIntent paymentIntent;
@@ -122,11 +131,12 @@ public class PaymentService {
 
         } catch (StripeException e) {
             log.error("Error capturing payment: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to capture payment: " + e.getMessage());
+            throw new org.example.backendbraiding.exception.PaymentProcessingException("Payment capture failed: " + e.getMessage());
         }
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse cancelPayment(String paymentIntentId) {
         try {
             PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId).cancel();
@@ -148,7 +158,7 @@ public class PaymentService {
 
         } catch (StripeException e) {
             log.error("Error cancelling payment: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to cancel payment: " + e.getMessage());
+            throw new org.example.backendbraiding.exception.PaymentProcessingException("Payment authorization release failed: " + e.getMessage());
         }
     }
 
@@ -171,8 +181,28 @@ public class PaymentService {
 
         } catch (StripeException e) {
             log.error("Error retrieving payment status: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to retrieve payment status: " + e.getMessage());
+            throw new org.example.backendbraiding.exception.PaymentProcessingException("Payment status lookup failed: " + e.getMessage());
         }
+    }
+
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public void markCaptureFailed(String paymentIntentId, String reason) {
+        appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
+            appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURE_FAILED);
+            appointment.setAdminNotes("Payment capture failed; retry required: " + reason);
+            appointmentRepository.save(appointment);
+        });
+    }
+
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public void markCancellationFailed(String paymentIntentId, String reason) {
+        appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
+            appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLATION_FAILED);
+            appointment.setAdminNotes("Payment authorization release failed; retry required: " + reason);
+            appointmentRepository.save(appointment);
+        });
     }
 
 }

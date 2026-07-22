@@ -44,8 +44,14 @@ public class Appointment {
     @Column(name = "price")
     private String price;
 
+    @Column(name = "duration_minutes")
+    private Integer durationMinutes;
+
     @Column(nullable = false)
     private LocalDateTime appointmentDateTime;
+
+    @Column(name = "appointment_end_date_time")
+    private LocalDateTime appointmentEndDateTime;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -108,6 +114,8 @@ public class Appointment {
         PENDING,
         AUTHORIZED,
         CAPTURED,
+        CAPTURE_FAILED,
+        CANCELLATION_FAILED,
         CANCELLED,
         FAILED
     }

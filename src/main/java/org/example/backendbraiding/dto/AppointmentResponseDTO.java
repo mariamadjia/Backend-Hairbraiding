@@ -17,7 +17,9 @@ public class AppointmentResponseDTO {
     private String selectedSize;
     private String selectedLength;
     private String price;
+    private Integer durationMinutes;
     private LocalDateTime appointmentDateTime;
+    private LocalDateTime appointmentEndDateTime;
     private String status;
     private String notes;
     private String adminNotes;

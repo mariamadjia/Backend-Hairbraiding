@@ -20,6 +20,7 @@ import java.time.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.example.backendbraiding.util.BookingRules;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +33,7 @@ public class AvailabilityService {
     private final AppointmentRepository appointmentRepository;
     private final AdminRepository adminRepository;
     private final TimeSlotRepository timeSlotRepository;
+    private final ServiceItemRepository serviceItemRepository;
     
     @PostConstruct
     public void initializeDefaultSettings() {
@@ -221,8 +223,8 @@ public class AvailabilityService {
     }
     
     // Available Slots Calculation
-    @Cacheable(value = "availableSlots", key = "#date + '-' + #timezone")
-    public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone) {
+    @Cacheable(value = "availableSlots", key = "#date + '-' + #timezone + '-' + #serviceId + '-' + #lengthOptionId")
+    public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone, Long serviceId, Long lengthOptionId) {
         List<AvailableSlotDTO> slots = new ArrayList<>();
         
         // Get business hours for this day
@@ -254,7 +256,22 @@ public class AvailabilityService {
             zoneId = ZoneId.of(settings.getTimezone());
         }
         
-        // Generate time slots using slotDurationMinutes
+        int durationMinutes = resolveDurationMinutes(serviceId, lengthOptionId, settings.getSlotDurationMinutes());
+
+        List<TimeSlot> configuredSlots = timeSlotRepository
+                .findByDayOfWeekOrderBySlotOrderAsc(date.getDayOfWeek().name());
+        if (!configuredSlots.isEmpty()) {
+            for (TimeSlot configured : configuredSlots) {
+                LocalDateTime start = LocalDateTime.of(date, configured.getStartTime());
+                LocalDateTime configuredEnd = LocalDateTime.of(date, configured.getEndTime());
+                LocalDateTime serviceEnd = start.plusMinutes(durationMinutes);
+                if (serviceEnd.isAfter(configuredEnd)) continue;
+                slots.add(checkSlotAvailability(start, serviceEnd, settings, zoneId, configured.getCapacity(), durationMinutes));
+            }
+            return slots;
+        }
+
+        // Generate fallback slots using global settings when no explicit daily slots exist.
         LocalTime currentTime = businessHours.getOpenTime();
         LocalTime closeTime = businessHours.getCloseTime();
         
@@ -266,10 +283,13 @@ public class AvailabilityService {
         LocalDateTime slotEnd = LocalDateTime.of(endDate, closeTime);
         
         while (slotStart.isBefore(slotEnd)) {
-            LocalDateTime currentSlotEnd = slotStart.plusMinutes(settings.getSlotDurationMinutes());
+            LocalDateTime currentSlotEnd = slotStart.plusMinutes(durationMinutes);
             
-            AvailableSlotDTO slot = checkSlotAvailability(slotStart, currentSlotEnd, settings, zoneId);
-            slots.add(slot);
+            if (!currentSlotEnd.isAfter(slotEnd)) {
+                AvailableSlotDTO slot = checkSlotAvailability(slotStart, currentSlotEnd, settings, zoneId,
+                        settings.getMaxAppointmentsPerSlot(), durationMinutes);
+                slots.add(slot);
+            }
             
             // Add buffer time between slots
             slotStart = currentSlotEnd.plusMinutes(settings.getBufferTimeBetweenAppointments());
@@ -278,7 +298,8 @@ public class AvailabilityService {
         return slots;
     }
     
-    private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, LocalDateTime end, AppointmentSettings settings, ZoneId timezone) {
+    private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, LocalDateTime end, AppointmentSettings settings,
+                                                    ZoneId timezone, int capacity, int durationMinutes) {
         AvailableSlotDTO slot = new AvailableSlotDTO();
         slot.setStartTime(start);
         slot.setEndTime(end);
@@ -300,7 +321,7 @@ public class AvailabilityService {
         // Check for recurring blocks that might apply to this slot (cached for performance)
         List<BlockedTimeSlot> allRecurringBlocks = getAllRecurringBlocks();
         for (BlockedTimeSlot recurringBlock : allRecurringBlocks) {
-            if (isRecurringBlockActive(recurringBlock, start, end, timezone)) {
+            if (BookingRules.recurringBlockOverlaps(recurringBlock, start, end)) {
                 blockedSlots.add(recurringBlock);
             }
         }
@@ -313,9 +334,8 @@ public class AvailabilityService {
         }
         
         // Check existing appointments (true interval overlap, excluding expired unpaid reservations)
-        LocalDateTime windowStart = start.minusMinutes(settings.getSlotDurationMinutes());
-        long appointmentCount = appointmentRepository.countOverlapping(windowStart, end, LocalDateTime.now());
-        int availableSpots = settings.getMaxAppointmentsPerSlot() - (int) appointmentCount;
+        long appointmentCount = appointmentRepository.countOverlapping(start, end, LocalDateTime.now());
+        int availableSpots = capacity - (int) appointmentCount;
         
         slot.setIsAvailable(availableSpots > 0);
         slot.setAvailableSpots(Math.max(0, availableSpots));
@@ -366,6 +386,18 @@ public class AvailabilityService {
         }
         
         return false;
+    }
+
+    private int resolveDurationMinutes(Long serviceId, Long lengthOptionId, int fallback) {
+        if (serviceId == null) return fallback;
+        ServiceItem service = serviceItemRepository.findById(serviceId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Service not found"));
+        if (lengthOptionId == null) return fallback;
+        LengthOption option = service.getLengthOptions().stream()
+                .filter(candidate -> lengthOptionId.equals(candidate.getId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Length option does not belong to this service"));
+        return BookingRules.durationMinutes(option.getDuration(), fallback);
     }
     
     // Helper methods

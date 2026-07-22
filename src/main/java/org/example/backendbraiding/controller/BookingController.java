@@ -66,6 +66,7 @@ public class BookingController {
 
         for (Category category : categories) {
             Map<String, Object> bookingCategory = new HashMap<>();
+            bookingCategory.put("id", category.getId());
             bookingCategory.put("name", category.getName());
             bookingCategory.put("slug", category.getSlug());
             bookingCategory.put("summary", category.getSummary());
@@ -75,6 +76,7 @@ public class BookingController {
             // Process subcategories
             for (Subcategory subcategory : category.getSubcategories()) {
                 Map<String, Object> bookingSubcategory = new HashMap<>();
+                bookingSubcategory.put("id", subcategory.getId());
                 bookingSubcategory.put("name", subcategory.getName());
                 bookingSubcategory.put("slug", subcategory.getSlug());
                 bookingSubcategory.put("summary", subcategory.getSummary());
@@ -93,6 +95,7 @@ public class BookingController {
                 // Process service items
                 for (ServiceItem item : subcategory.getItems()) {
                     Map<String, Object> bookingItem = new HashMap<>();
+                    bookingItem.put("id", item.getId());
                     bookingItem.put("name", item.getName());
                     bookingItem.put("price", item.getPrice());
                     bookingItem.put("description", item.getDescription());
@@ -109,6 +112,7 @@ public class BookingController {
                     List<Map<String, Object>> lengthOptions = new ArrayList<>();
                     for (LengthOption option : item.getLengthOptions()) {
                         Map<String, Object> lengthOption = new HashMap<>();
+                        lengthOption.put("id", option.getId());
                         lengthOption.put("name", option.getName());
                         lengthOption.put("price", option.getPrice());
                         lengthOption.put("duration", option.getDuration());
@@ -152,6 +156,7 @@ public class BookingController {
         Map<String, Object> bookingCategory = new LinkedHashMap<>();
 
         bookingCategory.put("name", category.getName());
+        bookingCategory.put("id", category.getId());
         bookingCategory.put("slug", category.getSlug());
         bookingCategory.put("summary", category.getSummary());
         bookingCategory.put("image", category.getImage());
@@ -180,6 +185,7 @@ public class BookingController {
             Map<String, Object> bookingSubcategory = new LinkedHashMap<>();
 
             bookingSubcategory.put("name", subcategory.getName());
+            bookingSubcategory.put("id", subcategory.getId());
             bookingSubcategory.put("slug", subcategory.getSlug());
             bookingSubcategory.put("summary", subcategory.getSummary());
 
@@ -202,6 +208,7 @@ public class BookingController {
                 Map<String, Object> bookingItem = new LinkedHashMap<>();
 
                 bookingItem.put("name", item.getName());
+                bookingItem.put("id", item.getId());
                 bookingItem.put("price", item.getPrice());
                 bookingItem.put("description", item.getDescription());
                 bookingItem.put("notes", item.getNotes());
@@ -223,6 +230,7 @@ public class BookingController {
                     Map<String, Object> lengthOption = new LinkedHashMap<>();
 
                     lengthOption.put("name", option.getName());
+                    lengthOption.put("id", option.getId());
                     lengthOption.put("price", option.getPrice());
                     lengthOption.put("duration", option.getDuration());
                     lengthOption.put("notes", option.getNotes());

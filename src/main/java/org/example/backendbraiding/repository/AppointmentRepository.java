@@ -40,16 +40,22 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     @Query("SELECT a FROM Appointment a WHERE a.appointmentDateTime >= :fromDate ORDER BY a.appointmentDateTime ASC")
     List<Appointment> findUpcomingAppointments(@Param("fromDate") LocalDateTime fromDate);
     
-    @Query("SELECT COUNT(a) FROM Appointment a WHERE a.appointmentDateTime > :windowStart AND a.appointmentDateTime < :end " +
+    @Query("SELECT COUNT(a) FROM Appointment a WHERE a.appointmentDateTime < :end " +
+           "AND ((a.appointmentEndDateTime IS NOT NULL AND a.appointmentEndDateTime > :start) " +
+           "OR (a.appointmentEndDateTime IS NULL AND a.appointmentDateTime >= :start)) " +
            "AND a.status != 'DENIED' AND a.status != 'CANCELLED' " +
-           "AND (a.status != 'PENDING' OR a.paymentPendingExpiresAt IS NULL OR a.paymentPendingExpiresAt > :now)")
-    long countOverlapping(@Param("windowStart") LocalDateTime windowStart,
+           "AND (a.status != 'PENDING' OR a.paymentStatus = 'AUTHORIZED' OR a.paymentStatus = 'CAPTURED' " +
+           "OR a.paymentPendingExpiresAt IS NULL OR a.paymentPendingExpiresAt > :now)")
+    long countOverlapping(@Param("start") LocalDateTime start,
                            @Param("end") LocalDateTime end,
                            @Param("now") LocalDateTime now);
 
     @Query("SELECT a FROM Appointment a WHERE a.status = 'PENDING' AND a.paymentStatus = 'PENDING' " +
            "AND a.paymentPendingExpiresAt IS NOT NULL AND a.paymentPendingExpiresAt < :now")
     List<Appointment> findExpiredPendingReservations(@Param("now") LocalDateTime now);
+
+    @Query("SELECT a FROM Appointment a WHERE a.status = 'PENDING' AND a.paymentStatus = 'FAILED'")
+    List<Appointment> findFailedPendingReservations();
     
     Optional<Appointment> findByPaymentIntentId(String paymentIntentId);
 }
