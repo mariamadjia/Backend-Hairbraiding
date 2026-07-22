@@ -44,6 +44,9 @@ public class AppointmentRequestDTO {
 
     private Long lengthOptionId;
 
+    @Size(max = 20, message = "Selected foundation cannot exceed 20 characters")
+    private String selectedFoundation;
+
     @Size(max = 100, message = "Selected texture cannot exceed 100 characters")
     private String selectedTexture;
     

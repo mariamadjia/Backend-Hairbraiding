@@ -81,6 +81,9 @@ public class ServiceItemService {
         service.setImage(clean(request.getImage()));
         service.setLink(clean(request.getLink()));
         service.setObjectPosition(clean(request.getObjectPosition()));
+        service.setFoundationChoicesEnabled(Boolean.TRUE.equals(request.getFoundationChoicesEnabled()));
+        service.setKnotlessPriceAdjustment(service.getFoundationChoicesEnabled()
+                ? clean(request.getKnotlessPriceAdjustment()) : "0");
         service.setImages(cleanList(request.getImages()));
         service.setSizePhotos(cleanList(request.getSizePhotos()));
         service.setAvailableSizes(uniqueList(request.getAvailableSizes(), "Available sizes"));

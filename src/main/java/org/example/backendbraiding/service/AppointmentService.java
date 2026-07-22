@@ -24,6 +24,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.math.BigDecimal;
 import java.util.stream.Collectors;
 import org.example.backendbraiding.util.BookingRules;
 import jakarta.persistence.EntityManager;
@@ -90,8 +91,11 @@ public class AppointmentService {
         appointment.setSelectedService(service.getName());
         appointment.setSelectedSize(requestDTO.getSelectedSize());
         appointment.setSelectedLength(lengthOption != null ? lengthOption.getName() : requestDTO.getSelectedLength());
+        String foundation = resolveFoundation(service, requestDTO.getSelectedFoundation());
+        appointment.setSelectedFoundation(foundation);
         appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
-        appointment.setPrice(lengthOption != null && lengthOption.getPrice() != null ? lengthOption.getPrice() : service.getPrice());
+        String basePrice = lengthOption != null && lengthOption.getPrice() != null ? lengthOption.getPrice() : service.getPrice();
+        appointment.setPrice(priceForFoundation(basePrice, service, foundation));
         appointment.setDurationMinutes(null);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
@@ -300,6 +304,7 @@ public class AppointmentService {
         dto.setSelectedService(appointment.getSelectedService());
         dto.setSelectedSize(appointment.getSelectedSize());
         dto.setSelectedLength(appointment.getSelectedLength());
+        dto.setSelectedFoundation(appointment.getSelectedFoundation());
         dto.setSelectedTexture(appointment.getSelectedTexture());
         dto.setPrice(appointment.getPrice());
         dto.setDurationMinutes(appointment.getDurationMinutes());
@@ -512,6 +517,35 @@ public class AppointmentService {
                         : option.getName() != null && option.getName().equalsIgnoreCase(selectedLength.trim()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Selected length is not available for this service"));
+    }
+
+    static String resolveFoundation(ServiceItem service, String selectedFoundation) {
+        if (!Boolean.TRUE.equals(service.getFoundationChoicesEnabled())) {
+            if (selectedFoundation != null && !selectedFoundation.isBlank()) {
+                throw new IllegalArgumentException("This service does not offer braid foundation choices");
+            }
+            return null;
+        }
+        if (selectedFoundation == null || selectedFoundation.isBlank()) {
+            throw new IllegalArgumentException("Choose a braid foundation");
+        }
+        String normalized = selectedFoundation.trim().toUpperCase(Locale.ROOT);
+        if (!normalized.equals("REGULAR") && !normalized.equals("KNOTLESS")) {
+            throw new IllegalArgumentException("Selected braid foundation is not available");
+        }
+        return normalized;
+    }
+
+    static String priceForFoundation(String basePrice, ServiceItem service, String foundation) {
+        if (!"KNOTLESS".equals(foundation)) return basePrice;
+        try {
+            BigDecimal base = new BigDecimal(basePrice.replace("$", "").trim());
+            String adjustmentValue = service.getKnotlessPriceAdjustment();
+            BigDecimal adjustment = new BigDecimal(adjustmentValue == null || adjustmentValue.isBlank() ? "0" : adjustmentValue.replace("$", "").trim());
+            return base.add(adjustment).stripTrailingZeros().toPlainString();
+        } catch (RuntimeException exception) {
+            throw new IllegalArgumentException("Service foundation pricing is invalid");
+        }
     }
 
     static String resolveTexture(ServiceItem service, String selectedTexture) {

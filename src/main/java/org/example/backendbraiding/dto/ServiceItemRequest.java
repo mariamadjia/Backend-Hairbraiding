@@ -24,6 +24,9 @@ public class ServiceItemRequest {
     @Size(max = 2000) private String image = "";
     @Size(max = 2000) private String link = "";
     @Size(max = 100) private String objectPosition = "";
+    private Boolean foundationChoicesEnabled = false;
+    @Pattern(regexp = "^\\$?\\d+(?:\\.\\d{1,2})?$", message = "Knotless adjustment must be a non-negative amount with at most two decimals")
+    private String knotlessPriceAdjustment = "0";
 
     @Size(max = 30) private List<@Size(max = 2000) String> images = new ArrayList<>();
     @Size(max = 30) private List<@Size(max = 2000) String> sizePhotos = new ArrayList<>();

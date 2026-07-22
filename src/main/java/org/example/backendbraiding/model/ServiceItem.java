@@ -51,6 +51,12 @@ public class ServiceItem {
 
     private String objectPosition;
 
+    @Column(name = "foundation_choices_enabled", nullable = false)
+    private Boolean foundationChoicesEnabled = false;
+
+    @Column(name = "knotless_price_adjustment")
+    private String knotlessPriceAdjustment = "0";
+
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 

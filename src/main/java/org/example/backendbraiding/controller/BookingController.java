@@ -107,6 +107,8 @@ public class BookingController {
                     bookingItem.put("objectPosition", item.getObjectPosition());
                     bookingItem.put("availableSizes", item.getAvailableSizes());
                     bookingItem.put("hairTextures", item.getHairTextures());
+                    bookingItem.put("foundationChoicesEnabled", Boolean.TRUE.equals(item.getFoundationChoicesEnabled()));
+                    bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
 
                     // Convert length options
                     List<Map<String, Object>> lengthOptions = new ArrayList<>();
@@ -218,6 +220,8 @@ public class BookingController {
                 bookingItem.put("objectPosition", item.getObjectPosition());
                 bookingItem.put("availableSizes", item.getAvailableSizes());
                 bookingItem.put("hairTextures", item.getHairTextures());
+                bookingItem.put("foundationChoicesEnabled", Boolean.TRUE.equals(item.getFoundationChoicesEnabled()));
+                bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
 
                 List<Map<String, Object>> lengthOptions = new ArrayList<>();
 

@@ -168,6 +168,8 @@ public class CategoryService {
         dto.setSizePhotos(item.getSizePhotos());
         dto.setLink(item.getLink());
         dto.setObjectPosition(item.getObjectPosition());
+        dto.setFoundationChoicesEnabled(item.getFoundationChoicesEnabled());
+        dto.setKnotlessPriceAdjustment(item.getKnotlessPriceAdjustment());
         dto.setAvailableSizes(item.getAvailableSizes());
         dto.setHairTextures(item.getHairTextures());
 

@@ -18,6 +18,8 @@ public class ServiceItemResponse {
     private List<String> sizePhotos;
     private String link;
     private String objectPosition;
+    private Boolean foundationChoicesEnabled;
+    private String knotlessPriceAdjustment;
     private Integer displayOrder;
     private List<String> availableSizes;
     private List<String> hairTextures;
@@ -48,6 +50,8 @@ public class ServiceItemResponse {
         response.setSizePhotos(service.getSizePhotos());
         response.setLink(service.getLink());
         response.setObjectPosition(service.getObjectPosition());
+        response.setFoundationChoicesEnabled(service.getFoundationChoicesEnabled());
+        response.setKnotlessPriceAdjustment(service.getKnotlessPriceAdjustment());
         response.setDisplayOrder(service.getDisplayOrder());
         response.setAvailableSizes(service.getAvailableSizes());
         response.setHairTextures(service.getHairTextures());
