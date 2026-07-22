@@ -37,6 +37,17 @@ public class ServiceCatalogSchemaInitializer implements ApplicationRunner {
         jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN display_order SET NOT NULL");
 
         jdbcTemplate.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS selected_texture VARCHAR(100)");
+        jdbcTemplate.execute("ALTER TABLE service_items ADD COLUMN IF NOT EXISTS foundation_choices_enabled BOOLEAN");
+        jdbcTemplate.execute("UPDATE service_items SET foundation_choices_enabled = FALSE WHERE foundation_choices_enabled IS NULL");
+        jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN foundation_choices_enabled SET DEFAULT FALSE");
+        jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN foundation_choices_enabled SET NOT NULL");
+
+        jdbcTemplate.execute("ALTER TABLE service_items ADD COLUMN IF NOT EXISTS knotless_price_adjustment VARCHAR(255)");
+        jdbcTemplate.execute("UPDATE service_items SET knotless_price_adjustment = '0' WHERE knotless_price_adjustment IS NULL");
+        jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN knotless_price_adjustment SET DEFAULT '0'");
+        jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN knotless_price_adjustment SET NOT NULL");
+
+        jdbcTemplate.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS selected_foundation VARCHAR(20)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_service_item_active_order ON service_items(active, display_order, id)");
         log.info("Service catalog database columns verified");
     }
