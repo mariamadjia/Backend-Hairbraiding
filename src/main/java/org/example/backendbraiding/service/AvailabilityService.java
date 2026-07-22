@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.*;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.example.backendbraiding.util.BookingRules;
 
@@ -295,7 +297,15 @@ public class AvailabilityService {
             return slots;
         }
 
+        LocalDateTime queryStart = date.atStartOfDay();
+        LocalDateTime queryEnd = date.plusDays(2).atStartOfDay();
+        LocalDateTime now = salonNow(settings);
+        List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findByDateRange(queryStart, queryEnd);
         List<BlockedTimeSlot> recurringBlocks = blockedTimeSlotRepository.findByIsRecurringTrue();
+        Map<LocalDateTime, Long> appointmentsByStart = appointmentRepository
+                .findActiveStartsBetween(queryStart, queryEnd, now).stream()
+                .map(Appointment::getAppointmentDateTime)
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
         List<TimeSlot> configuredSlots = timeSlotRepository
                 .findByDayOfWeekOrderBySlotOrderAsc(date.getDayOfWeek().name());
         if (!configuredSlots.isEmpty()) {
@@ -304,7 +314,8 @@ public class AvailabilityService {
                 LocalDateTime windowEnd = LocalDateTime.of(date, configured.getEndTime());
                 for (LocalDateTime start = windowStart; start.isBefore(windowEnd);
                      start = start.plusMinutes(slotIntervalMinutes(settings))) {
-                    slots.add(checkSlotAvailability(start, settings, zoneId, slotCapacity(configured), recurringBlocks));
+                    slots.add(checkSlotAvailability(start, zoneId, slotCapacity(configured),
+                            blockedSlots, recurringBlocks, appointmentsByStart));
                 }
             }
             return slots;
@@ -322,17 +333,18 @@ public class AvailabilityService {
         LocalDateTime slotEnd = LocalDateTime.of(endDate, closeTime);
         
         while (slotStart.isBefore(slotEnd)) {
-            slots.add(checkSlotAvailability(slotStart, settings, zoneId,
-                    maximumCapacity(settings), recurringBlocks));
+            slots.add(checkSlotAvailability(slotStart, zoneId, maximumCapacity(settings),
+                    blockedSlots, recurringBlocks, appointmentsByStart));
             slotStart = slotStart.plusMinutes(slotIntervalMinutes(settings));
         }
         
         return slots;
     }
     
-    private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, AppointmentSettings settings,
-                                                    ZoneId timezone, int capacity,
-                                                    List<BlockedTimeSlot> recurringBlocks) {
+    private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, ZoneId timezone, int capacity,
+                                                    List<BlockedTimeSlot> blockedSlots,
+                                                    List<BlockedTimeSlot> recurringBlocks,
+                                                    Map<LocalDateTime, Long> appointmentsByStart) {
         AvailableSlotDTO slot = new AvailableSlotDTO();
         slot.setStartTime(start);
         slot.setEndTime(null);
@@ -349,24 +361,28 @@ public class AvailabilityService {
         }
         
         // Check if blocked (including recurring blocks)
-        List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findBlockingStart(start);
+        BlockedTimeSlot blockingSlot = blockedSlots.stream()
+                .filter(block -> !start.isBefore(block.getStartDateTime()) && start.isBefore(block.getEndDateTime()))
+                .findFirst()
+                .orElse(null);
         
         // Check for recurring blocks that might apply to this slot (cached for performance)
         for (BlockedTimeSlot recurringBlock : recurringBlocks) {
             if (BookingRules.recurringBlockContains(recurringBlock, start)) {
-                blockedSlots.add(recurringBlock);
+                blockingSlot = recurringBlock;
+                break;
             }
         }
         
-        if (!blockedSlots.isEmpty()) {
+        if (blockingSlot != null) {
             slot.setIsAvailable(false);
             slot.setAvailableSpots(0);
-            slot.setReason(blockedSlots.get(0).getReason());
+            slot.setReason(blockingSlot.getReason());
             return slot;
         }
         
         // Check existing appointments (true interval overlap, excluding expired unpaid reservations)
-        long appointmentCount = appointmentRepository.countActiveAtStart(start, salonNow(settings));
+        long appointmentCount = appointmentsByStart.getOrDefault(start, 0L);
         int availableSpots = capacity - (int) appointmentCount;
         
         slot.setIsAvailable(availableSpots > 0);
