@@ -95,7 +95,7 @@ public class AvailabilityController {
     @GetMapping("/slots")
     public ResponseEntity<List<AvailableSlotDTO>> getAvailableSlots(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false, defaultValue = "America/Los_Angeles") String timezone,
+            @RequestParam(required = false, defaultValue = "America/Chicago") String timezone,
             @RequestParam(required = false) Long serviceId,
             @RequestParam(required = false) Long lengthOptionId) {
         List<AvailableSlotDTO> slots = availabilityService.getAvailableSlots(date, timezone, serviceId, lengthOptionId);

@@ -44,7 +44,7 @@ public class AvailabilityService {
             defaultSettings.setBufferTimeBetweenAppointments(0);
             defaultSettings.setRequireApproval(true);
             defaultSettings.setAllowSameDayBooking(true);
-            defaultSettings.setTimezone("America/Los_Angeles");
+            defaultSettings.setTimezone("America/Chicago");
             settingsRepository.save(defaultSettings);
         }
     }
@@ -280,22 +280,18 @@ public class AvailabilityService {
                 defaultSettings.setBufferTimeBetweenAppointments(0);
                 defaultSettings.setRequireApproval(true);
                 defaultSettings.setAllowSameDayBooking(true);
-                defaultSettings.setTimezone("America/Los_Angeles");
+                defaultSettings.setTimezone("America/Chicago");
                 return settingsRepository.save(defaultSettings);
             });
         
         // Availability is always expressed in the salon's configured timezone.
         ZoneId zoneId;
-        try {
-            zoneId = ZoneId.of(settings.getTimezone());
-        } catch (Exception e) {
-            zoneId = ZoneId.of("America/Los_Angeles");
-        }
+        zoneId = salonZone(settings);
 
         LocalDate today = ZonedDateTime.now(zoneId).toLocalDate();
         if (date.isBefore(today)
-                || (!settings.getAllowSameDayBooking() && date.equals(today))
-                || date.isAfter(today.plusDays(settings.getAdvanceBookingDays()))) {
+                || (!Boolean.TRUE.equals(settings.getAllowSameDayBooking()) && date.equals(today))
+                || date.isAfter(today.plusDays(advanceBookingDays(settings)))) {
             return slots;
         }
 
@@ -307,8 +303,8 @@ public class AvailabilityService {
                 LocalDateTime windowStart = LocalDateTime.of(date, configured.getStartTime());
                 LocalDateTime windowEnd = LocalDateTime.of(date, configured.getEndTime());
                 for (LocalDateTime start = windowStart; start.isBefore(windowEnd);
-                     start = start.plusMinutes(settings.getSlotDurationMinutes())) {
-                    slots.add(checkSlotAvailability(start, settings, zoneId, configured.getCapacity(), recurringBlocks));
+                     start = start.plusMinutes(slotIntervalMinutes(settings))) {
+                    slots.add(checkSlotAvailability(start, settings, zoneId, slotCapacity(configured), recurringBlocks));
                 }
             }
             return slots;
@@ -327,8 +323,8 @@ public class AvailabilityService {
         
         while (slotStart.isBefore(slotEnd)) {
             slots.add(checkSlotAvailability(slotStart, settings, zoneId,
-                    settings.getMaxAppointmentsPerSlot(), recurringBlocks));
-            slotStart = slotStart.plusMinutes(settings.getSlotDurationMinutes());
+                    maximumCapacity(settings), recurringBlocks));
+            slotStart = slotStart.plusMinutes(slotIntervalMinutes(settings));
         }
         
         return slots;
@@ -425,7 +421,38 @@ public class AvailabilityService {
     }
 
     private LocalDateTime salonNow(AppointmentSettings settings) {
-        return ZonedDateTime.now(ZoneId.of(settings.getTimezone())).toLocalDateTime();
+        return ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
+    }
+
+    private ZoneId salonZone(AppointmentSettings settings) {
+        try {
+            String configured = settings.getTimezone();
+            return configured == null || configured.isBlank()
+                    ? ZoneId.of("America/Chicago")
+                    : ZoneId.of(configured);
+        } catch (Exception ignored) {
+            return ZoneId.of("America/Chicago");
+        }
+    }
+
+    private int slotIntervalMinutes(AppointmentSettings settings) {
+        Integer configured = settings.getSlotDurationMinutes();
+        return configured == null || configured < 1 ? 60 : configured;
+    }
+
+    private int advanceBookingDays(AppointmentSettings settings) {
+        Integer configured = settings.getAdvanceBookingDays();
+        return configured == null || configured < 0 ? 60 : configured;
+    }
+
+    private int maximumCapacity(AppointmentSettings settings) {
+        Integer configured = settings.getMaxAppointmentsPerSlot();
+        return configured == null || configured < 1 ? 1 : configured;
+    }
+
+    private int slotCapacity(TimeSlot slot) {
+        Integer configured = slot.getCapacity();
+        return configured == null || configured < 1 ? 1 : configured;
     }
     
     // Helper methods

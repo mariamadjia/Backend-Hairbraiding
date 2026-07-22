@@ -100,7 +100,7 @@ public class AppointmentService {
         response.setPaymentToken(bookingPaymentTokenService.createToken(savedAppointment.getId()));
         emailService.sendAppointmentUpdate(customer.getEmail(), "Appointment request received",
                 "We received your appointment request for " + appointment.getAppointmentDateTime()
-                        + " Pacific Time. Complete the payment authorization to send it for review.");
+                        + " Central Time. Complete the payment authorization to send it for review.");
         return response;
     }
 
@@ -187,7 +187,7 @@ public class AppointmentService {
             appointmentTime
         );
         emailService.sendAppointmentUpdate(appointment.getCustomer().getEmail(), "Appointment approved",
-                "Your appointment for " + appointment.getAppointmentDateTime() + " Pacific Time has been approved.");
+                "Your appointment for " + appointment.getAppointmentDateTime() + " Central Time has been approved.");
         
         return mapToResponseDTO(updatedAppointment);
     }
@@ -391,21 +391,23 @@ public class AppointmentService {
         defaultSettings.setBufferTimeBetweenAppointments(0);
         defaultSettings.setRequireApproval(true);
         defaultSettings.setAllowSameDayBooking(true);
+        defaultSettings.setTimezone("America/Chicago");
         return settingsRepository.save(defaultSettings);
     }
     
     private void validateAppointmentDateTime(LocalDateTime appointmentDateTime, AppointmentSettings settings) {
-        ZoneId salonZone = ZoneId.of(settings.getTimezone());
+        ZoneId salonZone = salonZone(settings);
         LocalDateTime now = ZonedDateTime.now(salonZone).toLocalDateTime();
         
-        if (!settings.getAllowSameDayBooking() && appointmentDateTime.toLocalDate().equals(now.toLocalDate())) {
+        if (!Boolean.TRUE.equals(settings.getAllowSameDayBooking()) && appointmentDateTime.toLocalDate().equals(now.toLocalDate())) {
             throw new IllegalArgumentException("Same-day booking is not allowed");
         }
         
-        LocalDate maxBookingDate = now.toLocalDate().plusDays(settings.getAdvanceBookingDays());
+        int advanceBookingDays = advanceBookingDays(settings);
+        LocalDate maxBookingDate = now.toLocalDate().plusDays(advanceBookingDays);
         if (appointmentDateTime.toLocalDate().isAfter(maxBookingDate)) {
             throw new IllegalArgumentException("Appointment cannot be booked more than " +
-                settings.getAdvanceBookingDays() + " days in advance");
+                advanceBookingDays + " days in advance");
         }
         
         if (appointmentDateTime.isBefore(now)) {
@@ -435,7 +437,7 @@ public class AppointmentService {
                 appointmentDateTime.getDayOfWeek().name());
         if (configuredSlots.isEmpty()) {
             long minutesFromOpening = java.time.Duration.between(businessOpen, appointmentDateTime).toMinutes();
-            if (minutesFromOpening % settings.getSlotDurationMinutes() != 0) {
+            if (minutesFromOpening % slotIntervalMinutes(settings) != 0) {
                 throw new IllegalArgumentException("Appointment time must match an available slot");
             }
         }
@@ -447,7 +449,7 @@ public class AppointmentService {
             throw new IllegalStateException("This time slot is blocked: " + blockedSlots.get(0).getReason());
         }
         
-        int capacity = settings.getMaxAppointmentsPerSlot();
+        int capacity = maximumCapacity(settings);
         if (!configuredSlots.isEmpty()) {
             TimeSlot configured = configuredSlots.stream()
                     .filter(slot -> {
@@ -457,18 +459,45 @@ public class AppointmentService {
                         }
                         long minutesFromWindowStart = java.time.Duration.between(
                                 slot.getStartTime(), appointmentTime).toMinutes();
-                        return minutesFromWindowStart % settings.getSlotDurationMinutes() == 0;
+                        return minutesFromWindowStart % slotIntervalMinutes(settings) == 0;
                     })
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Appointment time is not a configured slot"));
-            capacity = configured.getCapacity();
+            capacity = configured.getCapacity() == null || configured.getCapacity() < 1
+                    ? 1 : configured.getCapacity();
         }
 
-        LocalDateTime salonNow = ZonedDateTime.now(ZoneId.of(settings.getTimezone())).toLocalDateTime();
+        LocalDateTime salonNow = ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
         long appointmentCount = appointmentRepository.countActiveAtStart(appointmentDateTime, salonNow);
         if (appointmentCount >= capacity) {
             throw new IllegalStateException("This time slot is fully booked");
         }
+    }
+
+    private ZoneId salonZone(AppointmentSettings settings) {
+        try {
+            String configured = settings.getTimezone();
+            return configured == null || configured.isBlank()
+                    ? ZoneId.of("America/Chicago")
+                    : ZoneId.of(configured);
+        } catch (Exception ignored) {
+            return ZoneId.of("America/Chicago");
+        }
+    }
+
+    private int slotIntervalMinutes(AppointmentSettings settings) {
+        Integer configured = settings.getSlotDurationMinutes();
+        return configured == null || configured < 1 ? 60 : configured;
+    }
+
+    private int advanceBookingDays(AppointmentSettings settings) {
+        Integer configured = settings.getAdvanceBookingDays();
+        return configured == null || configured < 0 ? 60 : configured;
+    }
+
+    private int maximumCapacity(AppointmentSettings settings) {
+        Integer configured = settings.getMaxAppointmentsPerSlot();
+        return configured == null || configured < 1 ? 1 : configured;
     }
 
     private LengthOption resolveLengthOption(ServiceItem service, Long optionId, String selectedLength) {

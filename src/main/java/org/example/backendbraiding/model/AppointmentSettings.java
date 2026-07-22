@@ -38,7 +38,7 @@ public class AppointmentSettings {
     private Boolean allowSameDayBooking = true;
     
     @Column(length = 50)
-    private String timezone = "America/Los_Angeles"; // Default to Pacific time
+    private String timezone = "America/Chicago"; // San Antonio, Texas (Central Time)
     
     @Column
     private LocalDateTime updatedAt = LocalDateTime.now();
