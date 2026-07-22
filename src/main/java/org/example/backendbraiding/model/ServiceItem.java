@@ -55,7 +55,11 @@ public class ServiceItem {
     private Integer displayOrder = 0;
 
     @Column(nullable = false)
-    private boolean active = true;
+    private Boolean active = true;
+
+    public boolean isActive() {
+        return !Boolean.FALSE.equals(active);
+    }
 
     @ElementCollection
     @CollectionTable(name = "service_item_sizes", joinColumns = @JoinColumn(name = "service_item_id"))

@@ -679,7 +679,7 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public AdminSubcategoryDTO getSubcategoryBySlugForAdmin(String slug) {
         Subcategory subcategory = subcategoryRepository.findBySlugForAdmin(slug)
-                .orElseThrow(() -> new RuntimeException("Subcategory not found"));
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Subcategory not found"));
 
         // Batch fetch gallery images for this subcategory
         List<GalleryImage> galleryImages = galleryImageRepository
