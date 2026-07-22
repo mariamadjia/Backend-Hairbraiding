@@ -51,6 +51,9 @@ public class TimeSlotService {
         }
         // Delete existing slots for this day
         timeSlotRepository.deleteByDayOfWeek(dayOfWeek);
+        // Ensure replacement rows cannot be inserted before the old unique keys
+        // have actually been removed from PostgreSQL.
+        timeSlotRepository.flush();
         
         // Save new slots
         for (int i = 0; i < sortedSlots.size(); i++) {

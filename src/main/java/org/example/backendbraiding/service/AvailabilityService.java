@@ -179,6 +179,9 @@ public class AvailabilityService {
         if (!daysToDeleteSlots.isEmpty()) {
             log.debug("Deleting time slots for {} days", daysToDeleteSlots.size());
             daysToDeleteSlots.forEach(timeSlotRepository::deleteByDayOfWeek);
+            // Hibernate may otherwise reorder the replacement inserts ahead of the
+            // deletes, violating the unique day/start/end constraint.
+            timeSlotRepository.flush();
         }
 
         // Batch save all business hours

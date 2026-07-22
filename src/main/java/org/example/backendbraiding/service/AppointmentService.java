@@ -256,7 +256,10 @@ public class AppointmentService {
     }
 
     public List<AppointmentResponseDTO> getUpcomingAppointments() {
-        return appointmentRepository.findUpcomingAppointments(LocalDateTime.now())
+        AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
+                .orElseGet(this::createDefaultSettings);
+        LocalDateTime salonNow = ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
+        return appointmentRepository.findUpcomingAppointments(salonNow)
             .stream()
             .map(this::mapToResponseDTO)
             .collect(Collectors.toList());
