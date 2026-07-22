@@ -250,7 +250,10 @@ public class AvailabilityService {
     }
     
     public List<BlockedTimeSlotDTO> getBlockedSlots(LocalDateTime startDate, LocalDateTime endDate) {
-        return blockedTimeSlotRepository.findByDateRange(startDate, endDate).stream()
+        Map<Long, BlockedTimeSlot> slots = new java.util.LinkedHashMap<>();
+        blockedTimeSlotRepository.findByDateRange(startDate, endDate).forEach(slot -> slots.put(slot.getId(), slot));
+        blockedTimeSlotRepository.findByIsRecurringTrue().forEach(slot -> slots.put(slot.getId(), slot));
+        return slots.values().stream()
             .map(this::mapToBlockedTimeSlotDTO)
             .collect(Collectors.toList());
     }
