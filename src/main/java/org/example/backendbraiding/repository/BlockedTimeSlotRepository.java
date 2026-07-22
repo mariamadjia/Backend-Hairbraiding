@@ -18,6 +18,10 @@ public interface BlockedTimeSlotRepository extends JpaRepository<BlockedTimeSlot
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime
     );
+
+    @Query("SELECT b FROM BlockedTimeSlot b WHERE " +
+           "b.startDateTime <= :startTime AND b.endDateTime > :startTime")
+    List<BlockedTimeSlot> findBlockingStart(@Param("startTime") LocalDateTime startTime);
     
     @Query("SELECT b FROM BlockedTimeSlot b WHERE " +
            "b.startDateTime < :endDate AND b.endDateTime > :startDate " +

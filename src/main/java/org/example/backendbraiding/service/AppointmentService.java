@@ -17,7 +17,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -56,12 +58,8 @@ public class AppointmentService {
         ServiceItem service = serviceItemRepository.findById(requestDTO.getServiceId())
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Service not found"));
         LengthOption lengthOption = resolveLengthOption(service, requestDTO.getLengthOptionId(), requestDTO.getSelectedLength());
-        int durationMinutes = lengthOption == null
-                ? settings.getSlotDurationMinutes()
-                : BookingRules.durationMinutes(lengthOption.getDuration(), settings.getSlotDurationMinutes());
-
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
-        validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), durationMinutes, settings);
+        validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), settings);
         
         String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
         // Serialize customer creation per normalized email across application instances.
@@ -87,13 +85,13 @@ public class AppointmentService {
         appointment.setCustomer(customer);
         appointment.setService(service);
         appointment.setAppointmentDateTime(requestDTO.getAppointmentDateTime());
-        appointment.setAppointmentEndDateTime(requestDTO.getAppointmentDateTime().plusMinutes(durationMinutes));
+        appointment.setAppointmentEndDateTime(null);
         appointment.setNotes(requestDTO.getNotes());
         appointment.setSelectedService(service.getName());
         appointment.setSelectedSize(requestDTO.getSelectedSize());
         appointment.setSelectedLength(lengthOption != null ? lengthOption.getName() : requestDTO.getSelectedLength());
         appointment.setPrice(lengthOption != null && lengthOption.getPrice() != null ? lengthOption.getPrice() : service.getPrice());
-        appointment.setDurationMinutes(durationMinutes);
+        appointment.setDurationMinutes(null);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
 
@@ -362,6 +360,10 @@ public class AppointmentService {
         settings.setUpdatedBy(admin);
         
         settings = settingsRepository.save(settings);
+
+        List<TimeSlot> existingSlots = timeSlotRepository.findAll();
+        existingSlots.forEach(slot -> slot.setCapacity(dto.getMaxAppointmentsPerSlot()));
+        timeSlotRepository.saveAll(existingSlots);
         
         return mapToSettingsDTO(settings);
     }
@@ -400,8 +402,8 @@ public class AppointmentService {
             throw new IllegalArgumentException("Same-day booking is not allowed");
         }
         
-        LocalDateTime maxBookingDate = now.plusDays(settings.getAdvanceBookingDays());
-        if (appointmentDateTime.isAfter(maxBookingDate)) {
+        LocalDate maxBookingDate = now.toLocalDate().plusDays(settings.getAdvanceBookingDays());
+        if (appointmentDateTime.toLocalDate().isAfter(maxBookingDate)) {
             throw new IllegalArgumentException("Appointment cannot be booked more than " +
                 settings.getAdvanceBookingDays() + " days in advance");
         }
@@ -411,7 +413,7 @@ public class AppointmentService {
         }
     }
     
-    private void validateAppointmentAvailability(LocalDateTime appointmentDateTime, int durationMinutes, AppointmentSettings settings) {
+    private void validateAppointmentAvailability(LocalDateTime appointmentDateTime, AppointmentSettings settings) {
         BusinessHours businessHours = businessHoursRepository.findByDayOfWeek(appointmentDateTime.getDayOfWeek())
             .orElse(null);
         
@@ -424,9 +426,7 @@ public class AppointmentService {
         if (!businessHours.getCloseTime().isAfter(businessHours.getOpenTime())) {
             businessClose = businessClose.plusDays(1);
         }
-        LocalDateTime slotEnd = appointmentDateTime.plusMinutes(durationMinutes);
-
-        if (appointmentDateTime.isBefore(businessOpen) || !slotEnd.isBefore(businessClose.plusNanos(1))) {
+        if (appointmentDateTime.isBefore(businessOpen) || !appointmentDateTime.isBefore(businessClose)) {
             throw new IllegalArgumentException("Appointment time is outside business hours (" +
                 businessHours.getOpenTime() + " - " + businessHours.getCloseTime() + ")");
         }
@@ -435,14 +435,13 @@ public class AppointmentService {
                 appointmentDateTime.getDayOfWeek().name());
         if (configuredSlots.isEmpty()) {
             long minutesFromOpening = java.time.Duration.between(businessOpen, appointmentDateTime).toMinutes();
-            int slotIntervalMinutes = durationMinutes + settings.getBufferTimeBetweenAppointments();
-            if (minutesFromOpening % slotIntervalMinutes != 0) {
+            if (minutesFromOpening % settings.getSlotDurationMinutes() != 0) {
                 throw new IllegalArgumentException("Appointment time must match an available slot");
             }
         }
-        List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findOverlappingSlots(appointmentDateTime, slotEnd);
+        List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findBlockingStart(appointmentDateTime);
         blockedTimeSlotRepository.findByIsRecurringTrue().stream()
-            .filter(block -> BookingRules.recurringBlockOverlaps(block, appointmentDateTime, slotEnd))
+            .filter(block -> BookingRules.recurringBlockContains(block, appointmentDateTime))
             .forEach(blockedSlots::add);
         if (!blockedSlots.isEmpty()) {
             throw new IllegalStateException("This time slot is blocked: " + blockedSlots.get(0).getReason());
@@ -451,18 +450,22 @@ public class AppointmentService {
         int capacity = settings.getMaxAppointmentsPerSlot();
         if (!configuredSlots.isEmpty()) {
             TimeSlot configured = configuredSlots.stream()
-                    .filter(slot -> slot.getStartTime().equals(appointmentDateTime.toLocalTime()))
+                    .filter(slot -> {
+                        LocalTime appointmentTime = appointmentDateTime.toLocalTime();
+                        if (appointmentTime.isBefore(slot.getStartTime()) || !appointmentTime.isBefore(slot.getEndTime())) {
+                            return false;
+                        }
+                        long minutesFromWindowStart = java.time.Duration.between(
+                                slot.getStartTime(), appointmentTime).toMinutes();
+                        return minutesFromWindowStart % settings.getSlotDurationMinutes() == 0;
+                    })
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Appointment time is not a configured slot"));
-            LocalDateTime configuredEnd = LocalDateTime.of(appointmentDateTime.toLocalDate(), configured.getEndTime());
-            if (!configured.getEndTime().isAfter(configured.getStartTime())) configuredEnd = configuredEnd.plusDays(1);
-            if (slotEnd.isAfter(configuredEnd)) {
-                throw new IllegalArgumentException("Selected service does not fit in this time slot");
-            }
             capacity = configured.getCapacity();
         }
 
-        long appointmentCount = appointmentRepository.countOverlapping(appointmentDateTime, slotEnd, LocalDateTime.now());
+        LocalDateTime salonNow = ZonedDateTime.now(ZoneId.of(settings.getTimezone())).toLocalDateTime();
+        long appointmentCount = appointmentRepository.countActiveAtStart(appointmentDateTime, salonNow);
         if (appointmentCount >= capacity) {
             throw new IllegalStateException("This time slot is fully booked");
         }

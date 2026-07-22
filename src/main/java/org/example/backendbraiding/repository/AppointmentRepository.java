@@ -51,6 +51,13 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
                            @Param("end") LocalDateTime end,
                            @Param("now") LocalDateTime now);
 
+    @Query("SELECT COUNT(a) FROM Appointment a WHERE a.appointmentDateTime = :start " +
+           "AND a.status != 'DENIED' AND a.status != 'CANCELLED' " +
+           "AND (a.status != 'PENDING' OR a.paymentStatus = 'AUTHORIZED' OR a.paymentStatus = 'CAPTURED' " +
+           "OR a.paymentPendingExpiresAt IS NULL OR a.paymentPendingExpiresAt > :now)")
+    long countActiveAtStart(@Param("start") LocalDateTime start,
+                            @Param("now") LocalDateTime now);
+
     @Query("SELECT a FROM Appointment a WHERE a.status = 'PENDING' AND a.paymentStatus = 'PENDING' " +
            "AND a.paymentPendingExpiresAt IS NOT NULL AND a.paymentPendingExpiresAt < :now")
     List<Appointment> findExpiredPendingReservations(@Param("now") LocalDateTime now);

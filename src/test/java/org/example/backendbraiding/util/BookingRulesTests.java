@@ -9,10 +9,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class BookingRulesTests {
     @Test
-    void parsesConservativeEndOfDurationRange() {
-        assertEquals(240, BookingRules.durationMinutes("2-4 hours", 60));
-        assertEquals(90, BookingRules.durationMinutes("90 minutes", 60));
-        assertEquals(60, BookingRules.durationMinutes(null, 60));
+    void recurringBlocksUseHalfOpenBoundariesForAppointmentStarts() {
+        BlockedTimeSlot daily = block("2026-07-20T12:00:00", "2026-07-20T13:00:00", "DAILY");
+        assertTrue(BookingRules.recurringBlockContains(daily, LocalDateTime.parse("2026-07-21T12:00:00")));
+        assertTrue(BookingRules.recurringBlockContains(daily, LocalDateTime.parse("2026-07-21T12:59:00")));
+        assertFalse(BookingRules.recurringBlockContains(daily, LocalDateTime.parse("2026-07-21T13:00:00")));
     }
 
     @Test
