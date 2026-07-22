@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -53,10 +55,11 @@ public class CompleteCategoryRequest {
         private String name;
 
         @NotBlank
+        @Pattern(regexp = "^\\$?\\d+(?:\\.\\d{1,2})?$", message = "Price must be a non-negative amount with at most two decimals")
         private String price;
 
+        @Size(max = 1000)
         private String notes;
-        private String duration;
         private Long imageId;
     }
 }

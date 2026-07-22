@@ -50,7 +50,7 @@ public class TimeSlotService {
             previousEnd = end;
         }
         // Delete existing slots for this day
-        timeSlotRepository.deleteByDayOfWeek(dayOfWeek);
+        timeSlotRepository.deleteAllByDayOfWeekIn(List.of(dayOfWeek));
         // Ensure replacement rows cannot be inserted before the old unique keys
         // have actually been removed from PostgreSQL.
         timeSlotRepository.flush();

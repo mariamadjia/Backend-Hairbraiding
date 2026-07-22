@@ -18,4 +18,5 @@ public class AdminServiceItemDTO {
     private List<String> availableSizes;
     private List<String> hairTextures;
     private List<LengthOptionDTO> lengthOptions;
+    private Integer displayOrder;
 }

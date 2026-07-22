@@ -55,7 +55,7 @@ public class AppointmentService {
         AppointmentSettings settings = settingsRepository.findLatestForUpdate()
             .orElseGet(this::createDefaultSettings);
 
-        ServiceItem service = serviceItemRepository.findById(requestDTO.getServiceId())
+        ServiceItem service = serviceItemRepository.findByIdAndActiveTrue(requestDTO.getServiceId())
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Service not found"));
         LengthOption lengthOption = resolveLengthOption(service, requestDTO.getLengthOptionId(), requestDTO.getSelectedLength());
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
@@ -90,6 +90,7 @@ public class AppointmentService {
         appointment.setSelectedService(service.getName());
         appointment.setSelectedSize(requestDTO.getSelectedSize());
         appointment.setSelectedLength(lengthOption != null ? lengthOption.getName() : requestDTO.getSelectedLength());
+        appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
         appointment.setPrice(lengthOption != null && lengthOption.getPrice() != null ? lengthOption.getPrice() : service.getPrice());
         appointment.setDurationMinutes(null);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
@@ -135,7 +136,7 @@ public class AppointmentService {
     @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
     public AppointmentResponseDTO approveAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
-            .orElseThrow(() -> new RuntimeException("Appointment not found"));
+            .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Only pending appointments can be approved");
@@ -299,6 +300,7 @@ public class AppointmentService {
         dto.setSelectedService(appointment.getSelectedService());
         dto.setSelectedSize(appointment.getSelectedSize());
         dto.setSelectedLength(appointment.getSelectedLength());
+        dto.setSelectedTexture(appointment.getSelectedTexture());
         dto.setPrice(appointment.getPrice());
         dto.setDurationMinutes(appointment.getDurationMinutes());
         dto.setApprovedAt(appointment.getApprovedAt());
@@ -510,6 +512,23 @@ public class AppointmentService {
                         : option.getName() != null && option.getName().equalsIgnoreCase(selectedLength.trim()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Selected length is not available for this service"));
+    }
+
+    static String resolveTexture(ServiceItem service, String selectedTexture) {
+        List<String> available = service.getHairTextures() == null ? List.of() : service.getHairTextures();
+        if (available.isEmpty()) {
+            if (selectedTexture != null && !selectedTexture.isBlank()) {
+                throw new IllegalArgumentException("This service does not offer a hair texture selection");
+            }
+            return null;
+        }
+        if (selectedTexture == null || selectedTexture.isBlank()) {
+            throw new IllegalArgumentException("Hair texture is required for this service");
+        }
+        return available.stream()
+                .filter(texture -> texture.equalsIgnoreCase(selectedTexture.trim()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Selected hair texture is not available for this service"));
     }
 
 }

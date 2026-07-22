@@ -93,7 +93,7 @@ public class BookingController {
                 List<Map<String, Object>> bookingItems = new ArrayList<>();
 
                 // Process service items
-                for (ServiceItem item : subcategory.getItems()) {
+                for (ServiceItem item : subcategory.getItems().stream().filter(ServiceItem::isActive).toList()) {
                     Map<String, Object> bookingItem = new HashMap<>();
                     bookingItem.put("id", item.getId());
                     bookingItem.put("name", item.getName());
@@ -115,7 +115,6 @@ public class BookingController {
                         lengthOption.put("id", option.getId());
                         lengthOption.put("name", option.getName());
                         lengthOption.put("price", option.getPrice());
-                        lengthOption.put("duration", option.getDuration());
                         lengthOption.put("notes", option.getNotes());
                         lengthOptions.add(lengthOption);
                     }
@@ -204,7 +203,7 @@ public class BookingController {
                     ? subcategory.getItems()
                     : List.of();
 
-            for (ServiceItem item : items) {
+            for (ServiceItem item : items.stream().filter(ServiceItem::isActive).toList()) {
                 Map<String, Object> bookingItem = new LinkedHashMap<>();
 
                 bookingItem.put("name", item.getName());
@@ -232,7 +231,6 @@ public class BookingController {
                     lengthOption.put("name", option.getName());
                     lengthOption.put("id", option.getId());
                     lengthOption.put("price", option.getPrice());
-                    lengthOption.put("duration", option.getDuration());
                     lengthOption.put("notes", option.getNotes());
 
                     lengthOptions.add(lengthOption);
@@ -279,7 +277,7 @@ public class BookingController {
                     continue;
                 }
 
-                for (ServiceItem item : subcategory.getItems()) {
+                for (ServiceItem item : subcategory.getItems().stream().filter(ServiceItem::isActive).toList()) {
                     if (item.getImage() == null || item.getImage().isEmpty()) {
                         item.setImage(subcategoryImage);
                         itemsUpdated++;

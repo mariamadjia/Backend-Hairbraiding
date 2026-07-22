@@ -10,11 +10,15 @@ import java.util.List;
 
 @Repository
 public interface ServiceItemRepository extends JpaRepository<ServiceItem, Long> {
-    @Query("SELECT s FROM ServiceItem s WHERE s.category.id = :categoryId ORDER BY s.category.displayOrder ASC, s.id ASC")
+    @Query("SELECT s FROM ServiceItem s WHERE s.category.id = :categoryId AND s.active = true ORDER BY s.displayOrder ASC, s.id ASC")
     List<ServiceItem> findByCategoryId(@Param("categoryId") Long categoryId);
     
-    @Query("SELECT s FROM ServiceItem s WHERE s.subcategory.id = :subcategoryId ORDER BY s.id ASC")
+    @Query("SELECT s FROM ServiceItem s WHERE s.subcategory.id = :subcategoryId AND s.active = true ORDER BY s.displayOrder ASC, s.id ASC")
     List<ServiceItem> findBySubcategoryId(@Param("subcategoryId") Long subcategoryId);
     
-    ServiceItem findFirstByNameContainingIgnoreCase(String name);
+    ServiceItem findFirstByNameContainingIgnoreCaseAndActiveTrueOrderByDisplayOrderAscIdAsc(String name);
+
+    List<ServiceItem> findAllByActiveTrueOrderByDisplayOrderAscIdAsc();
+
+    java.util.Optional<ServiceItem> findByIdAndActiveTrue(Long id);
 }

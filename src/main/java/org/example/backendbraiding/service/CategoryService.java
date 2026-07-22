@@ -29,10 +29,13 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -120,7 +123,7 @@ public class CategoryService {
                     // Map service items for subcategory with null safety
                     List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
                     if (sub.getItems() != null) {
-                        itemDtos = sub.getItems().stream().map(item -> {
+                        itemDtos = sub.getItems().stream().filter(ServiceItem::isActive).map(item -> {
                             return mapToAdminServiceItemDTO(item);
                         }).collect(Collectors.toList());
                     }
@@ -134,7 +137,7 @@ public class CategoryService {
             // Map service items for category with null safety
             List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
             if (cat.getItems() != null) {
-                itemDtos = cat.getItems().stream().map(item -> {
+                itemDtos = cat.getItems().stream().filter(ServiceItem::isActive).map(item -> {
                     return mapToAdminServiceItemDTO(item);
                 }).collect(Collectors.toList());
             }
@@ -170,12 +173,12 @@ public class CategoryService {
             optDto.setId(opt.getId());
             optDto.setName(opt.getName());
             optDto.setPrice(opt.getPrice());
-            optDto.setDuration(opt.getDuration());
             optDto.setNotes(opt.getNotes());
             optDto.setImageUrl(opt.getImageUrl());
             return optDto;
         }).collect(Collectors.toList());
         dto.setLengthOptions(lengthOptionDtos);
+        dto.setDisplayOrder(item.getDisplayOrder());
 
         return dto;
     }
@@ -366,20 +369,29 @@ public class CategoryService {
             subcategory.setCategory(category);
             category.getSubcategories().add(subcategory);
 
-            for (CompleteCategoryRequest.ServiceInput serviceInput : subInput.getSizes()) {
+            Set<String> serviceNames = new HashSet<>();
+            for (int serviceIndex = 0; serviceIndex < subInput.getSizes().size(); serviceIndex++) {
+                CompleteCategoryRequest.ServiceInput serviceInput = subInput.getSizes().get(serviceIndex);
+                if (!serviceNames.add(serviceInput.getName().trim().toLowerCase(Locale.ROOT))) {
+                    throw new IllegalArgumentException("Size names must be unique within a subcategory");
+                }
                 ServiceItem serviceItem = new ServiceItem();
                 serviceItem.setName(serviceInput.getName().trim());
                 serviceItem.setPrice("");
                 serviceItem.setDescription("");
+                serviceItem.setDisplayOrder(serviceIndex);
                 serviceItem.setSubcategory(subcategory);
                 subcategory.getItems().add(serviceItem);
 
+                Set<String> lengthNames = new HashSet<>();
                 for (CompleteCategoryRequest.LengthInput lengthInput : serviceInput.getLengths()) {
+                    if (!lengthNames.add(lengthInput.getName().trim().toLowerCase(Locale.ROOT))) {
+                        throw new IllegalArgumentException("Length names must be unique within a service");
+                    }
                     LengthOption option = new LengthOption();
                     option.setName(lengthInput.getName().trim());
                     option.setPrice(lengthInput.getPrice().trim());
                     option.setNotes(lengthInput.getNotes());
-                    option.setDuration(lengthInput.getDuration());
                     option.setServiceItem(serviceItem);
                     serviceItem.getLengthOptions().add(option);
                 }
@@ -630,7 +642,7 @@ public class CategoryService {
 
                 List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
                 if (sub.getItems() != null) {
-                    itemDtos = sub.getItems().stream().map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
+                    itemDtos = sub.getItems().stream().filter(ServiceItem::isActive).map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
                 }
                 subDto.setItems(itemDtos);
 
@@ -642,7 +654,7 @@ public class CategoryService {
         // Map direct category items
         List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
         if (category.getItems() != null) {
-            itemDtos = category.getItems().stream().map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
+            itemDtos = category.getItems().stream().filter(ServiceItem::isActive).map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
         }
         dto.setItems(itemDtos);
 
@@ -687,7 +699,7 @@ public class CategoryService {
 
         List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
         if (subcategory.getItems() != null) {
-            itemDtos = subcategory.getItems().stream().map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
+            itemDtos = subcategory.getItems().stream().filter(ServiceItem::isActive).map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
         }
         dto.setItems(itemDtos);
 

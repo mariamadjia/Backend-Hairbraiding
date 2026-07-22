@@ -1,31 +1,47 @@
 package org.example.backendbraiding.service;
 
+import org.example.backendbraiding.dto.ServiceItemRequest;
+import org.example.backendbraiding.exception.ResourceNotFoundException;
+import org.example.backendbraiding.model.Category;
 import org.example.backendbraiding.model.LengthOption;
 import org.example.backendbraiding.model.ServiceItem;
+import org.example.backendbraiding.model.Subcategory;
+import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.ServiceItemRepository;
+import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class ServiceItemService {
     private final ServiceItemRepository serviceItemRepository;
+    private final CategoryRepository categoryRepository;
+    private final SubcategoryRepository subcategoryRepository;
 
-    public ServiceItemService(ServiceItemRepository serviceItemRepository) {
+    public ServiceItemService(ServiceItemRepository serviceItemRepository,
+                              CategoryRepository categoryRepository,
+                              SubcategoryRepository subcategoryRepository) {
         this.serviceItemRepository = serviceItemRepository;
+        this.categoryRepository = categoryRepository;
+        this.subcategoryRepository = subcategoryRepository;
     }
 
     public List<ServiceItem> getAllServices() {
-        return serviceItemRepository.findAll();
+        return serviceItemRepository.findAllByActiveTrueOrderByDisplayOrderAscIdAsc();
     }
 
     public ServiceItem getServiceById(Long id) {
-        return serviceItemRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Service not found"));
+        return serviceItemRepository.findByIdAndActiveTrue(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found"));
     }
 
     public List<ServiceItem> getServicesByCategory(Long categoryId) {
@@ -38,94 +54,117 @@ public class ServiceItemService {
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
-    public ServiceItem createService(ServiceItem service) {
-        // Set bidirectional relationship for length options
-        if (service.getLengthOptions() != null) {
-            for (LengthOption option : service.getLengthOptions()) {
-                option.setServiceItem(service);
-            }
-        }
+    public ServiceItem createService(ServiceItemRequest request) {
+        ServiceItem service = new ServiceItem();
+        applyRequest(service, request, true);
         return serviceItemRepository.save(service);
     }
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
-    public ServiceItem updateService(Long id, Map<String, Object> updates) {
+    public ServiceItem updateService(Long id, ServiceItemRequest request) {
         ServiceItem service = getServiceById(id);
-
-        if (updates.containsKey("name") && updates.get("name") != null) {
-            service.setName(updates.get("name").toString());
-        }
-        if (updates.containsKey("price") && updates.get("price") != null) {
-            service.setPrice(updates.get("price").toString());
-        }
-        if (updates.containsKey("description") && updates.get("description") != null) {
-            service.setDescription(updates.get("description").toString());
-        }
-        if (updates.containsKey("notes") && updates.get("notes") != null) {
-            service.setNotes(updates.get("notes").toString());
-        }
-        if (updates.containsKey("image") && updates.get("image") != null) {
-            service.setImage(updates.get("image").toString());
-        }
-        if (updates.containsKey("link") && updates.get("link") != null) {
-            service.setLink(updates.get("link").toString());
-        }
-        if (updates.containsKey("objectPosition") && updates.get("objectPosition") != null) {
-            service.setObjectPosition(updates.get("objectPosition").toString());
-        }
-        if (updates.containsKey("images")) {
-            service.setImages((List<String>) updates.get("images"));
-        }
-        if (updates.containsKey("sizePhotos")) {
-            service.setSizePhotos((List<String>) updates.get("sizePhotos"));
-        }
-        if (updates.containsKey("availableSizes")) {
-            service.setAvailableSizes((List<String>) updates.get("availableSizes"));
-        }
-        if (updates.containsKey("hairTextures")) {
-            service.setHairTextures((List<String>) updates.get("hairTextures"));
-        }
-        if (updates.containsKey("lengthOptions")) {
-            // Clear existing length options
-            if (service.getLengthOptions() == null) {
-                service.setLengthOptions(new ArrayList<>());
-            }
-            service.getLengthOptions().clear();
-            
-            // Add new length options
-            List<Map<String, Object>> optionsData = (List<Map<String, Object>>) updates.get("lengthOptions");
-            if (optionsData != null) {
-                for (Map<String, Object> optionData : optionsData) {
-                    LengthOption option = new LengthOption();
-                    if (optionData.containsKey("name") && optionData.get("name") != null) {
-                        option.setName(optionData.get("name").toString());
-                    }
-                    if (optionData.containsKey("price") && optionData.get("price") != null) {
-                        option.setPrice(optionData.get("price").toString());
-                    }
-                    if (optionData.containsKey("duration") && optionData.get("duration") != null) {
-                        option.setDuration(optionData.get("duration").toString());
-                    }
-                    if (optionData.containsKey("notes") && optionData.get("notes") != null) {
-                        option.setNotes(optionData.get("notes").toString());
-                    }
-                    if (optionData.containsKey("imageUrl") && optionData.get("imageUrl") != null) {
-                        option.setImageUrl(optionData.get("imageUrl").toString());
-                    }
-                    option.setServiceItem(service);
-                    service.getLengthOptions().add(option);
-                }
-            }
-        }
-
+        applyRequest(service, request, false);
         return serviceItemRepository.save(service);
     }
+
+    private void applyRequest(ServiceItem service, ServiceItemRequest request, boolean creating) {
+        service.setName(request.getName().trim());
+        service.setPrice(clean(request.getPrice()));
+        service.setDescription(clean(request.getDescription()));
+        service.setNotes(clean(request.getNotes()));
+        service.setImage(clean(request.getImage()));
+        service.setLink(clean(request.getLink()));
+        service.setObjectPosition(clean(request.getObjectPosition()));
+        service.setImages(cleanList(request.getImages()));
+        service.setSizePhotos(cleanList(request.getSizePhotos()));
+        service.setAvailableSizes(uniqueList(request.getAvailableSizes(), "Available sizes"));
+        service.setHairTextures(uniqueList(request.getHairTextures(), "Hair textures"));
+        if (request.getDisplayOrder() != null) service.setDisplayOrder(Math.max(0, request.getDisplayOrder()));
+
+        Relationship relationship = resolveRelationship(request, service, creating);
+        service.setCategory(relationship.category());
+        service.setSubcategory(relationship.subcategory());
+        mergeLengthOptions(service, request.getLengthOptions());
+        if (service.getPrice().isBlank() && service.getLengthOptions().isEmpty()) {
+            throw new IllegalArgumentException("A service requires a price or at least one length option");
+        }
+    }
+
+    private Relationship resolveRelationship(ServiceItemRequest request, ServiceItem service, boolean creating) {
+        Long requestedSubcategoryId = request.getSubcategory() == null ? null : request.getSubcategory().getId();
+        Long requestedCategoryId = request.getCategory() == null ? null : request.getCategory().getId();
+        Subcategory subcategory = requestedSubcategoryId == null ? service.getSubcategory()
+                : subcategoryRepository.findById(requestedSubcategoryId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Subcategory not found"));
+        if (subcategory == null && creating) throw new IllegalArgumentException("Subcategory is required");
+
+        Category category = requestedCategoryId == null
+                ? (subcategory == null ? service.getCategory() : subcategory.getCategory())
+                : categoryRepository.findById(requestedCategoryId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Category not found"));
+        if (subcategory != null && category != null && !subcategory.getCategory().getId().equals(category.getId())) {
+            throw new IllegalArgumentException("Subcategory does not belong to the selected category");
+        }
+        return new Relationship(category, subcategory);
+    }
+
+    private void mergeLengthOptions(ServiceItem service, List<ServiceItemRequest.LengthOptionInput> inputs) {
+        List<ServiceItemRequest.LengthOptionInput> safeInputs = inputs == null ? List.of() : inputs;
+        Set<String> names = new HashSet<>();
+        Map<Long, LengthOption> existingById = new HashMap<>();
+        service.getLengthOptions().forEach(option -> existingById.put(option.getId(), option));
+        List<LengthOption> merged = new ArrayList<>();
+
+        for (ServiceItemRequest.LengthOptionInput input : safeInputs) {
+            String normalizedName = input.getName().trim();
+            if (!names.add(normalizedName.toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("Length option names must be unique within a service");
+            }
+            LengthOption option;
+            if (input.getId() == null) {
+                option = new LengthOption();
+            } else {
+                option = existingById.remove(input.getId());
+                if (option == null) throw new IllegalArgumentException("Length option does not belong to this service");
+            }
+            option.setName(normalizedName);
+            option.setPrice(clean(input.getPrice()));
+            option.setNotes(clean(input.getNotes()));
+            option.setImageUrl(clean(input.getImageUrl()));
+            option.setServiceItem(service);
+            merged.add(option);
+        }
+        service.getLengthOptions().clear();
+        service.getLengthOptions().addAll(merged);
+    }
+
+    private List<String> cleanList(List<String> values) {
+        if (values == null) return new ArrayList<>();
+        return values.stream().map(this::clean).filter(value -> !value.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+    }
+
+    private List<String> uniqueList(List<String> values, String label) {
+        List<String> cleaned = cleanList(values);
+        Set<String> unique = new HashSet<>();
+        for (String value : cleaned) {
+            if (!unique.add(value.toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException(label + " must not contain duplicates");
+            }
+        }
+        return new ArrayList<>(cleaned);
+    }
+
+    private String clean(String value) { return value == null ? "" : value.trim(); }
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public void deleteService(Long id) {
         ServiceItem service = getServiceById(id);
-        serviceItemRepository.delete(service);
+        service.setActive(false);
+        serviceItemRepository.save(service);
     }
+
+    private record Relationship(Category category, Subcategory subcategory) {}
 }

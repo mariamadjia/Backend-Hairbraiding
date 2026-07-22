@@ -43,6 +43,9 @@ public class AppointmentRequestDTO {
     private String selectedLength;
 
     private Long lengthOptionId;
+
+    @Size(max = 100, message = "Selected texture cannot exceed 100 characters")
+    private String selectedTexture;
     
     private String price;
 

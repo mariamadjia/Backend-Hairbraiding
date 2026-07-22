@@ -16,8 +16,6 @@ public class LengthOption {
 
     private String price;
 
-    private String duration;
-
     @Column(columnDefinition = "TEXT")
     private String notes;
 

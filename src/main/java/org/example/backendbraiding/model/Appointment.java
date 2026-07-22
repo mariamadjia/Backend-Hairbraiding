@@ -38,6 +38,9 @@ public class Appointment {
     @Column(name = "selected_length")
     private String selectedLength;
 
+    @Column(name = "selected_texture", length = 100)
+    private String selectedTexture;
+
     @Column(name = "selected_service", length = 100)
     private String selectedService;
 
