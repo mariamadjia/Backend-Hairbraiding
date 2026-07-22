@@ -45,7 +45,7 @@ public class AppointmentController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "appointmentDateTime") String sortBy,
             @RequestParam(defaultValue = "desc") String sortDir) {
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+        Sort sort = appointmentSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
         Page<AppointmentResponseDTO> appointments = appointmentService.getAllAppointments(pageable);
         return ResponseEntity.ok(appointments);
@@ -55,8 +55,10 @@ public class AppointmentController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Page<AppointmentResponseDTO>> getPendingAppointments(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("appointmentDateTime").ascending());
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "appointmentDateTime") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+        Pageable pageable = PageRequest.of(page, size, appointmentSort(sortBy, sortDir));
         Page<AppointmentResponseDTO> appointments = appointmentService.getPendingAppointments(pageable);
         return ResponseEntity.ok(appointments);
     }
@@ -73,8 +75,10 @@ public class AppointmentController {
     public ResponseEntity<Page<AppointmentResponseDTO>> getAppointmentsByStatus(
             @PathVariable String status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("appointmentDateTime").descending());
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "appointmentDateTime") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+        Pageable pageable = PageRequest.of(page, size, appointmentSort(sortBy, sortDir));
         Page<AppointmentResponseDTO> appointments = appointmentService.getAppointmentsByStatus(status, pageable);
         return ResponseEntity.ok(appointments);
     }
@@ -145,5 +149,13 @@ public class AppointmentController {
         Admin admin = adminRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
         return admin.getId();
+    }
+
+    private Sort appointmentSort(String sortBy, String sortDir) {
+        String property = switch (sortBy) {
+            case "createdAt", "paymentStatus", "appointmentDateTime" -> sortBy;
+            default -> "appointmentDateTime";
+        };
+        return sortDir.equalsIgnoreCase("asc") ? Sort.by(property).ascending() : Sort.by(property).descending();
     }
 }

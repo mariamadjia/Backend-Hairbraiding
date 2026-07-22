@@ -133,6 +133,9 @@ public class AppointmentService {
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Only pending appointments can be approved");
         }
+        if (!appointment.getAppointmentDateTime().isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException("Past appointments cannot be approved");
+        }
         if (appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED) {
             throw new IllegalStateException("Payment must be authorized before approving an appointment");
         }
@@ -191,6 +194,9 @@ public class AppointmentService {
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Only pending appointments can be denied");
         }
+        if (actionDTO.getAdminNotes() == null || actionDTO.getAdminNotes().isBlank()) {
+            throw new IllegalArgumentException("A denial reason is required");
+        }
 
         Admin admin = adminRepository.findById(adminId)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
@@ -232,19 +238,16 @@ public class AppointmentService {
         return mapToResponseDTO(updatedAppointment);
     }
 
-    @org.springframework.cache.annotation.Cacheable(value = "appointments", key = "'pending'")
     public Page<AppointmentResponseDTO> getPendingAppointments(Pageable pageable) {
         return appointmentRepository.findByStatus(Appointment.AppointmentStatus.PENDING, pageable)
             .map(this::mapToResponseDTO);
     }
 
-    @org.springframework.cache.annotation.Cacheable(value = "appointments", key = "'all'")
     public Page<AppointmentResponseDTO> getAllAppointments(Pageable pageable) {
         return appointmentRepository.findAll(pageable)
             .map(this::mapToResponseDTO);
     }
 
-    @org.springframework.cache.annotation.Cacheable(value = "appointments", key = "'upcoming'")
     public List<AppointmentResponseDTO> getUpcomingAppointments() {
         return appointmentRepository.findUpcomingAppointments(LocalDateTime.now())
             .stream()
