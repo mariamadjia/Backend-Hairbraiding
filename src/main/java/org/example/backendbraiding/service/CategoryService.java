@@ -18,6 +18,7 @@ import org.example.backendbraiding.model.Subcategory;
 import org.example.backendbraiding.repository.CategoryRepository;
 import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
+import org.example.backendbraiding.repository.ServiceItemRepository;
 import org.example.backendbraiding.util.SlugUtil;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
@@ -44,15 +45,18 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final GalleryImageRepository galleryImageRepository;
+    private final ServiceItemRepository serviceItemRepository;
 
     public CategoryService(
             CategoryRepository categoryRepository,
             SubcategoryRepository subcategoryRepository,
-            GalleryImageRepository galleryImageRepository
+            GalleryImageRepository galleryImageRepository,
+            ServiceItemRepository serviceItemRepository
     ) {
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.galleryImageRepository = galleryImageRepository;
+        this.serviceItemRepository = serviceItemRepository;
     }
 
     @org.springframework.cache.annotation.Cacheable(value = "publicCategories")
@@ -678,17 +682,20 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public AdminSubcategoryDTO getSubcategoryBySlugForAdmin(String slug) {
-        Subcategory subcategory = subcategoryRepository.findBySlugForAdmin(slug)
+        Subcategory subcategory = subcategoryRepository.findBySlug(slug)
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Subcategory not found"));
+
+        List<ServiceItem> activeItems = serviceItemRepository.findBySubcategoryId(subcategory.getId());
 
         // Batch fetch gallery images for this subcategory
         List<GalleryImage> galleryImages = galleryImageRepository
                 .findBySubcategoryIdOrderByDisplayOrderAsc(subcategory.getId());
 
-        return mapToAdminSubcategoryDTO(subcategory, galleryImages);
+        return mapToAdminSubcategoryDTO(subcategory, activeItems, galleryImages);
     }
 
-    private AdminSubcategoryDTO mapToAdminSubcategoryDTO(Subcategory subcategory, List<GalleryImage> galleryImages) {
+    private AdminSubcategoryDTO mapToAdminSubcategoryDTO(Subcategory subcategory, List<ServiceItem> activeItems,
+                                                          List<GalleryImage> galleryImages) {
         AdminSubcategoryDTO dto = new AdminSubcategoryDTO();
         dto.setId(subcategory.getId());
         dto.setName(subcategory.getName());
@@ -697,10 +704,9 @@ public class CategoryService {
         dto.setImage(subcategory.getImage());
         dto.setDisplayOrder(subcategory.getDisplayOrder());
 
-        List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
-        if (subcategory.getItems() != null) {
-            itemDtos = subcategory.getItems().stream().filter(ServiceItem::isActive).map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
-        }
+        List<AdminServiceItemDTO> itemDtos = activeItems.stream()
+                .map(this::mapToAdminServiceItemDTO)
+                .collect(Collectors.toList());
         dto.setItems(itemDtos);
 
         // Include gallery images so frontend doesn't need a second request
