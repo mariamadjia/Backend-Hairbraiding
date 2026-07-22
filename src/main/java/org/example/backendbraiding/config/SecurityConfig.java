@@ -1,6 +1,7 @@
 package org.example.backendbraiding.config;
 
 import org.example.backendbraiding.security.JwtAuthenticationFilter;
+import org.example.backendbraiding.security.PublicBookingRateLimitFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -19,9 +20,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final PublicBookingRateLimitFilter publicBookingRateLimitFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+                          PublicBookingRateLimitFilter publicBookingRateLimitFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.publicBookingRateLimitFilter = publicBookingRateLimitFilter;
     }
 
     @Bean
@@ -100,6 +104,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().authenticated()
             )
+            .addFilterBefore(publicBookingRateLimitFilter, JwtAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

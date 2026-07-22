@@ -58,4 +58,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findFailedPendingReservations();
     
     Optional<Appointment> findByPaymentIntentId(String paymentIntentId);
+
+    @Query("SELECT a FROM Appointment a WHERE a.paymentIntentId IS NOT NULL AND a.paymentStatus IN " +
+           "('PENDING', 'AUTHORIZED', 'CAPTURE_FAILED', 'CANCELLATION_FAILED')")
+    List<Appointment> findAppointmentsNeedingPaymentReconciliation();
 }

@@ -464,4 +464,5 @@ public class AppointmentService {
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Selected length is not available for this service"));
     }
+
 }

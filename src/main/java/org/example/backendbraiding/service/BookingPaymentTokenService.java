@@ -26,6 +26,7 @@ public class BookingPaymentTokenService {
         Date now = new Date();
         return Jwts.builder()
                 .setSubject(appointmentId.toString())
+                .claim("purpose", "payment")
                 .setIssuedAt(now)
                 .setExpiration(new Date(now.getTime() + TOKEN_TTL_MILLIS))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -39,9 +40,12 @@ public class BookingPaymentTokenService {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
-            return appointmentId.toString().equals(claims.getSubject());
+            Object purpose = claims.get("purpose");
+            return appointmentId.toString().equals(claims.getSubject())
+                    && (purpose == null || "payment".equals(purpose));
         } catch (Exception ignored) {
             return false;
         }
     }
+
 }

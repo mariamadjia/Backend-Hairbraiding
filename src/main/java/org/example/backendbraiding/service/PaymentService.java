@@ -14,6 +14,7 @@ import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.repository.AppointmentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -203,6 +204,44 @@ public class PaymentService {
             appointment.setAdminNotes("Payment authorization release failed; retry required: " + reason);
             appointmentRepository.save(appointment);
         });
+    }
+
+    @Scheduled(fixedDelayString = "${stripe.reconciliation.interval-ms:300000}")
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public void reconcilePaymentStates() {
+        for (Appointment appointment : appointmentRepository.findAppointmentsNeedingPaymentReconciliation()) {
+            try {
+                PaymentIntent intent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
+                switch (intent.getStatus()) {
+                    case "requires_capture" -> {
+                        if (appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
+                            appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
+                            appointment.setPaymentPendingExpiresAt(null);
+                        }
+                    }
+                    case "succeeded" -> {
+                        appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
+                        if (appointment.getPaymentCapturedAt() == null) appointment.setPaymentCapturedAt(LocalDateTime.now());
+                    }
+                    case "canceled" -> {
+                        appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+                        if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
+                            appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+                        }
+                    }
+                    default -> {
+                        if (intent.getStatus().startsWith("requires_payment_method")) {
+                            appointment.setPaymentStatus(Appointment.PaymentStatus.FAILED);
+                        }
+                    }
+                }
+                appointmentRepository.save(appointment);
+            } catch (StripeException e) {
+                log.warn("Could not reconcile payment {} for appointment {}: {}",
+                        appointment.getPaymentIntentId(), appointment.getId(), e.getMessage());
+            }
+        }
     }
 
 }
