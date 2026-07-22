@@ -2,7 +2,6 @@ package org.example.backendbraiding.service;
 
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
-import com.stripe.model.PaymentMethod;
 import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import lombok.RequiredArgsConstructor;
@@ -24,25 +23,39 @@ import java.util.Map;
 @Slf4j
 public class PaymentService {
 
+    private static final long DEPOSIT_AMOUNT_CENTS = 5000L;
+
     private final AppointmentRepository appointmentRepository;
+    private final BookingPaymentTokenService bookingPaymentTokenService;
 
     @Transactional
     public PaymentIntentResponse createPaymentIntent(PaymentIntentRequest request) {
+        if (!bookingPaymentTokenService.isValidForAppointment(request.getPaymentToken(), request.getAppointmentId())) {
+            throw new IllegalArgumentException("Invalid or expired payment token");
+        }
+
+        Appointment appointment = appointmentRepository.findById(request.getAppointmentId())
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
+
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
+            throw new IllegalStateException("Payment can only be authorized for a pending appointment");
+        }
+
         try {
-            Map<String, String> metadata = new HashMap<>();
-            if (request.getAppointmentId() != null) {
-                metadata.put("appointmentId", request.getAppointmentId().toString());
-            }
-            if (request.getCustomerEmail() != null) {
-                metadata.put("customerEmail", request.getCustomerEmail());
-            }
-            if (request.getCustomerName() != null) {
-                metadata.put("customerName", request.getCustomerName());
+            if (appointment.getPaymentIntentId() != null &&
+                    appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
+                PaymentIntent existingIntent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
+                return paymentIntentResponse(existingIntent, appointment.getId(), "Payment intent ready for authorization.");
             }
 
-            PaymentIntentCreateParams.Builder paramsBuilder = PaymentIntentCreateParams.builder()
-                    .setAmount(request.getAmount())
-                    .setCurrency(request.getCurrency())
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("appointmentId", appointment.getId().toString());
+            metadata.put("customerEmail", appointment.getCustomer().getEmail());
+            metadata.put("customerName", appointment.getCustomer().getFirstName() + " " + appointment.getCustomer().getLastName());
+
+            PaymentIntent paymentIntent = PaymentIntent.create(PaymentIntentCreateParams.builder()
+                    .setAmount(DEPOSIT_AMOUNT_CENTS)
+                    .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
                     .putAllMetadata(metadata)
                     .setAutomaticPaymentMethods(
@@ -50,39 +63,31 @@ public class PaymentService {
                                     .setEnabled(true)
                                     .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
                                     .build()
-                    );
+                    )
+                    .build());
 
-            // Only set payment method and confirm if provided
-            if (request.getPaymentMethodId() != null) {
-                paramsBuilder.setPaymentMethod(request.getPaymentMethodId());
-                paramsBuilder.setConfirm(true);
-            }
+            appointment.setPaymentIntentId(paymentIntent.getId());
+            appointment.setDepositAmount(DEPOSIT_AMOUNT_CENTS);
+            appointment.setPaymentStatus(Appointment.PaymentStatus.PENDING);
+            appointmentRepository.save(appointment);
 
-            PaymentIntent paymentIntent = PaymentIntent.create(paramsBuilder.build());
-
-            if (request.getAppointmentId() != null) {
-                updateAppointmentWithPayment(
-                        request.getAppointmentId(),
-                        paymentIntent.getId(),
-                        request.getAmount(),
-                        paymentIntent.getPaymentMethod()
-                );
-            }
-
-            return PaymentIntentResponse.builder()
-                    .paymentIntentId(paymentIntent.getId())
-                    .clientSecret(paymentIntent.getClientSecret())
-                    .status(paymentIntent.getStatus())
-                    .amount(paymentIntent.getAmount())
-                    .currency(paymentIntent.getCurrency())
-                    .message("Payment intent created successfully.")
-                    .appointmentId(request.getAppointmentId())
-                    .build();
-
+            return paymentIntentResponse(paymentIntent, appointment.getId(), "Payment intent created successfully.");
         } catch (StripeException e) {
             log.error("Error creating payment intent: {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to create payment intent: " + e.getMessage());
+            throw new RuntimeException("Failed to create payment intent");
         }
+    }
+
+    private PaymentIntentResponse paymentIntentResponse(PaymentIntent paymentIntent, Long appointmentId, String message) {
+        return PaymentIntentResponse.builder()
+                .paymentIntentId(paymentIntent.getId())
+                .clientSecret(paymentIntent.getClientSecret())
+                .status(paymentIntent.getStatus())
+                .amount(paymentIntent.getAmount())
+                .currency(paymentIntent.getCurrency())
+                .message(message)
+                .appointmentId(appointmentId)
+                .build();
     }
 
     @Transactional
@@ -170,25 +175,4 @@ public class PaymentService {
         }
     }
 
-    private void updateAppointmentWithPayment(Long appointmentId, String paymentIntentId, 
-                                             Long amount, String paymentMethodId) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
-
-        appointment.setPaymentIntentId(paymentIntentId);
-        appointment.setDepositAmount(amount);
-        appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
-
-        try {
-            PaymentMethod paymentMethod = PaymentMethod.retrieve(paymentMethodId);
-            if (paymentMethod.getCard() != null) {
-                appointment.setPaymentMethodLast4(paymentMethod.getCard().getLast4());
-                appointment.setPaymentMethodBrand(paymentMethod.getCard().getBrand());
-            }
-        } catch (StripeException e) {
-            log.warn("Could not retrieve payment method details: {}", e.getMessage());
-        }
-
-        appointmentRepository.save(appointment);
-    }
 }

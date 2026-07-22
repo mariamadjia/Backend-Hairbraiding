@@ -312,8 +312,9 @@ public class AvailabilityService {
             return slot;
         }
         
-        // Check existing appointments
-        long appointmentCount = appointmentRepository.countByAppointmentDateTimeBetween(start, end);
+        // Check existing appointments (true interval overlap, excluding expired unpaid reservations)
+        LocalDateTime windowStart = start.minusMinutes(settings.getSlotDurationMinutes());
+        long appointmentCount = appointmentRepository.countOverlapping(windowStart, end, LocalDateTime.now());
         int availableSpots = settings.getMaxAppointmentsPerSlot() - (int) appointmentCount;
         
         slot.setIsAvailable(availableSpots > 0);

@@ -33,9 +33,9 @@ public class StripeWebhookController {
             @RequestBody String payload,
             @RequestHeader("Stripe-Signature") String sigHeader) {
 
-        if (webhookSecret == null || webhookSecret.isEmpty()) {
-            log.warn("Webhook secret not configured. Skipping signature verification.");
-            return processWebhookEvent(payload);
+        if (webhookSecret == null || !webhookSecret.startsWith("whsec_")) {
+            log.error("Stripe webhook secret is not configured");
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body("Webhook is not configured");
         }
 
         Event event;
@@ -52,15 +52,6 @@ public class StripeWebhookController {
         return handleEvent(event);
     }
 
-    private ResponseEntity<String> processWebhookEvent(String payload) {
-        try {
-            Event event = Event.GSON.fromJson(payload, Event.class);
-            return handleEvent(event);
-        } catch (Exception e) {
-            log.error("Error processing webhook event", e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Error processing event");
-        }
-    }
 
     private ResponseEntity<String> handleEvent(Event event) {
         log.info("Received Stripe webhook event: {}", event.getType());

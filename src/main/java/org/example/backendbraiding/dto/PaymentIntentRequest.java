@@ -11,17 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PaymentIntentRequest {
     
-    @NotNull(message = "Amount is required")
-    private Long amount;
-    
-    @NotBlank(message = "Currency is required")
-    private String currency = "usd";
-
-    private String paymentMethodId; // Optional - will be created by Stripe confirmPayment
-
+    @NotNull(message = "Appointment ID is required")
     private Long appointmentId;
-    
-    private String customerEmail;
-    
-    private String customerName;
+
+    @NotBlank(message = "Payment token is required")
+    private String paymentToken;
 }

@@ -32,6 +32,7 @@ public class AppointmentResponseDTO {
     private LocalDateTime paymentCapturedAt;
     private String paymentMethodLast4;
     private String paymentMethodBrand;
+    private String paymentToken;
 
     @Data
     @NoArgsConstructor

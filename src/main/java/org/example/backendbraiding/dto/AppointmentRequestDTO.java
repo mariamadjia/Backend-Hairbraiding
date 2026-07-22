@@ -31,6 +31,7 @@ public class AppointmentRequestDTO {
     @Future(message = "Appointment must be in the future")
     private LocalDateTime appointmentDateTime;
 
+    @NotNull(message = "Service is required")
     private Long serviceId;
 
     private String selectedService;

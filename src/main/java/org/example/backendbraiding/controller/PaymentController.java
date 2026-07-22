@@ -42,6 +42,7 @@ public class PaymentController {
     }
 
     @GetMapping("/status/{paymentIntentId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PaymentIntentResponse> getPaymentStatus(
             @PathVariable String paymentIntentId) {
         PaymentIntentResponse response = paymentService.getPaymentStatus(paymentIntentId);

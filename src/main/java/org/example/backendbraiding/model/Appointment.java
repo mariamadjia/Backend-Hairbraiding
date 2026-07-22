@@ -93,6 +93,9 @@ public class Appointment {
     @Column(name = "payment_method_brand")
     private String paymentMethodBrand;
 
+    @Column(name = "payment_pending_expires_at")
+    private LocalDateTime paymentPendingExpiresAt;
+
     public enum AppointmentStatus {
         PENDING,
         APPROVED,
