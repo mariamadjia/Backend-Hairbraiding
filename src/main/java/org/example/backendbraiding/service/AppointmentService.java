@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import org.example.backendbraiding.util.BookingRules;
+import jakarta.persistence.EntityManager;
 
 @Service
 @RequiredArgsConstructor
@@ -42,6 +43,7 @@ public class AppointmentService {
     private final BookingPaymentTokenService bookingPaymentTokenService;
     private final TimeSlotRepository timeSlotRepository;
     private final EmailService emailService;
+    private final EntityManager entityManager;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
 
@@ -62,7 +64,14 @@ public class AppointmentService {
         validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), durationMinutes, settings);
         
         String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
-        Customer customer = customerRepository.findByEmail(normalizedEmail)
+        // Serialize customer creation per normalized email across application instances.
+        // This closes the race where two simultaneous first bookings create duplicate customers.
+        entityManager.createNativeQuery("WITH customer_lock AS (" +
+                        "SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))" +
+                        ") SELECT hashtextextended(?1, 0) FROM customer_lock")
+                .setParameter(1, normalizedEmail)
+                .getSingleResult();
+        Customer customer = customerRepository.findFirstByEmailIgnoreCaseOrderByIdAsc(normalizedEmail)
             .orElseGet(() -> {
                 Customer newCustomer = new Customer();
                 newCustomer.setEmail(normalizedEmail);
@@ -71,7 +80,7 @@ public class AppointmentService {
         
         customer.setFirstName(requestDTO.getFirstName());
         customer.setLastName(requestDTO.getLastName());
-        customer.setPhoneNumber(requestDTO.getPhoneNumber());
+        customer.setPhoneNumber(requestDTO.getPhoneNumber().trim());
         customer = customerRepository.save(customer);
 
         Appointment appointment = new Appointment();

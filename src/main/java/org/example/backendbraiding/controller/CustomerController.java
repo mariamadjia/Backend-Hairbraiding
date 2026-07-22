@@ -5,9 +5,6 @@ import org.example.backendbraiding.dto.CustomerDetailDTO;
 import org.example.backendbraiding.dto.CustomerSummaryDTO;
 import org.example.backendbraiding.service.CustomerService;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -27,21 +24,21 @@ public class CustomerController {
     public ResponseEntity<Page<CustomerSummaryDTO>> getAllCustomers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "lastName") String sortBy,
-            @RequestParam(defaultValue = "asc") String sortDir) {
-        log.info("getAllCustomers called - page: {}, size: {}, sortBy: {}, sortDir: {}", page, size, sortBy, sortDir);
-        
-        Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
-        Pageable pageable = PageRequest.of(page, size, sort);
-        Page<CustomerSummaryDTO> customers = customerService.getAllCustomers(pageable);
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(defaultValue = "ALL") String segment,
+            @RequestParam(defaultValue = "NAME_ASC") String sort) {
+        Page<CustomerSummaryDTO> customers = customerService.getAllCustomers(page, size, query, segment, sort);
         return ResponseEntity.ok(customers);
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<CustomerDetailDTO> getCustomerDetails(@PathVariable Long id) {
-        log.info("getCustomerDetails called - id: {}", id);
-        CustomerDetailDTO details = customerService.getCustomerDetails(id);
+    public ResponseEntity<CustomerDetailDTO> getCustomerDetails(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int appointmentPage,
+            @RequestParam(defaultValue = "10") int appointmentSize,
+            @RequestParam(defaultValue = "ALL") String appointmentStatus) {
+        CustomerDetailDTO details = customerService.getCustomerDetails(id, appointmentPage, appointmentSize, appointmentStatus);
         return ResponseEntity.ok(details);
     }
 }

@@ -12,17 +12,26 @@ public record CustomerDetailDTO(
     String phoneNumber,
     LocalDateTime firstAppointmentDate,
     LocalDateTime lastAppointmentDate,
+    LocalDateTime nextAppointmentDate,
     Integer totalAppointments,
+    Integer completedVisits,
+    Integer upcomingAppointments,
     BigDecimal totalSpent,
     BigDecimal averageAppointmentValue,
     List<AppointmentSummaryDTO> appointments,
+    int appointmentPage,
+    int appointmentTotalPages,
+    long appointmentTotalElements,
     String notes
 ) {
     public record AppointmentSummaryDTO(
         Long id,
         String serviceName,
         LocalDateTime appointmentDateTime,
+        LocalDateTime appointmentEndDateTime,
+        Integer durationMinutes,
         String status,
+        String paymentStatus,
         BigDecimal amountPaid
     ) {}
 }

@@ -10,6 +10,8 @@ public record CustomerSummaryDTO(
     String email,
     String phoneNumber,
     LocalDateTime lastAppointmentDate,
+    LocalDateTime nextAppointmentDate,
     Integer totalAppointments,
+    Integer completedVisits,
     BigDecimal totalSpent
 ) {}
