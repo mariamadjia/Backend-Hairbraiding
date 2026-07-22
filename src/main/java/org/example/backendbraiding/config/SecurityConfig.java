@@ -104,8 +104,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(publicBookingRateLimitFilter, JwtAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            // Register the JWT filter's order first. Spring Security 7 requires a custom
+            // filter to have a known order before another filter can be positioned around it.
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(publicBookingRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }
