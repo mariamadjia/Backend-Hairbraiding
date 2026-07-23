@@ -134,6 +134,23 @@ public class HomepageSettingsService {
 
         return mapToDTO(repository.save(settings));
     }
+
+    @Transactional
+    public HomepageSettingsDTO updateGalleryCollections(String galleryCollections, Long adminId) {
+        Admin admin = adminRepository.findById(adminId)
+            .orElseThrow(() -> new RuntimeException("Admin not found"));
+
+        HomepageSettings settings = repository.findAll()
+            .stream()
+            .findFirst()
+            .orElseGet(HomepageSettings::new);
+
+        settings.setGalleryCollections(galleryCollections);
+        settings.setUpdatedBy(admin.getEmail());
+        settings.setUpdatedAt(LocalDateTime.now());
+
+        return mapToDTO(repository.save(settings));
+    }
     
     private HomepageSettingsDTO mapToDTO(HomepageSettings settings) {
         HomepageSettingsDTO dto = new HomepageSettingsDTO();

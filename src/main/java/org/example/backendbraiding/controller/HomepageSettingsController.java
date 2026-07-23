@@ -26,6 +26,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class HomepageSettingsController {
+    private static final long MAX_HOMEPAGE_VIDEO_BYTES = 50L * 1024L * 1024L;
     private final HomepageSettingsService service;
     private final AdminRepository adminRepository;
 
@@ -93,6 +94,7 @@ public class HomepageSettingsController {
     }
 
     @PostMapping("/homepage-settings/hero-images")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<HomepageSettingsDTO> updateHeroImages(
             @RequestBody Map<String, Object> request,
             Authentication authentication) {
@@ -117,6 +119,18 @@ public class HomepageSettingsController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/homepage-settings/gallery-collections")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> updateGalleryCollections(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        Long adminId = extractAdminId(authentication);
+        String galleryCollections = request.get("galleryCollections") != null
+                ? request.get("galleryCollections").toString()
+                : "[]";
+        return ResponseEntity.ok(service.updateGalleryCollections(galleryCollections, adminId));
+    }
+
     @PostMapping("/upload/welcome-video")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, String>> uploadWelcomeVideo(
@@ -124,6 +138,19 @@ public class HomepageSettingsController {
             @RequestParam(required = false) String index,
             Authentication authentication) throws IOException {
         log.info("Uploading welcome video: {}", file.getOriginalFilename());
+
+        if (file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Please select a video file."));
+        }
+        if (file.getSize() > MAX_HOMEPAGE_VIDEO_BYTES) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Video must be 50MB or smaller."));
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !(contentType.equals("video/mp4")
+                || contentType.equals("video/quicktime")
+                || contentType.equals("video/webm"))) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Only MP4, MOV, and WebM videos are supported."));
+        }
         
         String uploadDir = System.getenv("UPLOAD_DIR") != null 
             ? System.getenv("UPLOAD_DIR") 
@@ -137,9 +164,9 @@ public class HomepageSettingsController {
         
         // Generate unique filename
         String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename != null && originalFilename.contains(".") 
-            ? originalFilename.substring(originalFilename.lastIndexOf(".")) 
-            : ".mp4";
+        String extension = contentType.equals("video/quicktime")
+            ? ".mov"
+            : contentType.equals("video/webm") ? ".webm" : ".mp4";
         String filename = UUID.randomUUID().toString() + extension;
         Path filePath = uploadPath.resolve(filename);
         
@@ -153,6 +180,21 @@ public class HomepageSettingsController {
             "path", videoUrl,
             "videoPath", videoUrl
         ));
+    }
+
+    @DeleteMapping("/upload/welcome-video")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> deleteUnusedHomepageVideo(
+            @RequestParam("path") String videoPath) throws IOException {
+        String filename = Paths.get(videoPath).getFileName().toString();
+        if (filename.isBlank() || !filename.matches("[0-9a-fA-F-]+\\.(mp4|mov|webm)")) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid video path."));
+        }
+        String uploadDir = System.getenv("UPLOAD_DIR") != null
+            ? System.getenv("UPLOAD_DIR")
+            : "public/Gallery/uploads";
+        Files.deleteIfExists(Paths.get(uploadDir).resolve(filename));
+        return ResponseEntity.ok(Map.of("message", "Unused video removed."));
     }
     
     private Long extractAdminId(Authentication authentication) {
