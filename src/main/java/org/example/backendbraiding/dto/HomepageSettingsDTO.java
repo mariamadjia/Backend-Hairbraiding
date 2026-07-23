@@ -22,6 +22,8 @@ public class HomepageSettingsDTO {
     private String welcomeItems;
     
     private String galleryCollections;
+
+    private String braidBookStyles;
     
     private String footerVideoSrc;
     

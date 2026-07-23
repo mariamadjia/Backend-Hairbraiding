@@ -43,6 +43,7 @@ public class HomepageSettingsController {
             defaultSettings.setHeroImages("[]");
             defaultSettings.setWelcomeItems("[]");
             defaultSettings.setGalleryCollections("[]");
+            defaultSettings.setBraidBookStyles("[]");
             defaultSettings.setFooterVideoSrc("");
             return ResponseEntity.ok(defaultSettings);
         }
@@ -129,6 +130,18 @@ public class HomepageSettingsController {
                 ? request.get("galleryCollections").toString()
                 : "[]";
         return ResponseEntity.ok(service.updateGalleryCollections(galleryCollections, adminId));
+    }
+
+    @PostMapping("/homepage-settings/braid-book")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<HomepageSettingsDTO> updateBraidBookStyles(
+            @RequestBody Map<String, Object> request,
+            Authentication authentication) {
+        Long adminId = extractAdminId(authentication);
+        String braidBookStyles = request.get("braidBookStyles") != null
+                ? request.get("braidBookStyles").toString()
+                : "[]";
+        return ResponseEntity.ok(service.updateBraidBookStyles(braidBookStyles, adminId));
     }
 
     @PostMapping("/upload/welcome-video")

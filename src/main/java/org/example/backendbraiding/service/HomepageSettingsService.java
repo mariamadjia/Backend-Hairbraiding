@@ -47,6 +47,7 @@ public class HomepageSettingsService {
         settings.setHeroImages(dto.getHeroImages());
         settings.setWelcomeItems(dto.getWelcomeItems());
         settings.setGalleryCollections(dto.getGalleryCollections());
+        settings.setBraidBookStyles(dto.getBraidBookStyles());
         settings.setFooterVideoSrc(dto.getFooterVideoSrc());
         settings.setUpdatedBy(admin.getEmail());
         settings.setUpdatedAt(LocalDateTime.now());
@@ -151,6 +152,23 @@ public class HomepageSettingsService {
 
         return mapToDTO(repository.save(settings));
     }
+
+    @Transactional
+    public HomepageSettingsDTO updateBraidBookStyles(String braidBookStyles, Long adminId) {
+        Admin admin = adminRepository.findById(adminId)
+            .orElseThrow(() -> new RuntimeException("Admin not found"));
+
+        HomepageSettings settings = repository.findAll()
+            .stream()
+            .findFirst()
+            .orElseGet(HomepageSettings::new);
+
+        settings.setBraidBookStyles(braidBookStyles);
+        settings.setUpdatedBy(admin.getEmail());
+        settings.setUpdatedAt(LocalDateTime.now());
+
+        return mapToDTO(repository.save(settings));
+    }
     
     private HomepageSettingsDTO mapToDTO(HomepageSettings settings) {
         HomepageSettingsDTO dto = new HomepageSettingsDTO();
@@ -159,6 +177,7 @@ public class HomepageSettingsService {
         dto.setHeroImages(settings.getHeroImages());
         dto.setWelcomeItems(settings.getWelcomeItems());
         dto.setGalleryCollections(settings.getGalleryCollections());
+        dto.setBraidBookStyles(settings.getBraidBookStyles());
         dto.setFooterVideoSrc(settings.getFooterVideoSrc());
         dto.setUpdatedAt(settings.getUpdatedAt());
         dto.setUpdatedBy(settings.getUpdatedBy());

@@ -25,6 +25,9 @@ public class HomepageSettings {
     @Column(name = "gallery_collections", columnDefinition = "TEXT")
     private String galleryCollections; // JSON string
 
+    @Column(name = "braid_book_styles", columnDefinition = "TEXT")
+    private String braidBookStyles; // JSON string
+
     @Column(name = "footer_video_src")
     private String footerVideoSrc;
 
@@ -84,6 +87,14 @@ public class HomepageSettings {
 
     public void setGalleryCollections(String galleryCollections) {
         this.galleryCollections = galleryCollections;
+    }
+
+    public String getBraidBookStyles() {
+        return braidBookStyles;
+    }
+
+    public void setBraidBookStyles(String braidBookStyles) {
+        this.braidBookStyles = braidBookStyles;
     }
 
     public String getFooterVideoSrc() {
