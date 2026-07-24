@@ -301,6 +301,13 @@ public class AppointmentService {
 
     public Page<AppointmentResponseDTO> getAppointmentsByStatus(String status, Pageable pageable) {
         try {
+            // Backward compatibility for clients briefly deployed with the
+            // capture-specific status. Capture-in-progress appointments now
+            // remain PENDING and are identified by approvedAt.
+            if ("APPROVAL_PENDING_CAPTURE".equalsIgnoreCase(status)) {
+                return appointmentRepository.findByStatus(Appointment.AppointmentStatus.PENDING, pageable)
+                        .map(this::mapToResponseDTO);
+            }
             Appointment.AppointmentStatus appointmentStatus = Appointment.AppointmentStatus.valueOf(status.toUpperCase());
             return appointmentRepository.findByStatus(appointmentStatus, pageable)
                 .map(this::mapToResponseDTO);
