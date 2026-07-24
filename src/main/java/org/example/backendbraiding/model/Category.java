@@ -36,6 +36,7 @@ public class Category {
     @ElementCollection
     @CollectionTable(name = "category_flipping_images", joinColumns = @JoinColumn(name = "category_id"))
     @Column(name = "image_url")
+    @OrderColumn(name = "display_order")
     @BatchSize(size = 50)
     private List<String> flippingImages = new ArrayList<>();
 
