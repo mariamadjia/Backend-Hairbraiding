@@ -54,7 +54,13 @@ public class PaymentService {
             if (appointment.getPaymentIntentId() != null &&
                     appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
                 PaymentIntent existingIntent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
-                return paymentIntentResponse(existingIntent, appointment.getId(), "Payment intent ready for authorization.");
+                if (existingIntent.getAutomaticPaymentMethods() != null
+                        && Boolean.TRUE.equals(existingIntent.getAutomaticPaymentMethods().getEnabled())) {
+                    return paymentIntentResponse(existingIntent, appointment.getId(), "Payment intent ready for authorization.");
+                }
+
+                existingIntent.cancel();
+                appointment.setPaymentIntentId(null);
             }
 
             Map<String, String> metadata = new HashMap<>();
@@ -68,10 +74,13 @@ public class PaymentService {
                     .setAmount(depositAmountCents)
                     .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
-                    .addPaymentMethodType("card")
+                    .setAutomaticPaymentMethods(
+                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                    .setEnabled(true)
+                                    .build())
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
-                    .setIdempotencyKey("booking-payment-intent-" + appointment.getId())
+                    .setIdempotencyKey("booking-payment-intent-dynamic-v1-" + appointment.getId())
                     .build());
 
             appointment.setPaymentIntentId(paymentIntent.getId());
