@@ -233,6 +233,13 @@ public class CategoryService {
                 subDto.setImages(galleryUrls.isEmpty() && sub.getImage() != null
                         ? List.of(sub.getImage())
                         : galleryUrls);
+                subDto.setImageAltTexts(galleryImages.isEmpty()
+                        ? (sub.getImage() != null ? List.of(sub.getName()) : List.of())
+                        : galleryImages.stream()
+                                .map(image -> image.getAltText() != null && !image.getAltText().isBlank()
+                                        ? image.getAltText()
+                                        : sub.getName())
+                                .collect(Collectors.toList()));
                 return subDto;
             }).collect(Collectors.toList());
 
@@ -496,15 +503,28 @@ public class CategoryService {
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
+        if (flippingImages == null || flippingImages.size() > 5
+                || flippingImages.stream().anyMatch(url -> url == null || url.isBlank())
+                || new HashSet<>(flippingImages).size() != flippingImages.size()) {
+            throw new IllegalArgumentException("Choose up to 5 unique gallery images");
+        }
         Category category = getCategoryById(id);
-        category.setFlippingImages(flippingImages);
+        category.setFlippingImages(flippingImages.stream().map(String::trim).toList());
         return categoryRepository.save(category);
     }
 
     @Transactional
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public void reorderCategories(List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()
+                || new HashSet<>(categoryIds).size() != categoryIds.size()) {
+            throw new IllegalArgumentException("Category order must contain unique category IDs");
+        }
         // Bulk update all categories at once for better performance
         List<Category> categories = categoryRepository.findAllById(categoryIds);
+        if (categories.size() != categoryIds.size()) {
+            throw new IllegalArgumentException("One or more categories were not found");
+        }
         Map<Long, Category> categoryMap = categories.stream()
                 .collect(Collectors.toMap(Category::getId, category -> category));
         

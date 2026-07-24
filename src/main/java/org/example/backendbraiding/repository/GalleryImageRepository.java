@@ -10,6 +10,7 @@ import java.util.List;
 
 @Repository
 public interface GalleryImageRepository extends JpaRepository<GalleryImage, Long> {
+    List<GalleryImage> findAllByOrderByDisplayOrderAsc();
     @Query("SELECT g FROM GalleryImage g LEFT JOIN FETCH g.category LEFT JOIN FETCH g.subcategory WHERE g.category.id = :categoryId ORDER BY g.displayOrder ASC")
     List<GalleryImage> findByCategoryIdOrderByDisplayOrderAsc(@Param("categoryId") Long categoryId);
 

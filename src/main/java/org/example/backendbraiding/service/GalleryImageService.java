@@ -15,6 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.io.BufferedInputStream;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,6 +25,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class GalleryImageService {
@@ -51,7 +56,7 @@ public class GalleryImageService {
     }
 
     public List<ImageResponse> getAllImages() {
-        return imageRepository.findAll().stream()
+        return imageRepository.findAllByOrderByDisplayOrderAsc().stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
@@ -99,9 +104,10 @@ public class GalleryImageService {
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
-    public ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
+    public synchronized ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
         // Validate file
         validateFile(file);
+        int[] dimensions = readDimensions(file);
 
         // Enforce maximum hero images limit
         if (Boolean.TRUE.equals(request.getIsHero())
@@ -120,8 +126,7 @@ public class GalleryImageService {
         }
 
         // Generate unique filename
-        String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename != null ? originalFilename.substring(originalFilename.lastIndexOf(".")) : ".jpg";
+        String extension = extensionFor(file.getContentType());
         String filename = UUID.randomUUID().toString() + extension;
         Path filePath = uploadPath.resolve(filename);
 
@@ -141,6 +146,10 @@ public class GalleryImageService {
         
         image.setFileSize(file.getSize());
         image.setMimeType(file.getContentType());
+        if (dimensions != null) {
+            image.setWidth(dimensions[0]);
+            image.setHeight(dimensions[1]);
+        }
         image.setTags(request.getTags() != null ? request.getTags() : List.of());
         image.setIsFeatured(request.getIsFeatured());
         image.setIsHero(request.getIsHero());
@@ -169,9 +178,13 @@ public class GalleryImageService {
         Integer maxOrder = imageRepository.findMaxDisplayOrder();
         image.setDisplayOrder((maxOrder != null ? maxOrder : 0) + 1);
 
-        GalleryImage saved = imageRepository.save(image);
-        
-        return convertToResponse(saved);
+        try {
+            GalleryImage saved = imageRepository.saveAndFlush(image);
+            return convertToResponse(saved);
+        } catch (RuntimeException exception) {
+            Files.deleteIfExists(filePath);
+            throw exception;
+        }
     }
 
     @Transactional
@@ -226,14 +239,12 @@ public class GalleryImageService {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
 
-        Long subcategoryId = image.getSubcategory() != null
-                ? image.getSubcategory().getId()
-                : null;
+        removeImageReferences(image.getImageUrl());
 
         // Resolve the physical file path BEFORE touching the DB,
         // but only delete the file AFTER the DB commit succeeds.
         Path resolvedFilePath = null;
-        try {
+        if (image.getImageUrl() != null && image.getImageUrl().startsWith("/api/gallery/image/")) try {
             String filename = Paths.get(image.getImageUrl())
                     .getFileName()
                     .toString();
@@ -259,34 +270,43 @@ public class GalleryImageService {
         imageRepository.delete(image);
         imageRepository.flush();
 
-        // Now safe to delete the physical file
         if (resolvedFilePath != null) {
-            try {
-                Files.deleteIfExists(resolvedFilePath);
-            } catch (IOException e) {
-                log.error("Failed to delete file after DB commit: {}", e.getMessage());
-            }
+            Path fileToDelete = resolvedFilePath;
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        Files.deleteIfExists(fileToDelete);
+                    } catch (IOException e) {
+                        log.error("Failed to delete file after DB commit: {}", e.getMessage());
+                    }
+                }
+            });
         }
     }
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public void reorderImages(List<Long> imageIds) {
+        if (imageIds == null || imageIds.isEmpty()
+                || new java.util.HashSet<>(imageIds).size() != imageIds.size()) {
+            throw new IllegalArgumentException("Image order must contain unique image IDs");
+        }
+        List<GalleryImage> images = imageRepository.findAllById(imageIds);
+        if (images.size() != imageIds.size()) {
+            throw new IllegalArgumentException("One or more gallery images were not found");
+        }
+        java.util.Map<Long, GalleryImage> byId = images.stream()
+                .collect(Collectors.toMap(GalleryImage::getId, item -> item));
         java.util.Set<Long> affectedSubcategoryIds = new java.util.HashSet<>();
 
         for (int i = 0; i < imageIds.size(); i++) {
-            final int displayOrder = i;
-            Long imageId = imageIds.get(i);
-            imageRepository.findById(imageId).ifPresent(image -> {
-                image.setDisplayOrder(displayOrder);
-                imageRepository.save(image);
-
-                if (image.getSubcategory() != null) {
-                    affectedSubcategoryIds.add(image.getSubcategory().getId());
-                }
-            });
+            GalleryImage image = byId.get(imageIds.get(i));
+            image.setDisplayOrder(i);
+            if (image.getSubcategory() != null) affectedSubcategoryIds.add(image.getSubcategory().getId());
         }
 
+        imageRepository.saveAll(images);
         imageRepository.flush();
     }
 
@@ -342,6 +362,81 @@ public class GalleryImageService {
         if (contentType == null || !ALLOWED_TYPES.contains(contentType)) {
             throw new RuntimeException("Invalid file type. Only JPEG, PNG, and WEBP are allowed");
         }
+
+        try (BufferedInputStream input = new BufferedInputStream(file.getInputStream())) {
+            byte[] header = input.readNBytes(12);
+            if (!matchesDeclaredImageType(header, contentType)) {
+                throw new RuntimeException("The file contents do not match the selected image type");
+            }
+        } catch (IOException exception) {
+            throw new RuntimeException("Could not validate the uploaded image", exception);
+        }
+    }
+
+    private String extensionFor(String contentType) {
+        return switch (contentType == null ? "" : contentType) {
+            case "image/png" -> ".png";
+            case "image/webp" -> ".webp";
+            default -> ".jpg";
+        };
+    }
+
+    private boolean matchesDeclaredImageType(byte[] bytes, String contentType) {
+        if (bytes.length < 4) return false;
+        return switch (contentType) {
+            case "image/jpeg", "image/jpg" ->
+                    (bytes[0] & 0xff) == 0xff && (bytes[1] & 0xff) == 0xd8 && (bytes[2] & 0xff) == 0xff;
+            case "image/png" ->
+                    bytes.length >= 8 && (bytes[0] & 0xff) == 0x89 && bytes[1] == 0x50
+                            && bytes[2] == 0x4e && bytes[3] == 0x47;
+            case "image/webp" ->
+                    bytes.length >= 12 && bytes[0] == 'R' && bytes[1] == 'I' && bytes[2] == 'F'
+                            && bytes[3] == 'F' && bytes[8] == 'W' && bytes[9] == 'E'
+                            && bytes[10] == 'B' && bytes[11] == 'P';
+            default -> false;
+        };
+    }
+
+    private int[] readDimensions(MultipartFile file) {
+        try {
+            BufferedImage image = ImageIO.read(file.getInputStream());
+            if (image == null) return null; // WebP may rely on the browser/runtime codec.
+            long pixels = (long) image.getWidth() * image.getHeight();
+            if (pixels > 40_000_000L) {
+                throw new RuntimeException("Image dimensions are too large");
+            }
+            return new int[]{image.getWidth(), image.getHeight()};
+        } catch (IOException exception) {
+            throw new RuntimeException("Could not read image dimensions", exception);
+        }
+    }
+
+    private void removeImageReferences(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return;
+
+        List<Category> categories = categoryRepository.findAll();
+        categories.forEach(category -> {
+            if (imageUrl.equals(category.getImage())) category.setImage(null);
+            category.getFlippingImages().removeIf(imageUrl::equals);
+        });
+        categoryRepository.saveAll(categories);
+
+        List<Subcategory> subcategories = subcategoryRepository.findAll();
+        subcategories.forEach(subcategory -> {
+            if (imageUrl.equals(subcategory.getImage())) subcategory.setImage(null);
+        });
+        subcategoryRepository.saveAll(subcategories);
+
+        List<ServiceItem> serviceItems = serviceItemRepository.findAll();
+        serviceItems.forEach(item -> {
+            if (imageUrl.equals(item.getImage())) item.setImage(null);
+            item.getImages().removeIf(imageUrl::equals);
+            item.getSizePhotos().removeIf(imageUrl::equals);
+            item.getLengthOptions().forEach(option -> {
+                if (imageUrl.equals(option.getImageUrl())) option.setImageUrl(null);
+            });
+        });
+        serviceItemRepository.saveAll(serviceItems);
     }
 
     private ImageResponse convertToResponse(GalleryImage image) {

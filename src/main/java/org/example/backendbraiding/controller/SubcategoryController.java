@@ -12,6 +12,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/subcategories")
@@ -87,5 +88,12 @@ public class SubcategoryController {
     public ResponseEntity<Map<String, String>> deleteSubcategory(@PathVariable Long id) {
         subcategoryService.deleteSubcategory(id);
         return ResponseEntity.ok(Map.of("message", "Subcategory deleted successfully"));
+    }
+
+    @PostMapping("/reorder")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, String>> reorderSubcategories(@RequestBody List<Long> subcategoryIds) {
+        subcategoryService.reorderSubcategories(subcategoryIds);
+        return ResponseEntity.ok(Map.of("message", "Subcategories reordered successfully"));
     }
 }

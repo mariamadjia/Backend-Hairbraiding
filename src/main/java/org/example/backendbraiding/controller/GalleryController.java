@@ -142,7 +142,11 @@ public class GalleryController {
                 ? System.getenv("UPLOAD_DIR") 
                 : "public/Gallery/uploads";
             
-            Path filePath = Paths.get(uploadDir).resolve(filename).normalize();
+            Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path filePath = uploadPath.resolve(filename).normalize();
+            if (!filePath.startsWith(uploadPath)) {
+                return ResponseEntity.badRequest().build();
+            }
             Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists() && resource.isReadable()) {
@@ -168,6 +172,9 @@ public class GalleryController {
 
                 return ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(contentType))
+                        .contentLength(Files.size(filePath))
+                        .header(HttpHeaders.CACHE_CONTROL, "public, max-age=31536000, immutable")
+                        .header("X-Content-Type-Options", "nosniff")
                         .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
                         .body(resource);
             } else {

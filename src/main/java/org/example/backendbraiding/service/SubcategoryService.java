@@ -96,4 +96,27 @@ public class SubcategoryService {
         );
         subcategoryRepository.delete(subcategory);
     }
+
+    @Transactional
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    public void reorderSubcategories(java.util.List<Long> subcategoryIds) {
+        if (subcategoryIds == null || subcategoryIds.isEmpty()
+                || new java.util.HashSet<>(subcategoryIds).size() != subcategoryIds.size()) {
+            throw new IllegalArgumentException("Subcategory order must contain unique IDs");
+        }
+        java.util.List<Subcategory> subcategories = subcategoryRepository.findAllById(subcategoryIds);
+        if (subcategories.size() != subcategoryIds.size()) {
+            throw new IllegalArgumentException("One or more subcategories were not found");
+        }
+        java.util.Map<Long, Subcategory> byId = subcategories.stream()
+                .collect(java.util.stream.Collectors.toMap(Subcategory::getId, item -> item));
+        Long categoryId = subcategories.get(0).getCategory().getId();
+        if (subcategories.stream().anyMatch(item -> !categoryId.equals(item.getCategory().getId()))) {
+            throw new IllegalArgumentException("All reordered subcategories must belong to one category");
+        }
+        for (int index = 0; index < subcategoryIds.size(); index++) {
+            byId.get(subcategoryIds.get(index)).setDisplayOrder(index);
+        }
+        subcategoryRepository.saveAll(subcategories);
+    }
 }
