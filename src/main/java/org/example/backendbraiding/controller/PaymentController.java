@@ -48,4 +48,11 @@ public class PaymentController {
         PaymentIntentResponse response = paymentService.getPaymentStatus(paymentIntentId);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/booking-status")
+    public ResponseEntity<PaymentIntentResponse> getBookingPaymentStatus(
+            @RequestParam Long appointmentId,
+            @RequestParam String paymentToken) {
+        return ResponseEntity.ok(paymentService.getBookingPaymentStatus(appointmentId, paymentToken));
+    }
 }

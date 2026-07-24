@@ -42,7 +42,7 @@ public class BookingPaymentTokenService {
                     .getBody();
             Object purpose = claims.get("purpose");
             return appointmentId.toString().equals(claims.getSubject())
-                    && (purpose == null || "payment".equals(purpose));
+                    && "payment".equals(purpose);
         } catch (Exception ignored) {
             return false;
         }

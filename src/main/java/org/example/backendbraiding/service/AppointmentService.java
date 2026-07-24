@@ -185,7 +185,7 @@ public class AppointmentService {
         Admin admin = adminRepository.findById(adminId)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
 
-        appointment.setStatus(Appointment.AppointmentStatus.APPROVED);
+        appointment.setStatus(Appointment.AppointmentStatus.APPROVAL_PENDING_CAPTURE);
         appointment.setApprovedBy(admin);
         appointment.setApprovedAt(LocalDateTime.now());
         
@@ -213,16 +213,6 @@ public class AppointmentService {
                 }
             });
         }
-        
-        String customerName = appointment.getCustomer().getFirstName();
-        String appointmentTime = appointment.getAppointmentDateTime().toString();
-        smsService.sendAppointmentApprovedSms(
-            appointment.getCustomer().getPhoneNumber(),
-            customerName,
-            appointmentTime
-        );
-        emailService.sendAppointmentUpdate(appointment.getCustomer().getEmail(), "Appointment approved",
-                "Your appointment for " + appointment.getAppointmentDateTime() + " Central Time has been approved.");
         
         return mapToResponseDTO(updatedAppointment);
     }
@@ -369,6 +359,7 @@ public class AppointmentService {
         }
         dto.setDepositAmount(appointment.getDepositAmount());
         dto.setPaymentCapturedAt(appointment.getPaymentCapturedAt());
+        dto.setPaymentAuthorizationExpiresAt(appointment.getPaymentAuthorizationExpiresAt());
         dto.setPaymentMethodLast4(appointment.getPaymentMethodLast4());
         dto.setPaymentMethodBrand(appointment.getPaymentMethodBrand());
 

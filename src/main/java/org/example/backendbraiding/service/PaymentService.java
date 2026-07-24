@@ -31,6 +31,8 @@ public class PaymentService {
 
     private final AppointmentRepository appointmentRepository;
     private final BookingPaymentTokenService bookingPaymentTokenService;
+    private final SmsService smsService;
+    private final EmailService emailService;
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -51,15 +53,23 @@ public class PaymentService {
         }
 
         try {
-            if (appointment.getPaymentIntentId() != null &&
-                    appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
+            String replacedIntentId = null;
+            if (appointment.getPaymentIntentId() != null) {
                 PaymentIntent existingIntent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
-                if (existingIntent.getAutomaticPaymentMethods() != null
+                if (PaymentLifecycleRules.isReusableForConfirmation(existingIntent.getStatus())
+                        && existingIntent.getAutomaticPaymentMethods() != null
                         && Boolean.TRUE.equals(existingIntent.getAutomaticPaymentMethods().getEnabled())) {
                     return paymentIntentResponse(existingIntent, appointment.getId(), "Payment intent ready for authorization.");
                 }
-
-                existingIntent.cancel();
+                if ("requires_capture".equals(existingIntent.getStatus())) {
+                    recordAuthorization(appointment);
+                    return paymentIntentResponse(existingIntent, appointment.getId(), "Payment is already authorized.");
+                }
+                if ("succeeded".equals(existingIntent.getStatus())) {
+                    recordCapture(appointment);
+                    return paymentIntentResponse(existingIntent, appointment.getId(), "Payment is already complete.");
+                }
+                replacedIntentId = existingIntent.getId();
                 appointment.setPaymentIntentId(null);
             }
 
@@ -80,7 +90,9 @@ public class PaymentService {
                                     .build())
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
-                    .setIdempotencyKey("booking-payment-intent-dynamic-v1-" + appointment.getId())
+                    .setIdempotencyKey(replacedIntentId == null
+                            ? "booking-payment-intent-dynamic-v2-" + appointment.getId()
+                            : "booking-payment-intent-retry-" + appointment.getId() + "-" + replacedIntentId)
                     .build());
 
             appointment.setPaymentIntentId(paymentIntent.getId());
@@ -92,6 +104,36 @@ public class PaymentService {
         } catch (StripeException e) {
             log.error("Error creating payment intent: {}", e.getMessage(), e);
             throw new org.example.backendbraiding.exception.PaymentProcessingException("Payment provider could not create the authorization");
+        }
+    }
+
+    private void recordAuthorization(Appointment appointment) {
+        appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
+        appointment.setPaymentPendingExpiresAt(null);
+        // Stripe authorization windows vary by method. Six days is a conservative
+        // operational deadline for the shortest commonly enabled methods.
+        appointment.setPaymentAuthorizationExpiresAt(LocalDateTime.now().plusDays(6));
+        appointmentRepository.save(appointment);
+    }
+
+    private void recordCapture(Appointment appointment) {
+        appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
+        appointment.setPaymentCapturedAt(LocalDateTime.now());
+        appointment.setPaymentAuthorizationExpiresAt(null);
+        boolean notifyApproval = appointment.getStatus() == Appointment.AppointmentStatus.APPROVAL_PENDING_CAPTURE;
+        if (notifyApproval) {
+            appointment.setStatus(Appointment.AppointmentStatus.APPROVED);
+        }
+        appointmentRepository.save(appointment);
+        if (notifyApproval) {
+            smsService.sendAppointmentApprovedSms(
+                    appointment.getCustomer().getPhoneNumber(),
+                    appointment.getCustomer().getFirstName(),
+                    appointment.getAppointmentDateTime().toString());
+            emailService.sendAppointmentUpdate(
+                    appointment.getCustomer().getEmail(),
+                    "Appointment approved",
+                    "Your appointment for " + appointment.getAppointmentDateTime() + " Central Time has been approved.");
         }
     }
 
@@ -142,9 +184,7 @@ public class PaymentService {
             Appointment appointment = appointmentRepository.findByPaymentIntentId(request.getPaymentIntentId())
                     .orElseThrow(() -> new RuntimeException("Appointment not found for payment intent"));
 
-            appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
-            appointment.setPaymentCapturedAt(LocalDateTime.now());
-            appointmentRepository.save(appointment);
+            recordCapture(appointment);
 
             return PaymentIntentResponse.builder()
                     .paymentIntentId(paymentIntent.getId())
@@ -212,6 +252,54 @@ public class PaymentService {
     }
 
     @Transactional
+    public PaymentIntentResponse getBookingPaymentStatus(Long appointmentId, String paymentToken) {
+        if (!bookingPaymentTokenService.isValidForAppointment(paymentToken, appointmentId)) {
+            throw new IllegalArgumentException("Invalid or expired payment token");
+        }
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
+        if (appointment.getPaymentIntentId() == null) {
+            throw new IllegalStateException("Payment has not been initialized");
+        }
+        return getPaymentStatus(appointment.getPaymentIntentId());
+    }
+
+    @Transactional
+    public void synchronizePaymentIntent(String paymentIntentId) {
+        try {
+            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
+            Appointment appointment = appointmentRepository.findByPaymentIntentId(paymentIntentId)
+                    .orElseThrow(() -> new IllegalStateException("Appointment not found for payment intent"));
+            switch (intent.getStatus()) {
+                case "requires_capture" -> recordAuthorization(appointment);
+                case "succeeded" -> recordCapture(appointment);
+                case "canceled" -> {
+                    if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
+                        appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+                        appointment.setPaymentAuthorizationExpiresAt(null);
+                        if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
+                            appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+                        }
+                        appointmentRepository.save(appointment);
+                    }
+                }
+                case "requires_payment_method" -> {
+                    // A declined attempt remains retryable on the same PaymentIntent.
+                    if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED
+                            && appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED) {
+                        appointment.setPaymentStatus(Appointment.PaymentStatus.PENDING);
+                        appointmentRepository.save(appointment);
+                    }
+                }
+                default -> log.debug("No local payment transition for Stripe status {}", intent.getStatus());
+            }
+        } catch (StripeException e) {
+            throw new org.example.backendbraiding.exception.PaymentProcessingException(
+                    "Payment status synchronization failed: " + e.getMessage());
+        }
+    }
+
+    @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public void markCaptureFailed(String paymentIntentId, String reason) {
         appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
@@ -237,32 +325,8 @@ public class PaymentService {
     public void reconcilePaymentStates() {
         for (Appointment appointment : appointmentRepository.findAppointmentsNeedingPaymentReconciliation()) {
             try {
-                PaymentIntent intent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
-                switch (intent.getStatus()) {
-                    case "requires_capture" -> {
-                        if (appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
-                            appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
-                            appointment.setPaymentPendingExpiresAt(null);
-                        }
-                    }
-                    case "succeeded" -> {
-                        appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
-                        if (appointment.getPaymentCapturedAt() == null) appointment.setPaymentCapturedAt(LocalDateTime.now());
-                    }
-                    case "canceled" -> {
-                        appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
-                        if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
-                            appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
-                        }
-                    }
-                    default -> {
-                        if (intent.getStatus().startsWith("requires_payment_method")) {
-                            appointment.setPaymentStatus(Appointment.PaymentStatus.FAILED);
-                        }
-                    }
-                }
-                appointmentRepository.save(appointment);
-            } catch (StripeException e) {
+                synchronizePaymentIntent(appointment.getPaymentIntentId());
+            } catch (RuntimeException e) {
                 log.warn("Could not reconcile payment {} for appointment {}: {}",
                         appointment.getPaymentIntentId(), appointment.getId(), e.getMessage());
             }

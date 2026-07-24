@@ -61,113 +61,34 @@ public class StripeWebhookController {
 
     private ResponseEntity<String> handleEvent(Event event) {
         log.info("Received Stripe webhook event: {}", event.getType());
-
-        switch (event.getType()) {
-            case "payment_intent.succeeded":
-                handlePaymentIntentSucceeded(event);
-                break;
-            case "payment_intent.payment_failed":
-                handlePaymentIntentFailed(event);
-                break;
-            case "payment_intent.canceled":
-                handlePaymentIntentCanceled(event);
-                break;
-            case "payment_intent.amount_capturable_updated":
-                handlePaymentIntentAmountCapturableUpdated(event);
-                break;
-            default:
-                log.info("Unhandled event type: {}", event.getType());
-        }
-
-        return ResponseEntity.ok("Webhook received");
-    }
-
-    private void handlePaymentIntentSucceeded(Event event) {
-        PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
-                .getObject().orElse(null);
-        
-        if (paymentIntent == null) {
-            log.error("PaymentIntent is null in payment_intent.succeeded event");
-            return;
-        }
-
-        log.info("Payment succeeded for PaymentIntent: {}", paymentIntent.getId());
-
-        Optional<Appointment> appointmentOpt = appointmentRepository
-                .findByPaymentIntentId(paymentIntent.getId());
-
-        if (appointmentOpt.isPresent()) {
-            Appointment appointment = appointmentOpt.get();
-            
-            if ("succeeded".equals(paymentIntent.getStatus())) {
-                appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
-                appointment.setPaymentCapturedAt(LocalDateTime.now());
-                appointmentRepository.save(appointment);
-                log.info("Updated appointment {} payment status to CAPTURED", appointment.getId());
+        try {
+            switch (event.getType()) {
+                case "payment_intent.succeeded",
+                     "payment_intent.payment_failed",
+                     "payment_intent.canceled" ->
+                        paymentService.synchronizePaymentIntent(requirePaymentIntent(event).getId());
+                case "payment_intent.amount_capturable_updated" ->
+                        handlePaymentIntentAmountCapturableUpdated(requirePaymentIntent(event));
+                default -> log.info("Unhandled event type: {}", event.getType());
             }
-        } else {
-            log.warn("No appointment found for PaymentIntent: {}", paymentIntent.getId());
+            return ResponseEntity.ok("Webhook received");
+        } catch (RuntimeException exception) {
+            // A non-2xx response asks Stripe to retry instead of silently losing
+            // an event that could not be deserialized or persisted.
+            log.error("Could not process Stripe event {}", event.getId(), exception);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Webhook processing failed");
         }
     }
 
-    private void handlePaymentIntentFailed(Event event) {
-        PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
-                .getObject().orElse(null);
-        
-        if (paymentIntent == null) {
-            log.error("PaymentIntent is null in payment_intent.payment_failed event");
-            return;
-        }
-
-        log.error("Payment failed for PaymentIntent: {}", paymentIntent.getId());
-
-        Optional<Appointment> appointmentOpt = appointmentRepository
-                .findByPaymentIntentId(paymentIntent.getId());
-
-        if (appointmentOpt.isPresent()) {
-            Appointment appointment = appointmentOpt.get();
-            appointment.setPaymentStatus(Appointment.PaymentStatus.FAILED);
-            appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
-            appointmentRepository.save(appointment);
-            log.info("Updated appointment {} payment status to FAILED", appointment.getId());
-        }
+    private PaymentIntent requirePaymentIntent(Event event) {
+        return (PaymentIntent) event.getDataObjectDeserializer().getObject()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Stripe event object could not be deserialized; check webhook API version"));
     }
 
-    private void handlePaymentIntentCanceled(Event event) {
-        PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
-                .getObject().orElse(null);
-        
-        if (paymentIntent == null) {
-            log.error("PaymentIntent is null in payment_intent.canceled event");
-            return;
-        }
-
-        log.info("Payment canceled for PaymentIntent: {}", paymentIntent.getId());
-
-        Optional<Appointment> appointmentOpt = appointmentRepository
-                .findByPaymentIntentId(paymentIntent.getId());
-
-        if (appointmentOpt.isPresent()) {
-            Appointment appointment = appointmentOpt.get();
-            appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
-            if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
-                appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
-            }
-            appointmentRepository.save(appointment);
-            log.info("Updated appointment {} payment status to CANCELLED", appointment.getId());
-        }
-    }
-
-    private void handlePaymentIntentAmountCapturableUpdated(Event event) {
-        PaymentIntent paymentIntent = (PaymentIntent) event.getDataObjectDeserializer()
-                .getObject().orElse(null);
-        
-        if (paymentIntent == null) {
-            log.error("PaymentIntent is null in amount_capturable_updated event");
-            return;
-        }
-
+    private void handlePaymentIntentAmountCapturableUpdated(PaymentIntent paymentIntent) {
         log.info("Payment authorized for PaymentIntent: {}", paymentIntent.getId());
+        paymentService.synchronizePaymentIntent(paymentIntent.getId());
 
         Optional<Appointment> appointmentOpt = appointmentRepository
                 .findByPaymentIntentId(paymentIntent.getId());
@@ -175,23 +96,16 @@ public class StripeWebhookController {
         if (appointmentOpt.isPresent()) {
             Appointment appointment = appointmentOpt.get();
             
-            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING) {
-                appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
-                appointment.setPaymentPendingExpiresAt(null);
-                appointmentRepository.save(appointment);
-                log.info("Updated appointment {} payment status to AUTHORIZED", appointment.getId());
-
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
                 boolean requireApproval = settingsRepository.findFirstByOrderByIdDesc()
                         .map(settings -> settings.getRequireApproval())
                         .orElse(true);
                 if (!requireApproval) {
                     try {
+                        appointment.setStatus(Appointment.AppointmentStatus.APPROVAL_PENDING_CAPTURE);
+                        appointment.setApprovedAt(LocalDateTime.now());
+                        appointmentRepository.save(appointment);
                         paymentService.capturePayment(new PaymentCaptureRequest(paymentIntent.getId(), null));
-                        Appointment capturedAppointment = appointmentRepository.findById(appointment.getId())
-                                .orElseThrow(() -> new IllegalStateException("Appointment disappeared during capture"));
-                        capturedAppointment.setStatus(Appointment.AppointmentStatus.APPROVED);
-                        capturedAppointment.setApprovedAt(LocalDateTime.now());
-                        appointmentRepository.save(capturedAppointment);
                     } catch (Exception e) {
                         paymentService.markCaptureFailed(paymentIntent.getId(), e.getMessage());
                         log.error("Automatic capture failed for appointment {}", appointment.getId(), e);

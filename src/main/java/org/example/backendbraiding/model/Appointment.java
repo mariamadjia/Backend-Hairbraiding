@@ -108,8 +108,12 @@ public class Appointment {
     @Column(name = "payment_pending_expires_at")
     private LocalDateTime paymentPendingExpiresAt;
 
+    @Column(name = "payment_authorization_expires_at")
+    private LocalDateTime paymentAuthorizationExpiresAt;
+
     public enum AppointmentStatus {
         PENDING,
+        APPROVAL_PENDING_CAPTURE,
         APPROVED,
         DENIED,
         CANCELLED,
