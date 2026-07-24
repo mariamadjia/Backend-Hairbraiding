@@ -120,7 +120,8 @@ public class PaymentService {
         appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
         appointment.setPaymentCapturedAt(LocalDateTime.now());
         appointment.setPaymentAuthorizationExpiresAt(null);
-        boolean notifyApproval = appointment.getStatus() == Appointment.AppointmentStatus.APPROVAL_PENDING_CAPTURE;
+        boolean notifyApproval = appointment.getStatus() == Appointment.AppointmentStatus.PENDING
+                && appointment.getApprovedAt() != null;
         if (notifyApproval) {
             appointment.setStatus(Appointment.AppointmentStatus.APPROVED);
         }

@@ -175,6 +175,9 @@ public class AppointmentService {
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Only pending appointments can be approved");
         }
+        if (appointment.getApprovedAt() != null) {
+            throw new IllegalStateException("Payment capture is already processing for this appointment");
+        }
         if (!appointment.getAppointmentDateTime().isAfter(LocalDateTime.now())) {
             throw new IllegalStateException("Past appointments cannot be approved");
         }
@@ -185,7 +188,10 @@ public class AppointmentService {
         Admin admin = adminRepository.findById(adminId)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
 
-        appointment.setStatus(Appointment.AppointmentStatus.APPROVAL_PENDING_CAPTURE);
+        // Keep the existing PENDING database status until Stripe confirms capture.
+        // approvedAt marks this request as capture-in-progress without requiring a
+        // new enum value that older PostgreSQL check constraints reject.
+        appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setApprovedBy(admin);
         appointment.setApprovedAt(LocalDateTime.now());
         
@@ -225,6 +231,9 @@ public class AppointmentService {
 
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Only pending appointments can be denied");
+        }
+        if (appointment.getApprovedAt() != null) {
+            throw new IllegalStateException("This appointment cannot be denied while payment capture is processing");
         }
         if (actionDTO.getAdminNotes() == null || actionDTO.getAdminNotes().isBlank()) {
             throw new IllegalArgumentException("A denial reason is required");

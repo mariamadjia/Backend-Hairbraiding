@@ -113,7 +113,6 @@ public class Appointment {
 
     public enum AppointmentStatus {
         PENDING,
-        APPROVAL_PENDING_CAPTURE,
         APPROVED,
         DENIED,
         CANCELLED,

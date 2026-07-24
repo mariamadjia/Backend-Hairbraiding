@@ -102,7 +102,7 @@ public class StripeWebhookController {
                         .orElse(true);
                 if (!requireApproval) {
                     try {
-                        appointment.setStatus(Appointment.AppointmentStatus.APPROVAL_PENDING_CAPTURE);
+                        appointment.setStatus(Appointment.AppointmentStatus.PENDING);
                         appointment.setApprovedAt(LocalDateTime.now());
                         appointmentRepository.save(appointment);
                         paymentService.capturePayment(new PaymentCaptureRequest(paymentIntent.getId(), null));
