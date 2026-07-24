@@ -19,6 +19,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 @RequiredArgsConstructor
@@ -60,8 +62,10 @@ public class PaymentService {
             metadata.put("customerEmail", appointment.getCustomer().getEmail());
             metadata.put("customerName", appointment.getCustomer().getFirstName() + " " + appointment.getCustomer().getLastName());
 
+            long depositAmountCents = calculateDepositAmountCents(appointment.getPrice());
+
             PaymentIntent paymentIntent = PaymentIntent.create(PaymentIntentCreateParams.builder()
-                    .setAmount(DEPOSIT_AMOUNT_CENTS)
+                    .setAmount(depositAmountCents)
                     .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
                     .putAllMetadata(metadata)
@@ -76,7 +80,7 @@ public class PaymentService {
                     .build());
 
             appointment.setPaymentIntentId(paymentIntent.getId());
-            appointment.setDepositAmount(DEPOSIT_AMOUNT_CENTS);
+            appointment.setDepositAmount(depositAmountCents);
             appointment.setPaymentStatus(Appointment.PaymentStatus.PENDING);
             appointmentRepository.save(appointment);
 
@@ -84,6 +88,23 @@ public class PaymentService {
         } catch (StripeException e) {
             log.error("Error creating payment intent: {}", e.getMessage(), e);
             throw new org.example.backendbraiding.exception.PaymentProcessingException("Payment provider could not create the authorization");
+        }
+    }
+
+    private long calculateDepositAmountCents(String appointmentPrice) {
+        if (appointmentPrice == null || appointmentPrice.isBlank()) {
+            return DEPOSIT_AMOUNT_CENTS;
+        }
+        try {
+            BigDecimal price = new BigDecimal(appointmentPrice.replaceAll("[^0-9.]", ""))
+                    .setScale(2, RoundingMode.HALF_UP);
+            long priceCents = price.movePointRight(2).longValueExact();
+            if (priceCents <= 0) {
+                throw new IllegalArgumentException("Appointment price must be greater than zero");
+            }
+            return Math.min(DEPOSIT_AMOUNT_CENTS, priceCents);
+        } catch (ArithmeticException | NumberFormatException exception) {
+            throw new IllegalStateException("Appointment price is invalid", exception);
         }
     }
 
