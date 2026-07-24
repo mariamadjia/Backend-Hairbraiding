@@ -161,10 +161,15 @@ public class CategoryController {
 
     @PutMapping("/{id}/flipping-images")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Category> updateFlippingImages(
+    public ResponseEntity<Map<String, Object>> updateFlippingImages(
             @PathVariable Long id,
             @RequestBody List<String> flippingImages) {
-        return ResponseEntity.ok(categoryService.updateFlippingImages(id, flippingImages));
+        Category updated = categoryService.updateFlippingImages(id, flippingImages);
+        return ResponseEntity.ok(Map.of(
+                "message", "Flipping images updated successfully",
+                "categoryId", updated.getId(),
+                "flippingImages", new java.util.ArrayList<>(updated.getFlippingImages())
+        ));
     }
 
     @PostMapping("/reorder")

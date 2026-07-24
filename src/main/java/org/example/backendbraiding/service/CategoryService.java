@@ -503,14 +503,21 @@ public class CategoryService {
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public Category updateFlippingImages(Long id, List<String> flippingImages) {
-        if (flippingImages == null || flippingImages.size() > 5
-                || flippingImages.stream().anyMatch(url -> url == null || url.isBlank())
-                || new HashSet<>(flippingImages).size() != flippingImages.size()) {
+        if (flippingImages == null
+                || flippingImages.stream().anyMatch(url -> url == null || url.isBlank())) {
+            throw new IllegalArgumentException("Choose up to 5 unique gallery images");
+        }
+        List<String> normalizedImages = flippingImages.stream()
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (normalizedImages.size() > 5) {
             throw new IllegalArgumentException("Choose up to 5 unique gallery images");
         }
         Category category = getCategoryById(id);
-        category.setFlippingImages(flippingImages.stream().map(String::trim).toList());
-        return categoryRepository.save(category);
+        category.getFlippingImages().clear();
+        category.getFlippingImages().addAll(normalizedImages);
+        return categoryRepository.saveAndFlush(category);
     }
 
     @Transactional
