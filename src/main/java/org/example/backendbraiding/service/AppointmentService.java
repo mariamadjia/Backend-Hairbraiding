@@ -24,6 +24,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.math.BigDecimal;
 import java.util.stream.Collectors;
 import org.example.backendbraiding.util.BookingRules;
@@ -60,7 +61,6 @@ public class AppointmentService {
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Service not found"));
         LengthOption lengthOption = resolveLengthOption(service, requestDTO.getLengthOptionId(), requestDTO.getSelectedLength());
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
-        validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), settings);
         
         String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
         // Serialize customer creation per normalized email across application instances.
@@ -81,6 +81,36 @@ public class AppointmentService {
         customer.setLastName(requestDTO.getLastName());
         customer.setPhoneNumber(requestDTO.getPhoneNumber().trim());
         customer = customerRepository.save(customer);
+
+        Optional<Appointment> existing = appointmentRepository
+                .findFirstByCustomerIdAndAppointmentDateTimeOrderByIdDesc(
+                        customer.getId(), requestDTO.getAppointmentDateTime());
+        if (existing.isPresent()) {
+            Appointment existingAppointment = existing.get();
+            boolean reservationIsActive = existingAppointment.getStatus() == Appointment.AppointmentStatus.PENDING
+                    && existingAppointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING
+                    && (existingAppointment.getPaymentPendingExpiresAt() == null
+                    || existingAppointment.getPaymentPendingExpiresAt().isAfter(LocalDateTime.now()));
+            if (reservationIsActive) {
+                AppointmentResponseDTO response = mapToResponseDTO(existingAppointment);
+                response.setPaymentToken(bookingPaymentTokenService.createToken(existingAppointment.getId()));
+                return response;
+            }
+            boolean appointmentIsActive = existingAppointment.getStatus() == Appointment.AppointmentStatus.APPROVED
+                    || existingAppointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
+                    || existingAppointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED;
+            if (appointmentIsActive) {
+                throw new IllegalStateException("You already have an active appointment at this date and time");
+            }
+            if (existingAppointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
+                existingAppointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+                existingAppointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+                existingAppointment.setAdminNotes("Replaced after an incomplete or expired booking attempt");
+                appointmentRepository.saveAndFlush(existingAppointment);
+            }
+        }
+
+        validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), settings);
 
         Appointment appointment = new Appointment();
         appointment.setCustomer(customer);

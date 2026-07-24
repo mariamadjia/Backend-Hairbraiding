@@ -20,6 +20,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     Page<Appointment> findByStatus(Appointment.AppointmentStatus status, Pageable pageable);
     
     List<Appointment> findByCustomerId(Long customerId);
+
+    Optional<Appointment> findFirstByCustomerIdAndAppointmentDateTimeOrderByIdDesc(
+            Long customerId, LocalDateTime appointmentDateTime);
     
     @Query("SELECT a FROM Appointment a WHERE a.customer.id IN :customerIds")
     List<Appointment> findByCustomerIdIn(@Param("customerIds") List<Long> customerIds);
