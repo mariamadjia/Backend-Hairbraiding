@@ -10,6 +10,7 @@ import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,12 +24,14 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Optional;
 import java.math.BigDecimal;
 import java.util.stream.Collectors;
 import org.example.backendbraiding.util.BookingRules;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.criteria.Predicate;
 
 @Service
 @RequiredArgsConstructor
@@ -267,14 +270,15 @@ public class AppointmentService {
         }
         
         String customerName = appointment.getCustomer().getFirstName();
-        smsService.sendAppointmentDeniedSms(
+        boolean smsSent = smsService.sendAppointmentDeniedSms(
             appointment.getCustomer().getPhoneNumber(),
             customerName,
             actionDTO.getAdminNotes()
         );
-        emailService.sendAppointmentUpdate(appointment.getCustomer().getEmail(), "Appointment request update",
+        boolean emailSent = emailService.sendAppointmentUpdate(appointment.getCustomer().getEmail(), "Appointment request update",
                 "Your appointment request could not be approved. "
                         + (actionDTO.getAdminNotes() == null ? "Please contact the salon." : actionDTO.getAdminNotes()));
+        recordNotificationResult(updatedAppointment, emailSent, smsSent);
         
         return mapToResponseDTO(updatedAppointment);
     }
@@ -287,6 +291,194 @@ public class AppointmentService {
     public Page<AppointmentResponseDTO> getAllAppointments(Pageable pageable) {
         return appointmentRepository.findAll(pageable)
             .map(this::mapToResponseDTO);
+    }
+
+    public Page<AppointmentResponseDTO> getWorkflowAppointments(
+            String view, String detail, String query, Pageable pageable) {
+        Specification<Appointment> specification = workflowSpecification(view, detail, query);
+        return appointmentRepository.findAll(specification, pageable).map(this::mapToResponseDTO);
+    }
+
+    public Map<String, Long> getWorkflowCounts() {
+        return Map.of(
+                "NEEDS_ACTION", appointmentRepository.count(workflowSpecification("NEEDS_ACTION", "ALL", "")),
+                "UPCOMING", appointmentRepository.count(workflowSpecification("UPCOMING", "ALL", "")),
+                "HISTORY", appointmentRepository.count(workflowSpecification("HISTORY", "ALL", ""))
+        );
+    }
+
+    private Specification<Appointment> workflowSpecification(String requestedView, String requestedDetail, String query) {
+        String view = requestedView == null ? "NEEDS_ACTION" : requestedView.toUpperCase(Locale.ROOT);
+        String detail = requestedDetail == null ? "ALL" : requestedDetail.toUpperCase(Locale.ROOT);
+        LocalDateTime now = ZonedDateTime.now(ZoneId.of("America/Chicago")).toLocalDateTime();
+
+        return (root, criteriaQuery, cb) -> {
+            Predicate pending = cb.equal(root.get("status"), Appointment.AppointmentStatus.PENDING);
+            Predicate approved = cb.equal(root.get("status"), Appointment.AppointmentStatus.APPROVED);
+            Predicate captureProcessing = cb.and(pending, cb.isNotNull(root.get("approvedAt")));
+            Predicate paymentIssue = root.get("paymentStatus").in(
+                    Appointment.PaymentStatus.CAPTURE_FAILED,
+                    Appointment.PaymentStatus.CANCELLATION_FAILED,
+                    Appointment.PaymentStatus.FAILED);
+            Predicate workflow = switch (view) {
+                case "UPCOMING" -> cb.or(
+                        captureProcessing,
+                        cb.and(approved, cb.greaterThanOrEqualTo(root.get("appointmentDateTime"), now)));
+                case "HISTORY" -> cb.or(
+                        root.get("status").in(
+                                Appointment.AppointmentStatus.DENIED,
+                                Appointment.AppointmentStatus.CANCELLED,
+                                Appointment.AppointmentStatus.COMPLETED),
+                        cb.and(approved, cb.lessThan(root.get("appointmentDateTime"), now)));
+                case "NEEDS_ACTION" -> cb.or(pending, paymentIssue);
+                default -> throw new IllegalArgumentException(
+                        "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, HISTORY");
+            };
+
+            Predicate detailPredicate = switch (detail) {
+                case "ALL" -> cb.conjunction();
+                case "READY_FOR_APPROVAL" -> cb.and(
+                        pending,
+                        cb.isNull(root.get("approvedAt")),
+                        cb.equal(root.get("paymentStatus"), Appointment.PaymentStatus.AUTHORIZED),
+                        cb.greaterThan(root.get("appointmentDateTime"), now));
+                case "AWAITING_PAYMENT" -> cb.and(
+                        pending,
+                        cb.isNull(root.get("approvedAt")),
+                        root.get("paymentStatus").in(
+                                Appointment.PaymentStatus.PENDING,
+                                Appointment.PaymentStatus.CANCELLED));
+                case "CAPTURE_PROCESSING" -> captureProcessing;
+                case "PAYMENT_ISSUE" -> paymentIssue;
+                case "APPROVED" -> approved;
+                case "COMPLETED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.COMPLETED);
+                case "DENIED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.DENIED);
+                case "CANCELLED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.CANCELLED);
+                case "PAST" -> cb.lessThan(root.get("appointmentDateTime"), now);
+                default -> throw new IllegalArgumentException("Invalid appointment workflow detail");
+            };
+
+            Predicate search = cb.conjunction();
+            if (query != null && !query.isBlank()) {
+                String pattern = "%" + query.trim().toLowerCase(Locale.ROOT) + "%";
+                var customer = root.join("customer");
+                search = cb.or(
+                        cb.like(cb.lower(customer.get("firstName")), pattern),
+                        cb.like(cb.lower(customer.get("lastName")), pattern),
+                        cb.like(cb.lower(customer.get("email")), pattern),
+                        cb.like(cb.lower(customer.get("phoneNumber")), pattern),
+                        cb.like(cb.lower(cb.concat(cb.concat(customer.get("firstName"), " "), customer.get("lastName"))), pattern)
+                );
+            }
+            return cb.and(workflow, detailPredicate, search);
+        };
+    }
+
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public AppointmentResponseDTO completeAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
+        if (appointment.getStatus() != Appointment.AppointmentStatus.APPROVED) {
+            throw new IllegalStateException("Only approved appointments can be completed");
+        }
+        LocalDateTime now = ZonedDateTime.now(ZoneId.of("America/Chicago")).toLocalDateTime();
+        if (appointment.getAppointmentDateTime().isAfter(now)) {
+            throw new IllegalStateException("A future appointment cannot be marked complete");
+        }
+        appointment.setStatus(Appointment.AppointmentStatus.COMPLETED);
+        appointment.setApprovedBy(adminRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Admin not found")));
+        if (actionDTO.getAdminNotes() != null && !actionDTO.getAdminNotes().isBlank()) {
+            appointment.setAdminNotes(actionDTO.getAdminNotes());
+        }
+        return mapToResponseDTO(appointmentRepository.save(appointment));
+    }
+
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public AppointmentResponseDTO cancelAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING
+                && appointment.getStatus() != Appointment.AppointmentStatus.APPROVED) {
+            throw new IllegalStateException("Only pending or approved appointments can be cancelled");
+        }
+        if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING && appointment.getApprovedAt() != null) {
+            throw new IllegalStateException("Wait for payment capture to finish before cancelling this appointment");
+        }
+        if (actionDTO.getAdminNotes() == null || actionDTO.getAdminNotes().isBlank()) {
+            throw new IllegalArgumentException("A cancellation reason is required");
+        }
+
+        appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+        appointment.setApprovedBy(adminRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Admin not found")));
+        appointment.setApprovedAt(LocalDateTime.now());
+        appointment.setAdminNotes(actionDTO.getAdminNotes().trim());
+        Appointment saved = appointmentRepository.save(appointment);
+
+        if (saved.getPaymentIntentId() != null
+                && saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
+            String paymentIntentId = saved.getPaymentIntentId();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        paymentService.cancelPayment(paymentIntentId);
+                    } catch (Exception e) {
+                        paymentService.markCancellationFailed(paymentIntentId, e.getMessage());
+                    }
+                }
+            });
+        }
+
+        boolean smsSent = smsService.sendSms(saved.getCustomer().getPhoneNumber(),
+                "Hi " + saved.getCustomer().getFirstName()
+                        + ", your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes());
+        boolean emailSent = emailService.sendAppointmentUpdate(saved.getCustomer().getEmail(), "Appointment cancelled",
+                "Your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes());
+        recordNotificationResult(saved, emailSent, smsSent);
+        return mapToResponseDTO(saved);
+    }
+
+    @Transactional
+    public AppointmentResponseDTO retryNotification(Long appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
+        boolean smsSent;
+        boolean emailSent;
+        String name = appointment.getCustomer().getFirstName();
+        if (appointment.getStatus() == Appointment.AppointmentStatus.APPROVED) {
+            smsSent = smsService.sendAppointmentApprovedSms(
+                    appointment.getCustomer().getPhoneNumber(), name, appointment.getAppointmentDateTime().toString());
+            emailSent = emailService.sendAppointmentUpdate(
+                    appointment.getCustomer().getEmail(), "Appointment approved",
+                    "Your appointment for " + appointment.getAppointmentDateTime() + " Central Time has been approved.");
+        } else if (appointment.getStatus() == Appointment.AppointmentStatus.DENIED) {
+            smsSent = smsService.sendAppointmentDeniedSms(
+                    appointment.getCustomer().getPhoneNumber(), name, appointment.getAdminNotes());
+            emailSent = emailService.sendAppointmentUpdate(
+                    appointment.getCustomer().getEmail(), "Appointment request update",
+                    "Your appointment request could not be approved. " + appointment.getAdminNotes());
+        } else if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {
+            String message = "Your appointment was cancelled by the salon. Reason: " + appointment.getAdminNotes();
+            smsSent = smsService.sendSms(appointment.getCustomer().getPhoneNumber(), "Hi " + name + ", " + message);
+            emailSent = emailService.sendAppointmentUpdate(
+                    appointment.getCustomer().getEmail(), "Appointment cancelled", message);
+        } else {
+            throw new IllegalStateException("Notifications can only be retried for approved, denied, or cancelled appointments");
+        }
+        recordNotificationResult(appointment, emailSent, smsSent);
+        return mapToResponseDTO(appointment);
+    }
+
+    private void recordNotificationResult(Appointment appointment, boolean emailSent, boolean smsSent) {
+        appointment.setNotificationStatus(emailSent && smsSent ? "SENT"
+                : !emailSent && !smsSent ? "FAILED"
+                : emailSent ? "SMS_FAILED" : "EMAIL_FAILED");
+        appointment.setNotificationLastAttemptAt(LocalDateTime.now());
+        appointmentRepository.save(appointment);
     }
 
     public List<AppointmentResponseDTO> getUpcomingAppointments() {
@@ -378,6 +570,8 @@ public class AppointmentService {
         dto.setPaymentAuthorizationExpiresAt(appointment.getPaymentAuthorizationExpiresAt());
         dto.setPaymentMethodLast4(appointment.getPaymentMethodLast4());
         dto.setPaymentMethodBrand(appointment.getPaymentMethodBrand());
+        dto.setNotificationStatus(appointment.getNotificationStatus());
+        dto.setNotificationLastAttemptAt(appointment.getNotificationLastAttemptAt());
 
         return dto;
     }

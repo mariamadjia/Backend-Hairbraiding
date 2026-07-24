@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/appointments")
@@ -83,6 +84,26 @@ public class AppointmentController {
         return ResponseEntity.ok(appointments);
     }
 
+    @GetMapping("/workflow")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Page<AppointmentResponseDTO>> getWorkflowAppointments(
+            @RequestParam(defaultValue = "NEEDS_ACTION") String view,
+            @RequestParam(defaultValue = "ALL") String detail,
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "appointmentDateTime") String sortBy,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+        Pageable pageable = PageRequest.of(page, size, appointmentSort(sortBy, sortDir));
+        return ResponseEntity.ok(appointmentService.getWorkflowAppointments(view, detail, q, pageable));
+    }
+
+    @GetMapping("/workflow-counts")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Long>> getWorkflowCounts() {
+        return ResponseEntity.ok(appointmentService.getWorkflowCounts());
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AppointmentResponseDTO> getAppointmentById(@PathVariable Long id) {
@@ -125,6 +146,34 @@ public class AppointmentController {
         
         AppointmentResponseDTO response = appointmentService.denyAppointment(id, adminId, dto);
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/complete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AppointmentResponseDTO> completeAppointment(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) AppointmentActionDTO actionDTO,
+            Authentication authentication) {
+        return ResponseEntity.ok(appointmentService.completeAppointment(
+                id, extractAdminId(authentication),
+                actionDTO != null ? actionDTO : new AppointmentActionDTO()));
+    }
+
+    @PutMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AppointmentResponseDTO> cancelAppointment(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) AppointmentActionDTO actionDTO,
+            Authentication authentication) {
+        return ResponseEntity.ok(appointmentService.cancelAppointment(
+                id, extractAdminId(authentication),
+                actionDTO != null ? actionDTO : new AppointmentActionDTO()));
+    }
+
+    @PostMapping("/{id}/retry-notification")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AppointmentResponseDTO> retryNotification(@PathVariable Long id) {
+        return ResponseEntity.ok(appointmentService.retryNotification(id));
     }
 
     @GetMapping("/settings")

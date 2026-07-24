@@ -30,16 +30,18 @@ public class EmailService {
         }
     }
 
-    public void sendAppointmentUpdate(String toEmail, String subject, String body) {
+    public boolean sendAppointmentUpdate(String toEmail, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
         message.setSubject(subject);
         message.setText(body);
         try {
             mailSender.send(message);
+            return true;
         } catch (Exception e) {
             // Booking state must never roll back because a notification provider is unavailable.
             log.error("Failed to send appointment email to {}: {}", toEmail, e.getMessage());
+            return false;
         }
     }
 }

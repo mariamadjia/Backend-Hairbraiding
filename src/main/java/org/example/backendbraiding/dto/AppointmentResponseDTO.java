@@ -38,6 +38,8 @@ public class AppointmentResponseDTO {
     private String paymentMethodLast4;
     private String paymentMethodBrand;
     private String paymentToken;
+    private String notificationStatus;
+    private LocalDateTime notificationLastAttemptAt;
 
     @Data
     @NoArgsConstructor

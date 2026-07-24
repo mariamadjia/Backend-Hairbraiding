@@ -111,6 +111,12 @@ public class Appointment {
     @Column(name = "payment_authorization_expires_at")
     private LocalDateTime paymentAuthorizationExpiresAt;
 
+    @Column(name = "notification_status", length = 30)
+    private String notificationStatus;
+
+    @Column(name = "notification_last_attempt_at")
+    private LocalDateTime notificationLastAttemptAt;
+
     public enum AppointmentStatus {
         PENDING,
         APPROVED,

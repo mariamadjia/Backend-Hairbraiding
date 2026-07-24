@@ -127,15 +127,24 @@ public class PaymentService {
         }
         appointmentRepository.save(appointment);
         if (notifyApproval) {
-            smsService.sendAppointmentApprovedSms(
+            boolean smsSent = smsService.sendAppointmentApprovedSms(
                     appointment.getCustomer().getPhoneNumber(),
                     appointment.getCustomer().getFirstName(),
                     appointment.getAppointmentDateTime().toString());
-            emailService.sendAppointmentUpdate(
+            boolean emailSent = emailService.sendAppointmentUpdate(
                     appointment.getCustomer().getEmail(),
                     "Appointment approved",
                     "Your appointment for " + appointment.getAppointmentDateTime() + " Central Time has been approved.");
+            appointment.setNotificationStatus(notificationStatus(emailSent, smsSent));
+            appointment.setNotificationLastAttemptAt(LocalDateTime.now());
+            appointmentRepository.save(appointment);
         }
+    }
+
+    private String notificationStatus(boolean emailSent, boolean smsSent) {
+        if (emailSent && smsSent) return "SENT";
+        if (!emailSent && !smsSent) return "FAILED";
+        return emailSent ? "SMS_FAILED" : "EMAIL_FAILED";
     }
 
     private long calculateDepositAmountCents(String appointmentPrice) {
