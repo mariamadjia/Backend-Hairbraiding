@@ -68,13 +68,8 @@ public class PaymentService {
                     .setAmount(depositAmountCents)
                     .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
+                    .addPaymentMethodType("card")
                     .putAllMetadata(metadata)
-                    .setAutomaticPaymentMethods(
-                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                    .setEnabled(true)
-                                    .setAllowRedirects(PaymentIntentCreateParams.AutomaticPaymentMethods.AllowRedirects.NEVER)
-                                    .build()
-                    )
                     .build(), RequestOptions.builder()
                     .setIdempotencyKey("booking-payment-intent-" + appointment.getId())
                     .build());
