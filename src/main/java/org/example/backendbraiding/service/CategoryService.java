@@ -74,6 +74,13 @@ public class CategoryService {
         List<Category> categories = categoryRepository.findAllForBooking();
         // Force-load nested relationships to avoid lazy loading issues
         categories.forEach(cat -> {
+            cat.getItems().forEach(item -> {
+                item.getLengthOptions().size();
+                item.getImages().size();
+                item.getSizePhotos().size();
+                item.getAvailableSizes().size();
+                item.getHairTextures().size();
+            });
             cat.getSubcategories().forEach(sub -> {
                 sub.getItems().forEach(item -> {
                     item.getLengthOptions().size();
@@ -324,6 +331,13 @@ public class CategoryService {
         Category category = categoryRepository.findBySlug(slug).orElse(null);
         if (category != null) {
             // Force-load nested relationships to avoid lazy loading issues
+            category.getItems().forEach(item -> {
+                item.getLengthOptions().size();
+                item.getImages().size();
+                item.getSizePhotos().size();
+                item.getAvailableSizes().size();
+                item.getHairTextures().size();
+            });
             category.getSubcategories().forEach(sub -> {
                 sub.getItems().forEach(item -> {
                     item.getLengthOptions().size();
