@@ -26,13 +26,16 @@ public class ServiceItemService {
     private final ServiceItemRepository serviceItemRepository;
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
+    private final PricingManagementService pricingManagementService;
 
     public ServiceItemService(ServiceItemRepository serviceItemRepository,
                               CategoryRepository categoryRepository,
-                              SubcategoryRepository subcategoryRepository) {
+                              SubcategoryRepository subcategoryRepository,
+                              PricingManagementService pricingManagementService) {
         this.serviceItemRepository = serviceItemRepository;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
+        this.pricingManagementService = pricingManagementService;
     }
 
     public List<ServiceItem> getAllServices() {
@@ -62,15 +65,21 @@ public class ServiceItemService {
     public ServiceItem createService(ServiceItemRequest request) {
         ServiceItem service = new ServiceItem();
         applyRequest(service, request, true);
-        return serviceItemRepository.save(service);
+        ServiceItem saved = serviceItemRepository.save(service);
+        pricingManagementService.record(saved, "SERVICE_CREATED", "Service and pricing created");
+        return saved;
     }
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public ServiceItem updateService(Long id, ServiceItemRequest request) {
         ServiceItem service = getServiceById(id);
+        String before = pricingSummary(service);
         applyRequest(service, request, false);
-        return serviceItemRepository.save(service);
+        ServiceItem saved = serviceItemRepository.save(service);
+        String after = pricingSummary(saved);
+        if (!before.equals(after)) pricingManagementService.record(saved, "PRICING_UPDATED", before + " → " + after);
+        return saved;
     }
 
     private void applyRequest(ServiceItem service, ServiceItemRequest request, boolean creating) {
@@ -84,6 +93,11 @@ public class ServiceItemService {
         service.setFoundationChoicesEnabled(Boolean.TRUE.equals(request.getFoundationChoicesEnabled()));
         service.setKnotlessPriceAdjustment(service.getFoundationChoicesEnabled()
                 ? clean(request.getKnotlessPriceAdjustment()) : "0");
+        // Deposit overrides are managed by the pricing endpoint. Preserve an
+        // existing override when older service editors omit this optional field.
+        if (request.getDepositOverrideCents() != null) {
+            service.setDepositOverrideCents(request.getDepositOverrideCents());
+        }
         service.setImages(cleanList(request.getImages()));
         service.setSizePhotos(cleanList(request.getSizePhotos()));
         service.setAvailableSizes(uniqueList(request.getAvailableSizes(), "Available sizes"));
@@ -172,6 +186,7 @@ public class ServiceItemService {
         ServiceItem service = getServiceById(id);
         service.setActive(false);
         serviceItemRepository.save(service);
+        pricingManagementService.record(service, "SERVICE_DELETED", "Service removed from booking");
     }
 
     @Transactional
@@ -201,4 +216,13 @@ public class ServiceItemService {
     }
 
     private record Relationship(Category category, Subcategory subcategory) {}
+
+    private String pricingSummary(ServiceItem service) {
+        if (!service.getLengthOptions().isEmpty()) {
+            return service.getLengthOptions().stream()
+                    .map(option -> option.getName() + " $" + option.getPrice())
+                    .collect(java.util.stream.Collectors.joining(", "));
+        }
+        return "Base $" + service.getPrice();
+    }
 }

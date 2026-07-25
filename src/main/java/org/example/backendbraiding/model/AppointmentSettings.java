@@ -36,6 +36,9 @@ public class AppointmentSettings {
     
     @Column(nullable = false)
     private Boolean allowSameDayBooking = true;
+
+    @Column(name = "default_deposit_cents", nullable = false)
+    private Long defaultDepositCents = 5000L;
     
     @Column(length = 50)
     private String timezone = "America/Chicago"; // San Antonio, Texas (Central Time)

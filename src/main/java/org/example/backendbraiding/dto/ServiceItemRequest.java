@@ -37,6 +37,8 @@ public class ServiceItemRequest {
     private EntityReference category;
     private EntityReference subcategory;
     private Integer displayOrder;
+    @jakarta.validation.constraints.Min(value = 1, message = "Deposit override must be positive")
+    private Long depositOverrideCents;
 
     @Data
     public static class EntityReference { private Long id; }

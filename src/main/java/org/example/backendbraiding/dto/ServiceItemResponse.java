@@ -20,6 +20,7 @@ public class ServiceItemResponse {
     private String objectPosition;
     private Boolean foundationChoicesEnabled;
     private String knotlessPriceAdjustment;
+    private Long depositOverrideCents;
     private Integer displayOrder;
     private List<String> availableSizes;
     private List<String> hairTextures;
@@ -52,6 +53,7 @@ public class ServiceItemResponse {
         response.setObjectPosition(service.getObjectPosition());
         response.setFoundationChoicesEnabled(service.getFoundationChoicesEnabled());
         response.setKnotlessPriceAdjustment(service.getKnotlessPriceAdjustment());
+        response.setDepositOverrideCents(service.getDepositOverrideCents());
         response.setDisplayOrder(service.getDisplayOrder());
         response.setAvailableSizes(service.getAvailableSizes());
         response.setHairTextures(service.getHairTextures());

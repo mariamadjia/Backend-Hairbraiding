@@ -27,9 +27,8 @@ import java.math.RoundingMode;
 @Slf4j
 public class PaymentService {
 
-    private static final long DEPOSIT_AMOUNT_CENTS = 5000L;
-
     private final AppointmentRepository appointmentRepository;
+    private final org.example.backendbraiding.repository.AppointmentSettingsRepository appointmentSettingsRepository;
     private final BookingPaymentTokenService bookingPaymentTokenService;
     private final SmsService smsService;
     private final EmailService emailService;
@@ -78,7 +77,13 @@ public class PaymentService {
             metadata.put("customerEmail", appointment.getCustomer().getEmail());
             metadata.put("customerName", appointment.getCustomer().getFirstName() + " " + appointment.getCustomer().getLastName());
 
-            long depositAmountCents = calculateDepositAmountCents(appointment.getPrice());
+            long configuredDepositCents = appointment.getService() != null
+                    && appointment.getService().getDepositOverrideCents() != null
+                    ? appointment.getService().getDepositOverrideCents()
+                    : appointmentSettingsRepository.findFirstByOrderByIdDesc()
+                        .map(org.example.backendbraiding.model.AppointmentSettings::getDefaultDepositCents)
+                        .orElse(5000L);
+            long depositAmountCents = calculateDepositAmountCents(appointment.getPrice(), configuredDepositCents);
 
             PaymentIntent paymentIntent = PaymentIntent.create(PaymentIntentCreateParams.builder()
                     .setAmount(depositAmountCents)
@@ -147,9 +152,10 @@ public class PaymentService {
         return emailSent ? "SMS_FAILED" : "EMAIL_FAILED";
     }
 
-    private long calculateDepositAmountCents(String appointmentPrice) {
+    private long calculateDepositAmountCents(String appointmentPrice, long configuredDepositCents) {
+        if (configuredDepositCents <= 0) throw new IllegalStateException("Configured deposit must be greater than zero");
         if (appointmentPrice == null || appointmentPrice.isBlank()) {
-            return DEPOSIT_AMOUNT_CENTS;
+            return configuredDepositCents;
         }
         try {
             BigDecimal price = new BigDecimal(appointmentPrice.replaceAll("[^0-9.]", ""))
@@ -158,7 +164,7 @@ public class PaymentService {
             if (priceCents <= 0) {
                 throw new IllegalArgumentException("Appointment price must be greater than zero");
             }
-            return Math.min(DEPOSIT_AMOUNT_CENTS, priceCents);
+            return Math.min(configuredDepositCents, priceCents);
         } catch (ArithmeticException | NumberFormatException exception) {
             throw new IllegalStateException("Appointment price is invalid", exception);
         }

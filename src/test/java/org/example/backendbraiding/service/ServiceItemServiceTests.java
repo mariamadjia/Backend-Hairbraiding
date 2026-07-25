@@ -27,7 +27,11 @@ class ServiceItemServiceTests {
     @BeforeEach
     void setUp() {
         services = mock(ServiceItemRepository.class);
-        subject = new ServiceItemService(services, mock(CategoryRepository.class), mock(SubcategoryRepository.class));
+        subject = new ServiceItemService(
+                services,
+                mock(CategoryRepository.class),
+                mock(SubcategoryRepository.class),
+                mock(PricingManagementService.class));
 
         Category category = new Category();
         category.setId(1L);
