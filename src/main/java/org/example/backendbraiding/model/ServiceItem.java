@@ -23,6 +23,9 @@ public class ServiceItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Version
+    private Long version = 0L;
+
     @Column(nullable = false)
     private String name;
 
@@ -83,6 +86,7 @@ public class ServiceItem {
     private List<String> hairTextures = new ArrayList<>();
 
     @OneToMany(mappedBy = "serviceItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC, id ASC")
     @BatchSize(size = 50)
     private List<LengthOption> lengthOptions = new ArrayList<>();
 

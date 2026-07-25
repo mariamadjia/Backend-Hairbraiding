@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AppointmentRequestDTO {
+    @jakarta.validation.constraints.NotBlank(message = "Booking quote is required")
+    private String quoteToken;
     
     @NotBlank(message = "First name is required")
     private String firstName;

@@ -54,6 +54,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/api/time-slots/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/booking").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/booking/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/booking/quote").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/booking/fix-image-paths").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/booking/**").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/categories/admin").hasRole("ADMIN")

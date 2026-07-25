@@ -26,6 +26,21 @@ public class PricingHistory {
     @Column(nullable = false, length = 1000)
     private String summary;
 
+    @Column(name = "changed_by")
+    private String changedBy;
+
+    @Column(nullable = false, length = 40)
+    private String source = "SYSTEM";
+
+    @Column(name = "batch_id", length = 64)
+    private String batchId;
+
+    @Column(name = "before_value", columnDefinition = "TEXT")
+    private String beforeValue;
+
+    @Column(name = "after_value", columnDefinition = "TEXT")
+    private String afterValue;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

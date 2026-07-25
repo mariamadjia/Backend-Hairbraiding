@@ -18,6 +18,9 @@ public class AppointmentSettings {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    private Long version = 0L;
     
     @Column(nullable = false)
     private Integer slotDurationMinutes = 60;

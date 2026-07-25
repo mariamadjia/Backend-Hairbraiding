@@ -2,6 +2,7 @@ package org.example.backendbraiding.dto;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -11,7 +12,7 @@ import java.util.List;
 @Data
 public class PricingDepositRequest {
     @NotNull
-    @Min(1)
+    @Min(1) @Max(100000)
     private Long defaultDepositCents;
 
     @Valid
@@ -20,6 +21,6 @@ public class PricingDepositRequest {
     @Data
     public static class ServiceOverride {
         @NotNull private Long serviceId;
-        @Min(1) private Long depositCents;
+        @Min(1) @Max(100000) private Long depositCents;
     }
 }

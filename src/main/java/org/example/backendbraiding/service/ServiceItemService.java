@@ -108,8 +108,21 @@ public class ServiceItemService {
         service.setCategory(relationship.category());
         service.setSubcategory(relationship.subcategory());
         mergeLengthOptions(service, request.getLengthOptions());
-        if (service.getPrice().isBlank() && service.getLengthOptions().isEmpty()) {
-            throw new IllegalArgumentException("A service requires a price or at least one length option");
+        if (service.getLengthOptions().isEmpty()) {
+            MoneySupport.requirePositiveCents(service.getPrice(), "Base price");
+        } else {
+            for (LengthOption option : service.getLengthOptions()) {
+                MoneySupport.requirePositiveCents(option.getPrice(), option.getName() + " price");
+            }
+        }
+        if (service.getFoundationChoicesEnabled()) {
+            try {
+                if (new java.math.BigDecimal(service.getKnotlessPriceAdjustment()).signum() < 0) {
+                    throw new IllegalArgumentException("Knotless adjustment cannot be negative");
+                }
+            } catch (NumberFormatException exception) {
+                throw new IllegalArgumentException("Knotless adjustment must be a valid amount");
+            }
         }
     }
 
@@ -138,7 +151,8 @@ public class ServiceItemService {
         service.getLengthOptions().forEach(option -> existingById.put(option.getId(), option));
         List<LengthOption> merged = new ArrayList<>();
 
-        for (ServiceItemRequest.LengthOptionInput input : safeInputs) {
+        for (int index = 0; index < safeInputs.size(); index++) {
+            ServiceItemRequest.LengthOptionInput input = safeInputs.get(index);
             String normalizedName = input.getName().trim();
             if (!names.add(normalizedName.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("Length option names must be unique within a service");
@@ -154,6 +168,7 @@ public class ServiceItemService {
             option.setPrice(clean(input.getPrice()));
             option.setNotes(clean(input.getNotes()));
             option.setImageUrl(clean(input.getImageUrl()));
+            option.setDisplayOrder(index);
             option.setServiceItem(service);
             merged.add(option);
         }

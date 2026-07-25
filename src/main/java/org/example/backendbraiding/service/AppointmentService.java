@@ -48,6 +48,7 @@ public class AppointmentService {
     private final BusinessHoursRepository businessHoursRepository;
     private final BlockedTimeSlotRepository blockedTimeSlotRepository;
     private final BookingPaymentTokenService bookingPaymentTokenService;
+    private final BookingQuoteTokenService bookingQuoteTokenService;
     private final TimeSlotRepository timeSlotRepository;
     private final EmailService emailService;
     private final EntityManager entityManager;
@@ -63,6 +64,9 @@ public class AppointmentService {
         ServiceItem service = serviceItemRepository.findByIdAndActiveTrue(requestDTO.getServiceId())
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Service not found"));
         LengthOption lengthOption = resolveLengthOption(service, requestDTO.getLengthOptionId(), requestDTO.getSelectedLength());
+        String foundation = resolveFoundation(service, requestDTO.getSelectedFoundation());
+        BookingQuoteTokenService.QuoteClaims quote = bookingQuoteTokenService.parse(requestDTO.getQuoteToken());
+        validateQuote(quote, service, lengthOption, foundation);
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
         
         String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
@@ -124,11 +128,10 @@ public class AppointmentService {
         appointment.setSelectedService(service.getName());
         appointment.setSelectedSize(requestDTO.getSelectedSize());
         appointment.setSelectedLength(lengthOption != null ? lengthOption.getName() : requestDTO.getSelectedLength());
-        String foundation = resolveFoundation(service, requestDTO.getSelectedFoundation());
         appointment.setSelectedFoundation(foundation);
         appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
-        String basePrice = lengthOption != null && lengthOption.getPrice() != null ? lengthOption.getPrice() : service.getPrice();
-        appointment.setPrice(priceForFoundation(basePrice, service, foundation));
+        appointment.setPrice(MoneySupport.fromCents(quote.priceCents()));
+        appointment.setDepositAmount(quote.depositCents());
         appointment.setDurationMinutes(null);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
@@ -748,6 +751,33 @@ public class AppointmentService {
                         : option.getName() != null && option.getName().equalsIgnoreCase(selectedLength.trim()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Selected length is not available for this service"));
+    }
+
+    private void validateQuote(BookingQuoteTokenService.QuoteClaims quote, ServiceItem service,
+                               LengthOption lengthOption, String foundation) {
+        if (!service.getId().equals(quote.serviceId())) {
+            throw new IllegalArgumentException("The booking quote does not match the selected service");
+        }
+        Long selectedLengthId = lengthOption == null ? null : lengthOption.getId();
+        if (!java.util.Objects.equals(selectedLengthId, quote.lengthOptionId())) {
+            throw new IllegalArgumentException("The booking quote does not match the selected length");
+        }
+        if (!java.util.Objects.equals(foundation, quote.foundation())) {
+            throw new IllegalArgumentException("The booking quote does not match the selected braid foundation");
+        }
+        long currentVersion = service.getVersion() == null ? 0L : service.getVersion();
+        if (currentVersion != quote.serviceVersion()) {
+            throw new IllegalStateException("Pricing changed while you were booking. Please review the updated price.");
+        }
+        String basePrice = lengthOption == null ? service.getPrice() : lengthOption.getPrice();
+        long currentPriceCents = MoneySupport.requirePositiveCents(
+                priceForFoundation(basePrice, service, foundation), "Selected price");
+        if (currentPriceCents != quote.priceCents()) {
+            throw new IllegalStateException("Pricing changed while you were booking. Please review the updated price.");
+        }
+        if (quote.depositCents() <= 0 || quote.depositCents() > quote.priceCents()) {
+            throw new IllegalArgumentException("The booking quote contains an invalid deposit");
+        }
     }
 
     static String resolveFoundation(ServiceItem service, String selectedFoundation) {

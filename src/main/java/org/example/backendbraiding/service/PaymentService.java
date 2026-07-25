@@ -55,9 +55,7 @@ public class PaymentService {
             String replacedIntentId = null;
             if (appointment.getPaymentIntentId() != null) {
                 PaymentIntent existingIntent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
-                if (PaymentLifecycleRules.isReusableForConfirmation(existingIntent.getStatus())
-                        && existingIntent.getAutomaticPaymentMethods() != null
-                        && Boolean.TRUE.equals(existingIntent.getAutomaticPaymentMethods().getEnabled())) {
+                if (PaymentLifecycleRules.isReusableForConfirmation(existingIntent.getStatus())) {
                     return paymentIntentResponse(existingIntent, appointment.getId(), "Payment intent ready for authorization.");
                 }
                 if ("requires_capture".equals(existingIntent.getStatus())) {
@@ -77,22 +75,21 @@ public class PaymentService {
             metadata.put("customerEmail", appointment.getCustomer().getEmail());
             metadata.put("customerName", appointment.getCustomer().getFirstName() + " " + appointment.getCustomer().getLastName());
 
-            long configuredDepositCents = appointment.getService() != null
-                    && appointment.getService().getDepositOverrideCents() != null
-                    ? appointment.getService().getDepositOverrideCents()
-                    : appointmentSettingsRepository.findFirstByOrderByIdDesc()
-                        .map(org.example.backendbraiding.model.AppointmentSettings::getDefaultDepositCents)
-                        .orElse(5000L);
-            long depositAmountCents = calculateDepositAmountCents(appointment.getPrice(), configuredDepositCents);
+            Long quotedDepositCents = appointment.getDepositAmount();
+            if (quotedDepositCents == null) {
+                throw new IllegalStateException("This booking is missing its deposit quote. Please start the booking again.");
+            }
+            long depositAmountCents = calculateDepositAmountCents(appointment.getPrice(), quotedDepositCents);
 
             PaymentIntent paymentIntent = PaymentIntent.create(PaymentIntentCreateParams.builder()
                     .setAmount(depositAmountCents)
                     .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
-                    .setAutomaticPaymentMethods(
-                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                    .setEnabled(true)
-                                    .build())
+                    // Manual capture is intentionally limited to methods Stripe supports
+                    // for authorization/capture. This prevents Cash App from being shown
+                    // and then rejected after the customer selects it.
+                    .addPaymentMethodType("card")
+                    .addPaymentMethodType("link")
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
                     .setIdempotencyKey(replacedIntentId == null

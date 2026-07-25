@@ -10,6 +10,10 @@ import org.example.backendbraiding.repository.GalleryImageRepository;
 import org.example.backendbraiding.repository.SubcategoryRepository;
 import org.example.backendbraiding.service.CategoryService;
 import org.example.backendbraiding.service.SubcategoryService;
+import org.example.backendbraiding.service.BookingQuoteService;
+import org.example.backendbraiding.dto.BookingQuoteRequest;
+import org.example.backendbraiding.dto.BookingQuoteResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,15 +34,23 @@ public class BookingController {
     private final CategoryRepository categoryRepository;
     private final SubcategoryRepository subcategoryRepository;
     private final GalleryImageRepository galleryImageRepository;
+    private final BookingQuoteService bookingQuoteService;
 
     public BookingController(CategoryService categoryService, SubcategoryService subcategoryService,
                            CategoryRepository categoryRepository, SubcategoryRepository subcategoryRepository,
-                           GalleryImageRepository galleryImageRepository) {
+                           GalleryImageRepository galleryImageRepository,
+                           BookingQuoteService bookingQuoteService) {
         this.categoryService = categoryService;
         this.subcategoryService = subcategoryService;
         this.categoryRepository = categoryRepository;
         this.subcategoryRepository = subcategoryRepository;
         this.galleryImageRepository = galleryImageRepository;
+        this.bookingQuoteService = bookingQuoteService;
+    }
+
+    @PostMapping("/quote")
+    public BookingQuoteResponse quote(@Valid @RequestBody BookingQuoteRequest request) {
+        return bookingQuoteService.quote(request);
     }
 
     @GetMapping
@@ -70,6 +82,8 @@ public class BookingController {
             bookingCategory.put("name", category.getName());
             bookingCategory.put("slug", category.getSlug());
             bookingCategory.put("summary", category.getSummary());
+            bookingCategory.put("items", (category.getItems() == null ? List.<ServiceItem>of() : category.getItems()).stream()
+                    .filter(this::isBookable).map(this::mapBookingItem).toList());
 
             List<Map<String, Object>> bookingSubcategories = new ArrayList<>();
 
@@ -93,36 +107,8 @@ public class BookingController {
                 List<Map<String, Object>> bookingItems = new ArrayList<>();
 
                 // Process service items
-                for (ServiceItem item : subcategory.getItems().stream().filter(ServiceItem::isActive).toList()) {
-                    Map<String, Object> bookingItem = new HashMap<>();
-                    bookingItem.put("id", item.getId());
-                    bookingItem.put("name", item.getName());
-                    bookingItem.put("price", item.getPrice());
-                    bookingItem.put("description", item.getDescription());
-                    bookingItem.put("notes", item.getNotes());
-                    bookingItem.put("image", item.getImage());
-                    bookingItem.put("images", item.getImages());
-                    bookingItem.put("sizePhotos", item.getSizePhotos());
-                    bookingItem.put("link", item.getLink());
-                    bookingItem.put("objectPosition", item.getObjectPosition());
-                    bookingItem.put("availableSizes", item.getAvailableSizes());
-                    bookingItem.put("hairTextures", item.getHairTextures());
-                    bookingItem.put("foundationChoicesEnabled", Boolean.TRUE.equals(item.getFoundationChoicesEnabled()));
-                    bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
-
-                    // Convert length options
-                    List<Map<String, Object>> lengthOptions = new ArrayList<>();
-                    for (LengthOption option : item.getLengthOptions()) {
-                        Map<String, Object> lengthOption = new HashMap<>();
-                        lengthOption.put("id", option.getId());
-                        lengthOption.put("name", option.getName());
-                        lengthOption.put("price", option.getPrice());
-                        lengthOption.put("notes", option.getNotes());
-                        lengthOptions.add(lengthOption);
-                    }
-                    bookingItem.put("lengthOptions", lengthOptions);
-
-                    bookingItems.add(bookingItem);
+                for (ServiceItem item : subcategory.getItems().stream().filter(this::isBookable).toList()) {
+                    bookingItems.add(mapBookingItem(item));
                 }
 
                 bookingSubcategory.put("items", bookingItems);
@@ -161,6 +147,8 @@ public class BookingController {
         bookingCategory.put("slug", category.getSlug());
         bookingCategory.put("summary", category.getSummary());
         bookingCategory.put("image", category.getImage());
+        bookingCategory.put("items", (category.getItems() == null ? List.<ServiceItem>of() : category.getItems()).stream()
+                .filter(this::isBookable).map(this::mapBookingItem).toList());
 
         List<Map<String, Object>> bookingSubcategories = new ArrayList<>();
 
@@ -205,43 +193,8 @@ public class BookingController {
                     ? subcategory.getItems()
                     : List.of();
 
-            for (ServiceItem item : items.stream().filter(ServiceItem::isActive).toList()) {
-                Map<String, Object> bookingItem = new LinkedHashMap<>();
-
-                bookingItem.put("name", item.getName());
-                bookingItem.put("id", item.getId());
-                bookingItem.put("price", item.getPrice());
-                bookingItem.put("description", item.getDescription());
-                bookingItem.put("notes", item.getNotes());
-                bookingItem.put("image", item.getImage());
-                bookingItem.put("images", item.getImages());
-                bookingItem.put("sizePhotos", item.getSizePhotos());
-                bookingItem.put("link", item.getLink());
-                bookingItem.put("objectPosition", item.getObjectPosition());
-                bookingItem.put("availableSizes", item.getAvailableSizes());
-                bookingItem.put("hairTextures", item.getHairTextures());
-                bookingItem.put("foundationChoicesEnabled", Boolean.TRUE.equals(item.getFoundationChoicesEnabled()));
-                bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
-
-                List<Map<String, Object>> lengthOptions = new ArrayList<>();
-
-                List<LengthOption> options = item.getLengthOptions() != null
-                        ? item.getLengthOptions()
-                        : List.of();
-
-                for (LengthOption option : options) {
-                    Map<String, Object> lengthOption = new LinkedHashMap<>();
-
-                    lengthOption.put("name", option.getName());
-                    lengthOption.put("id", option.getId());
-                    lengthOption.put("price", option.getPrice());
-                    lengthOption.put("notes", option.getNotes());
-
-                    lengthOptions.add(lengthOption);
-                }
-
-                bookingItem.put("lengthOptions", lengthOptions);
-                bookingItems.add(bookingItem);
+            for (ServiceItem item : items.stream().filter(this::isBookable).toList()) {
+                bookingItems.add(mapBookingItem(item));
             }
 
             bookingSubcategory.put("items", bookingItems);
@@ -266,6 +219,48 @@ public class BookingController {
                     return galleryImage;
                 })
                 .toList();
+    }
+
+    private Map<String, Object> mapBookingItem(ServiceItem item) {
+        Map<String, Object> bookingItem = new LinkedHashMap<>();
+        bookingItem.put("id", item.getId());
+        bookingItem.put("version", item.getVersion() == null ? 0L : item.getVersion());
+        bookingItem.put("name", item.getName());
+        bookingItem.put("price", item.getPrice());
+        bookingItem.put("description", item.getDescription());
+        bookingItem.put("notes", item.getNotes());
+        bookingItem.put("image", item.getImage());
+        bookingItem.put("images", item.getImages());
+        bookingItem.put("sizePhotos", item.getSizePhotos());
+        bookingItem.put("link", item.getLink());
+        bookingItem.put("objectPosition", item.getObjectPosition());
+        bookingItem.put("availableSizes", item.getAvailableSizes());
+        bookingItem.put("hairTextures", item.getHairTextures());
+        bookingItem.put("foundationChoicesEnabled", Boolean.TRUE.equals(item.getFoundationChoicesEnabled()));
+        bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
+        List<LengthOption> options = item.getLengthOptions() == null ? List.of() : item.getLengthOptions();
+        bookingItem.put("lengthOptions", options.stream().filter(this::hasValidPrice).map(option -> {
+            Map<String, Object> mapped = new LinkedHashMap<>();
+            mapped.put("id", option.getId());
+            mapped.put("name", option.getName());
+            mapped.put("price", option.getPrice());
+            mapped.put("notes", option.getNotes());
+            mapped.put("displayOrder", option.getDisplayOrder());
+            return mapped;
+        }).toList());
+        return bookingItem;
+    }
+
+    private boolean isBookable(ServiceItem item) {
+        if (!item.isActive()) return false;
+        List<LengthOption> options = item.getLengthOptions() == null ? List.of() : item.getLengthOptions();
+        if (!options.isEmpty()) return options.stream().anyMatch(this::hasValidPrice);
+        return org.example.backendbraiding.service.MoneySupport.positiveCents(item.getPrice()).isPresent();
+    }
+
+    private boolean hasValidPrice(LengthOption option) {
+        return option.getName() != null && !option.getName().isBlank()
+                && org.example.backendbraiding.service.MoneySupport.positiveCents(option.getPrice()).isPresent();
     }
 
     @PostMapping("/populate-images")
