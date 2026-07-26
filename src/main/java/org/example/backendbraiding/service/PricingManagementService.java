@@ -54,28 +54,43 @@ public class PricingManagementService {
 
     @Transactional
     public Map<String, Object> updateDeposits(PricingDepositRequest request) {
-        AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
+        AppointmentSettings settings = settingsRepository.findLatestForUpdate()
                 .orElseGet(() -> settingsRepository.save(new AppointmentSettings()));
+        requireVersion(settings.getVersion(), request.getVersion(), "deposit settings");
         long previousDefault = settings.getDefaultDepositCents() == null ? 5000L : settings.getDefaultDepositCents();
         settings.setDefaultDepositCents(request.getDefaultDepositCents());
         settings.setUpdatedAt(LocalDateTime.now());
         settingsRepository.save(settings);
 
-        Map<Long, Long> requested = new LinkedHashMap<>();
-        request.getOverrides().forEach(override -> requested.put(override.getServiceId(), override.getDepositCents()));
+        Map<Long, PricingDepositRequest.ServiceOverride> requested = new LinkedHashMap<>();
+        request.getOverrides().forEach(override -> {
+            if (requested.put(override.getServiceId(), override) != null) {
+                throw new IllegalArgumentException("A service deposit may only appear once");
+            }
+        });
         List<ServiceItem> services = requested.keySet().stream().map(this::activeService).toList();
+        String batchId = UUID.randomUUID().toString();
         for (ServiceItem service : services) {
+            PricingDepositRequest.ServiceOverride requestedOverride = requested.get(service.getId());
+            requireVersion(service.getVersion(), requestedOverride.getVersion(), service.getName());
             Long before = service.getDepositOverrideCents();
-            Long after = requested.get(service.getId());
+            Long after = requestedOverride.getDepositCents();
             service.setDepositOverrideCents(after);
             if (!java.util.Objects.equals(before, after)) {
-                record(service, "DEPOSIT_UPDATED", "Deposit override changed from " + display(before) + " to " + display(after));
+                record(service, "DEPOSIT_UPDATED",
+                        "Deposit override changed from " + display(before) + " to " + display(after),
+                        before == null ? null : String.valueOf(before),
+                        after == null ? null : String.valueOf(after), batchId);
             }
         }
         serviceItemRepository.saveAll(services);
         if (previousDefault != request.getDefaultDepositCents()) {
-            record(null, "DEFAULT_DEPOSIT_UPDATED", "Default deposit changed from " + display(previousDefault) + " to " + display(request.getDefaultDepositCents()));
+            record(null, "DEFAULT_DEPOSIT_UPDATED",
+                    "Default deposit changed from " + display(previousDefault) + " to " + display(request.getDefaultDepositCents()),
+                    String.valueOf(previousDefault), String.valueOf(request.getDefaultDepositCents()), batchId);
         }
+        serviceItemRepository.flush();
+        settingsRepository.flush();
         return deposits();
     }
 
@@ -211,19 +226,40 @@ public class PricingManagementService {
     @Transactional
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public List<ServiceItem> addLength(AddPricingLengthRequest request) {
-        HashSet<Long> ids = new HashSet<>(request.getServiceIds());
-        if (ids.size() != request.getServiceIds().size()) {
+        Map<Long, AddPricingLengthRequest.ServicePrice> requestedPrices =
+                request.getServicePrices() == null ? Map.of() : request.getServicePrices().stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                AddPricingLengthRequest.ServicePrice::getServiceId,
+                                price -> price,
+                                (left, right) -> {
+                                    throw new IllegalArgumentException("A service may only appear once");
+                                },
+                                LinkedHashMap::new));
+        List<Long> requestedIds = requestedPrices.isEmpty()
+                ? (request.getServiceIds() == null ? List.of() : request.getServiceIds())
+                : requestedPrices.keySet().stream().toList();
+        if (requestedIds == null || requestedIds.isEmpty()) {
+            throw new IllegalArgumentException("Choose at least one service");
+        }
+        HashSet<Long> ids = new HashSet<>(requestedIds);
+        if (ids.size() != requestedIds.size()) {
             throw new IllegalArgumentException("A service may only appear once");
         }
         String batchId = UUID.randomUUID().toString();
         java.util.ArrayList<ServiceItem> changed = new java.util.ArrayList<>();
         for (Long id : ids) {
             ServiceItem service = activeService(id);
+            AddPricingLengthRequest.ServicePrice requestedPrice = requestedPrices.get(id);
+            if (requestedPrice != null) {
+                requireVersion(service.getVersion(), requestedPrice.getVersion(), service.getName());
+            }
             if (service.getLengthOptions().stream().anyMatch(option -> option.getName().equalsIgnoreCase(request.getName().trim()))) {
                 throw new IllegalArgumentException(request.getName() + " already exists for " + service.getName());
             }
             long priceCents;
-            if (request.getInitialPriceCents() != null) {
+            if (requestedPrice != null) {
+                priceCents = requestedPrice.getPriceCents();
+            } else if (request.getInitialPriceCents() != null) {
                 priceCents = request.getInitialPriceCents();
             } else {
                 LengthOption source = service.getLengthOptions().stream()

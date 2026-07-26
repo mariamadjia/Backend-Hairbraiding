@@ -12,6 +12,10 @@ import java.util.List;
 @Data
 public class PricingDepositRequest {
     @NotNull
+    @Min(0)
+    private Long version;
+
+    @NotNull
     @Min(1) @Max(100000)
     private Long defaultDepositCents;
 
@@ -21,6 +25,7 @@ public class PricingDepositRequest {
     @Data
     public static class ServiceOverride {
         @NotNull private Long serviceId;
+        @NotNull @Min(0) private Long version;
         @Min(1) @Max(100000) private Long depositCents;
     }
 }
