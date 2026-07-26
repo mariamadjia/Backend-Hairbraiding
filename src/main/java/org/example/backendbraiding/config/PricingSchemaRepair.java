@@ -16,9 +16,10 @@ import org.springframework.stereotype.Component;
  * Repairs pricing and appointment columns when a restored production database
  * and its Flyway history disagree.
  *
- * V18 remains the canonical migration. This startup safety net deliberately
- * executes the same idempotent SQL so a deployment where Flyway is disabled or
- * skipped cannot leave the pricing and appointment APIs unusable.
+ * V18 creates missing columns and V19 normalizes optimistic-lock values in
+ * databases where those columns already existed as nullable. This startup
+ * safety net deliberately executes the same idempotent SQL so a deployment
+ * where Flyway is disabled or skipped cannot leave the APIs unusable.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -36,7 +37,8 @@ public class PricingSchemaRepair implements ApplicationRunner {
         log.info("Verifying pricing and appointment database columns");
 
         ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
-                new ClassPathResource("db/migration/V18__repair_runtime_schema.sql"));
+                new ClassPathResource("db/migration/V18__repair_runtime_schema.sql"),
+                new ClassPathResource("db/migration/V19__normalize_optimistic_lock_versions.sql"));
         populator.setContinueOnError(false);
         populator.execute(dataSource);
 
