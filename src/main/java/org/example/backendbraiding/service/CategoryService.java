@@ -148,7 +148,14 @@ public class CategoryService {
             // Map service items for category with null safety
             List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
             if (cat.getItems() != null) {
-                itemDtos = cat.getItems().stream().filter(ServiceItem::isActive).map(item -> {
+                // Category.items contains every service associated with the category,
+                // including services already represented under a subcategory. Only
+                // expose genuinely category-level services here to avoid duplicating
+                // and mis-grouping the catalog in admin consumers.
+                itemDtos = cat.getItems().stream()
+                        .filter(ServiceItem::isActive)
+                        .filter(item -> item.getSubcategory() == null)
+                        .map(item -> {
                     return mapToAdminServiceItemDTO(item);
                 }).collect(Collectors.toList());
             }
@@ -166,6 +173,7 @@ public class CategoryService {
     private AdminServiceItemDTO mapToAdminServiceItemDTO(ServiceItem item) {
         AdminServiceItemDTO dto = new AdminServiceItemDTO();
         dto.setId(item.getId());
+        dto.setVersion(item.getVersion());
         dto.setName(item.getName());
         dto.setPrice(item.getPrice());
         dto.setDescription(item.getDescription());

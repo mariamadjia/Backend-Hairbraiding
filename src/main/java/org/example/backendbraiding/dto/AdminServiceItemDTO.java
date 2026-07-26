@@ -6,6 +6,7 @@ import java.util.List;
 @Data
 public class AdminServiceItemDTO {
     private Long id;
+    private Long version;
     private String name;
     private String price;
     private String description;
