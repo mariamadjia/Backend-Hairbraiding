@@ -85,15 +85,17 @@ public class PaymentService {
                     .setAmount(depositAmountCents)
                     .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
-                    // Manual capture is intentionally limited to methods Stripe supports
-                    // for authorization/capture. This prevents Cash App from being shown
-                    // and then rejected after the customer selects it.
-                    .addPaymentMethodType("card")
-                    .addPaymentMethodType("link")
+                    // Let Stripe use the payment methods enabled in the Dashboard and
+                    // automatically hide methods that are not eligible for this customer,
+                    // amount, currency, or manual-capture booking flow.
+                    .setAutomaticPaymentMethods(
+                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
+                                    .setEnabled(true)
+                                    .build())
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
                     .setIdempotencyKey(replacedIntentId == null
-                            ? "booking-payment-intent-dynamic-v2-" + appointment.getId()
+                            ? "booking-payment-intent-dynamic-v3-" + appointment.getId()
                             : "booking-payment-intent-retry-" + appointment.getId() + "-" + replacedIntentId)
                     .build());
 
