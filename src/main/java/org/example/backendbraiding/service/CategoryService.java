@@ -160,6 +160,7 @@ public class CategoryService {
                 }).collect(Collectors.toList());
             }
             dto.setItems(itemDtos);
+            dto.setDirectServiceCount((long) itemDtos.size());
 
             return dto;
         }).collect(Collectors.toList());
@@ -661,6 +662,7 @@ public class CategoryService {
         }
         dto.setSubcategories(subDtos);
         dto.setItems(new ArrayList<>());
+        dto.setDirectServiceCount(serviceItemRepository.countActiveDirectServicesByCategoryId(category.getId()));
 
         return dto;
     }
@@ -701,9 +703,14 @@ public class CategoryService {
         // Map direct category items
         List<AdminServiceItemDTO> itemDtos = new ArrayList<>();
         if (category.getItems() != null) {
-            itemDtos = category.getItems().stream().filter(ServiceItem::isActive).map(this::mapToAdminServiceItemDTO).collect(Collectors.toList());
+            itemDtos = category.getItems().stream()
+                    .filter(ServiceItem::isActive)
+                    .filter(item -> item.getSubcategory() == null)
+                    .map(this::mapToAdminServiceItemDTO)
+                    .collect(Collectors.toList());
         }
         dto.setItems(itemDtos);
+        dto.setDirectServiceCount((long) itemDtos.size());
 
         return dto;
     }
