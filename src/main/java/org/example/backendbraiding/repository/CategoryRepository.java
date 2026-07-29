@@ -46,16 +46,14 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
             c.name,
             c.slug,
             c.displayOrder,
-            COUNT(DISTINCT directItem.id) + COUNT(DISTINCT nestedItem.id),
+            COUNT(DISTINCT subcategory.id),
             (SELECT COUNT(appointment.id)
              FROM Appointment appointment
              WHERE appointment.service.category.id = c.id),
             c.updatedAt
         )
         FROM Category c
-        LEFT JOIN c.items directItem ON directItem.active = true
         LEFT JOIN c.subcategories subcategory
-        LEFT JOIN subcategory.items nestedItem ON nestedItem.active = true
         GROUP BY c.id, c.name, c.slug, c.displayOrder, c.updatedAt
         ORDER BY c.displayOrder ASC
     """)
