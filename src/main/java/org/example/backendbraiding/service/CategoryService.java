@@ -574,15 +574,7 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public List<CategorySummaryDTO> getCategorySummariesForAdmin() {
-        List<Category> categories = categoryRepository.findCategorySummaries();
-        return categories.stream().map(cat -> {
-            CategorySummaryDTO dto = new CategorySummaryDTO();
-            dto.setId(cat.getId());
-            dto.setName(cat.getName());
-            dto.setSlug(cat.getSlug());
-            dto.setDisplayOrder(cat.getDisplayOrder());
-            return dto;
-        }).collect(Collectors.toList());
+        return categoryRepository.findCategorySummaries();
     }
 
     @Transactional(readOnly = true)
