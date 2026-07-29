@@ -11,6 +11,7 @@ public class CategorySummaryDTO {
     private String slug;
     private Integer displayOrder;
     private Long styleCount;
+    private Long bookingCount;
     private LocalDateTime updatedAt;
 
     public CategorySummaryDTO() {}
@@ -21,6 +22,7 @@ public class CategorySummaryDTO {
             String slug,
             Integer displayOrder,
             Long styleCount,
+            Long bookingCount,
             LocalDateTime updatedAt
     ) {
         this.id = id;
@@ -28,6 +30,7 @@ public class CategorySummaryDTO {
         this.slug = slug;
         this.displayOrder = displayOrder;
         this.styleCount = styleCount;
+        this.bookingCount = bookingCount;
         this.updatedAt = updatedAt;
     }
 }

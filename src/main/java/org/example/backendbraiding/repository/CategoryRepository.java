@@ -47,6 +47,9 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
             c.slug,
             c.displayOrder,
             COUNT(DISTINCT directItem.id) + COUNT(DISTINCT nestedItem.id),
+            (SELECT COUNT(appointment.id)
+             FROM Appointment appointment
+             WHERE appointment.service.category.id = c.id),
             c.updatedAt
         )
         FROM Category c
