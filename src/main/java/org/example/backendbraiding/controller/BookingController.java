@@ -238,12 +238,14 @@ public class BookingController {
         bookingItem.put("hairTextures", item.getHairTextures());
         bookingItem.put("foundationChoicesEnabled", Boolean.TRUE.equals(item.getFoundationChoicesEnabled()));
         bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
+        bookingItem.put("knotlessPricingMode", item.getKnotlessPricingMode());
         List<LengthOption> options = item.getLengthOptions() == null ? List.of() : item.getLengthOptions();
         bookingItem.put("lengthOptions", options.stream().filter(this::hasValidPrice).map(option -> {
             Map<String, Object> mapped = new LinkedHashMap<>();
             mapped.put("id", option.getId());
             mapped.put("name", option.getName());
             mapped.put("price", option.getPrice());
+            mapped.put("knotlessPrice", option.getKnotlessPrice());
             mapped.put("notes", option.getNotes());
             mapped.put("displayOrder", option.getDisplayOrder());
             return mapped;

@@ -91,7 +91,11 @@ public class ServiceItemService {
         service.setLink(clean(request.getLink()));
         service.setObjectPosition(clean(request.getObjectPosition()));
         service.setFoundationChoicesEnabled(Boolean.TRUE.equals(request.getFoundationChoicesEnabled()));
+        String knotlessPricingMode = "SEPARATE".equalsIgnoreCase(clean(request.getKnotlessPricingMode()))
+                ? "SEPARATE" : "ADJUSTMENT";
+        service.setKnotlessPricingMode(service.getFoundationChoicesEnabled() ? knotlessPricingMode : "ADJUSTMENT");
         service.setKnotlessPriceAdjustment(service.getFoundationChoicesEnabled()
+                && "ADJUSTMENT".equals(service.getKnotlessPricingMode())
                 ? clean(request.getKnotlessPriceAdjustment()) : "0");
         // Deposit overrides are managed by the pricing endpoint. Preserve an
         // existing override when older service editors omit this optional field.
@@ -113,9 +117,12 @@ public class ServiceItemService {
         } else {
             for (LengthOption option : service.getLengthOptions()) {
                 MoneySupport.requirePositiveCents(option.getPrice(), option.getName() + " price");
+                if (service.getFoundationChoicesEnabled() && "SEPARATE".equals(service.getKnotlessPricingMode())) {
+                    MoneySupport.requirePositiveCents(option.getKnotlessPrice(), option.getName() + " Knotless price");
+                }
             }
         }
-        if (service.getFoundationChoicesEnabled()) {
+        if (service.getFoundationChoicesEnabled() && "ADJUSTMENT".equals(service.getKnotlessPricingMode())) {
             try {
                 if (new java.math.BigDecimal(service.getKnotlessPriceAdjustment()).signum() < 0) {
                     throw new IllegalArgumentException("Knotless adjustment cannot be negative");
@@ -166,6 +173,7 @@ public class ServiceItemService {
             }
             option.setName(normalizedName);
             option.setPrice(clean(input.getPrice()));
+            option.setKnotlessPrice(clean(input.getKnotlessPrice()));
             option.setNotes(clean(input.getNotes()));
             option.setImageUrl(clean(input.getImageUrl()));
             option.setDisplayOrder(index);

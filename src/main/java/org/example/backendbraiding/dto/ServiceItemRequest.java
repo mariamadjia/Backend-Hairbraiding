@@ -27,6 +27,8 @@ public class ServiceItemRequest {
     private Boolean foundationChoicesEnabled = false;
     @Pattern(regexp = "^\\$?\\d+(?:\\.\\d{1,2})?$", message = "Knotless adjustment must be a non-negative amount with at most two decimals")
     private String knotlessPriceAdjustment = "0";
+    @Pattern(regexp = "ADJUSTMENT|SEPARATE", message = "Knotless pricing mode must be ADJUSTMENT or SEPARATE")
+    private String knotlessPricingMode = "ADJUSTMENT";
 
     @Size(max = 30) private List<@Size(max = 2000) String> images = new ArrayList<>();
     @Size(max = 30) private List<@Size(max = 2000) String> sizePhotos = new ArrayList<>();
@@ -50,6 +52,8 @@ public class ServiceItemRequest {
         @NotBlank(message = "Length price is required")
         @Pattern(regexp = "^\\$?\\d+(?:\\.\\d{1,2})?$", message = "Length price must be a non-negative amount with at most two decimals")
         private String price;
+        @Pattern(regexp = "^$|^\\$?\\d+(?:\\.\\d{1,2})?$", message = "Knotless length price must be a non-negative amount with at most two decimals")
+        private String knotlessPrice = "";
         @Size(max = 1000) private String notes = "";
         @Size(max = 2000) private String imageUrl = "";
     }

@@ -20,6 +20,7 @@ public class ServiceItemResponse {
     private String objectPosition;
     private Boolean foundationChoicesEnabled;
     private String knotlessPriceAdjustment;
+    private String knotlessPricingMode;
     private Long depositOverrideCents;
     private Integer displayOrder;
     private List<String> availableSizes;
@@ -35,6 +36,7 @@ public class ServiceItemResponse {
         private Long id;
         private String name;
         private String price;
+        private String knotlessPrice;
         private String notes;
         private String imageUrl;
     }
@@ -53,6 +55,7 @@ public class ServiceItemResponse {
         response.setObjectPosition(service.getObjectPosition());
         response.setFoundationChoicesEnabled(service.getFoundationChoicesEnabled());
         response.setKnotlessPriceAdjustment(service.getKnotlessPriceAdjustment());
+        response.setKnotlessPricingMode(service.getKnotlessPricingMode());
         response.setDepositOverrideCents(service.getDepositOverrideCents());
         response.setDisplayOrder(service.getDisplayOrder());
         response.setAvailableSizes(service.getAvailableSizes());
@@ -70,6 +73,7 @@ public class ServiceItemResponse {
         response.setId(option.getId());
         response.setName(option.getName());
         response.setPrice(option.getPrice());
+        response.setKnotlessPrice(option.getKnotlessPrice());
         response.setNotes(option.getNotes());
         response.setImageUrl(option.getImageUrl());
         return response;

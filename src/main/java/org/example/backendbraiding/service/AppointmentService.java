@@ -769,7 +769,9 @@ public class AppointmentService {
         if (currentVersion != quote.serviceVersion()) {
             throw new IllegalStateException("Pricing changed while you were booking. Please review the updated price.");
         }
-        String basePrice = lengthOption == null ? service.getPrice() : lengthOption.getPrice();
+        String basePrice = lengthOption == null ? service.getPrice()
+                : "KNOTLESS".equals(foundation) && "SEPARATE".equals(service.getKnotlessPricingMode())
+                    ? lengthOption.getKnotlessPrice() : lengthOption.getPrice();
         long currentPriceCents = MoneySupport.requirePositiveCents(
                 priceForFoundation(basePrice, service, foundation), "Selected price");
         if (currentPriceCents != quote.priceCents()) {
@@ -799,6 +801,7 @@ public class AppointmentService {
 
     static String priceForFoundation(String basePrice, ServiceItem service, String foundation) {
         if (!"KNOTLESS".equals(foundation)) return basePrice;
+        if ("SEPARATE".equals(service.getKnotlessPricingMode())) return basePrice;
         try {
             BigDecimal base = new BigDecimal(basePrice.replace("$", "").trim());
             String adjustmentValue = service.getKnotlessPriceAdjustment();

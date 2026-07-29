@@ -24,9 +24,12 @@ public class BookingQuoteService {
                 .orElseThrow(() -> new IllegalArgumentException("Service is unavailable"));
         LengthOption option = resolveOption(service, request.getLengthOptionId());
         String foundation = normalizeFoundation(service, request.getFoundation());
-        String price = option == null ? service.getPrice() : option.getPrice();
+        String price = option == null ? service.getPrice()
+                : "KNOTLESS".equals(foundation) && "SEPARATE".equals(service.getKnotlessPricingMode())
+                    ? option.getKnotlessPrice() : option.getPrice();
         long baseCents = MoneySupport.requirePositiveCents(price, "Selected price");
         long adjustmentCents = "KNOTLESS".equals(foundation)
+                && !"SEPARATE".equals(service.getKnotlessPricingMode())
                 ? MoneySupport.positiveCents(service.getKnotlessPriceAdjustment()).orElse(0L) : 0L;
         long priceCents = Math.addExact(baseCents, adjustmentCents);
         long configuredDeposit = service.getDepositOverrideCents() != null

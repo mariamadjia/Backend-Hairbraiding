@@ -186,6 +186,7 @@ public class CategoryService {
         dto.setObjectPosition(item.getObjectPosition());
         dto.setFoundationChoicesEnabled(item.getFoundationChoicesEnabled());
         dto.setKnotlessPriceAdjustment(item.getKnotlessPriceAdjustment());
+        dto.setKnotlessPricingMode(item.getKnotlessPricingMode());
         dto.setAvailableSizes(item.getAvailableSizes());
         dto.setHairTextures(item.getHairTextures());
 
@@ -195,6 +196,7 @@ public class CategoryService {
             optDto.setId(opt.getId());
             optDto.setName(opt.getName());
             optDto.setPrice(opt.getPrice());
+            optDto.setKnotlessPrice(opt.getKnotlessPrice());
             optDto.setNotes(opt.getNotes());
             optDto.setImageUrl(opt.getImageUrl());
             return optDto;

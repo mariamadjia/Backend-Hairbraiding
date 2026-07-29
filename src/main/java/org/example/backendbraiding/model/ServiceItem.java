@@ -60,6 +60,9 @@ public class ServiceItem {
     @Column(name = "knotless_price_adjustment")
     private String knotlessPriceAdjustment = "0";
 
+    @Column(name = "knotless_pricing_mode", nullable = false)
+    private String knotlessPricingMode = "ADJUSTMENT";
+
     @Column(name = "deposit_override_cents")
     private Long depositOverrideCents;
 

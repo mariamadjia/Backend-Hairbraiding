@@ -190,6 +190,7 @@ public class PricingManagementService {
         clone.setObjectPosition(source.getObjectPosition());
         clone.setFoundationChoicesEnabled(source.getFoundationChoicesEnabled());
         clone.setKnotlessPriceAdjustment(source.getKnotlessPriceAdjustment());
+        clone.setKnotlessPricingMode(source.getKnotlessPricingMode());
         clone.setDepositOverrideCents(source.getDepositOverrideCents());
         clone.setDisplayOrder(source.getDisplayOrder() + 1);
         clone.setActive(true);
@@ -205,6 +206,7 @@ public class PricingManagementService {
         for (LengthOption sourceOption : source.getLengthOptions()) {
             LengthOption option = new LengthOption();
             option.setName(sourceOption.getName());
+            option.setKnotlessPrice(sourceOption.getKnotlessPrice());
             Long requestedPrice = request.getPrices().get(sourceOption.getName());
             if (requestedPrice == null) {
                 throw new IllegalArgumentException("Enter the " + sourceOption.getName() + " price for the new size");
@@ -274,6 +276,9 @@ public class PricingManagementService {
             LengthOption option = new LengthOption();
             option.setName(request.getName().trim());
             option.setPrice(MoneySupport.fromCents(priceCents));
+            if ("SEPARATE".equals(service.getKnotlessPricingMode())) {
+                option.setKnotlessPrice(MoneySupport.fromCents(priceCents));
+            }
             option.setDisplayOrder(service.getLengthOptions().stream()
                     .map(LengthOption::getDisplayOrder).filter(Objects::nonNull).max(Integer::compareTo).orElse(-1) + 1);
             option.setServiceItem(service);
@@ -329,7 +334,8 @@ public class PricingManagementService {
                 MoneySupport.requirePositiveCents(option.getPrice(), option.getName() + " price");
             }
         }
-        if (Boolean.TRUE.equals(service.getFoundationChoicesEnabled())) {
+        if (Boolean.TRUE.equals(service.getFoundationChoicesEnabled())
+                && "ADJUSTMENT".equals(service.getKnotlessPricingMode())) {
             try {
                 if (new java.math.BigDecimal(Objects.toString(service.getKnotlessPriceAdjustment(), "0")
                         .replace("$", "").trim()).signum() < 0) {

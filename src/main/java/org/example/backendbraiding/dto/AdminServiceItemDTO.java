@@ -18,6 +18,7 @@ public class AdminServiceItemDTO {
     private String objectPosition;
     private Boolean foundationChoicesEnabled;
     private String knotlessPriceAdjustment;
+    private String knotlessPricingMode;
     private List<String> availableSizes;
     private List<String> hairTextures;
     private List<LengthOptionDTO> lengthOptions;

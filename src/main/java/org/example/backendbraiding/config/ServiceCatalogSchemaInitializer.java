@@ -47,6 +47,11 @@ public class ServiceCatalogSchemaInitializer implements ApplicationRunner {
         jdbcTemplate.execute("UPDATE service_items SET knotless_price_adjustment = '0' WHERE knotless_price_adjustment IS NULL");
         jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN knotless_price_adjustment SET DEFAULT '0'");
         jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN knotless_price_adjustment SET NOT NULL");
+        jdbcTemplate.execute("ALTER TABLE service_items ADD COLUMN IF NOT EXISTS knotless_pricing_mode VARCHAR(20)");
+        jdbcTemplate.execute("UPDATE service_items SET knotless_pricing_mode = 'ADJUSTMENT' WHERE knotless_pricing_mode IS NULL");
+        jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN knotless_pricing_mode SET DEFAULT 'ADJUSTMENT'");
+        jdbcTemplate.execute("ALTER TABLE service_items ALTER COLUMN knotless_pricing_mode SET NOT NULL");
+        jdbcTemplate.execute("ALTER TABLE length_options ADD COLUMN IF NOT EXISTS knotless_price VARCHAR(255)");
 
         jdbcTemplate.execute("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS selected_foundation VARCHAR(20)");
         jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS idx_service_item_active_order ON service_items(active, display_order, id)");

@@ -16,6 +16,9 @@ public class LengthOption {
 
     private String price;
 
+    @Column(name = "knotless_price")
+    private String knotlessPrice;
+
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 

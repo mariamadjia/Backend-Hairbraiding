@@ -70,6 +70,25 @@ class ServiceItemServiceTests {
     }
 
     @Test
+    void savesSeparateKnotlessLengthPrice() {
+        ServiceItemRequest request = baseRequest();
+        request.setFoundationChoicesEnabled(true);
+        request.setKnotlessPricingMode("SEPARATE");
+        ServiceItemRequest.LengthOptionInput input = new ServiceItemRequest.LengthOptionInput();
+        input.setId(4L);
+        input.setName("Waist");
+        input.setPrice("250");
+        input.setKnotlessPrice("290");
+        request.setLengthOptions(List.of(input));
+
+        ServiceItem updated = subject.updateService(3L, request);
+
+        assertEquals("SEPARATE", updated.getKnotlessPricingMode());
+        assertEquals("290", updated.getLengthOptions().get(0).getKnotlessPrice());
+        assertEquals("0", updated.getKnotlessPriceAdjustment());
+    }
+
+    @Test
     void rejectsLengthOptionOwnedByAnotherService() {
         ServiceItemRequest request = baseRequest();
         ServiceItemRequest.LengthOptionInput input = new ServiceItemRequest.LengthOptionInput();

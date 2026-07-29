@@ -35,4 +35,13 @@ class AppointmentFoundationTests {
         assertEquals("280", AppointmentService.priceForFoundation("280", service, "REGULAR"));
         assertEquals("320", AppointmentService.priceForFoundation("280", service, "KNOTLESS"));
     }
+
+    @Test
+    void separateKnotlessPriceIsNotAdjustedAgain() {
+        ServiceItem service = new ServiceItem();
+        service.setKnotlessPricingMode("SEPARATE");
+        service.setKnotlessPriceAdjustment("40");
+
+        assertEquals("320", AppointmentService.priceForFoundation("320", service, "KNOTLESS"));
+    }
 }

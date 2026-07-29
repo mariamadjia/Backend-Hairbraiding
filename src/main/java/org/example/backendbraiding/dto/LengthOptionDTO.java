@@ -7,6 +7,7 @@ public class LengthOptionDTO {
     private Long id;
     private String name;
     private String price;
+    private String knotlessPrice;
     private String notes;
     private String imageUrl;
 }
