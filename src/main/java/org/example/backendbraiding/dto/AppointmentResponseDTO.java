@@ -13,6 +13,7 @@ public class AppointmentResponseDTO {
     private Long id;
     private CustomerDTO customer;
     private ServiceDTO service;
+    private String styleName;
     private String selectedService;
     private String selectedSize;
     private String selectedLength;

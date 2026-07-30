@@ -557,6 +557,9 @@ public class AppointmentService {
             serviceDTO.setName(appointment.getService().getName());
             serviceDTO.setDescription(appointment.getService().getDescription());
             dto.setService(serviceDTO);
+            dto.setStyleName(appointment.getService().getSubcategory() != null
+                    ? appointment.getService().getSubcategory().getName()
+                    : appointment.getService().getName());
         }
 
         if (appointment.getApprovedBy() != null) {
