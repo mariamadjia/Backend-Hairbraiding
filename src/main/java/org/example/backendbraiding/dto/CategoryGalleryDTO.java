@@ -9,6 +9,8 @@ public class CategoryGalleryDTO {
     private Long id;
     private String name;
     private String slug;
+    private String serviceTagline;
+    private String serviceDescription;
     private String image;
     private Integer displayOrder;
 

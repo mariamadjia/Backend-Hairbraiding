@@ -777,6 +777,7 @@ public class AppointmentService {
                     ? lengthOption.getKnotlessPrice() : lengthOption.getPrice();
         long currentPriceCents = MoneySupport.requirePositiveCents(
                 priceForFoundation(basePrice, service, foundation), "Selected price");
+
         if (currentPriceCents != quote.priceCents()) {
             throw new IllegalStateException("Pricing changed while you were booking. Please review the updated price.");
         }

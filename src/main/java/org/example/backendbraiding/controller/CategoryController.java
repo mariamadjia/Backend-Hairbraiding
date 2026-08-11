@@ -104,6 +104,10 @@ public class CategoryController {
         if (updates.containsKey("name")) category.setName(updates.get("name").toString());
         if (updates.containsKey("slug")) category.setSlug(updates.get("slug").toString());
         if (updates.containsKey("summary")) category.setSummary(updates.get("summary").toString());
+        if (updates.containsKey("serviceTagline"))
+            category.setServiceTagline(readOptionalText(updates.get("serviceTagline"), 255, "Service tagline"));
+        if (updates.containsKey("serviceDescription"))
+            category.setServiceDescription(readOptionalText(updates.get("serviceDescription"), 1000, "Service description"));
         if (updates.containsKey("image")) category.setImage(updates.get("image").toString());
         if (updates.containsKey("displayOrder") && updates.get("displayOrder") != null)
             category.setDisplayOrder(Integer.parseInt(updates.get("displayOrder").toString()));
@@ -142,6 +146,10 @@ public class CategoryController {
         if (updates.containsKey("name")) categoryDetails.setName(updates.get("name").toString());
         if (updates.containsKey("slug")) categoryDetails.setSlug(updates.get("slug").toString());
         if (updates.containsKey("summary")) categoryDetails.setSummary(updates.get("summary").toString());
+        if (updates.containsKey("serviceTagline"))
+            categoryDetails.setServiceTagline(readOptionalText(updates.get("serviceTagline"), 255, "Service tagline"));
+        if (updates.containsKey("serviceDescription"))
+            categoryDetails.setServiceDescription(readOptionalText(updates.get("serviceDescription"), 1000, "Service description"));
         if (updates.containsKey("image")) categoryDetails.setImage(updates.get("image").toString());
         if (updates.containsKey("flippingImages")) {
             @SuppressWarnings("unchecked")
@@ -150,6 +158,19 @@ public class CategoryController {
         }
         
         return ResponseEntity.ok(categoryService.updateCategory(id, categoryDetails));
+    }
+
+    private String readOptionalText(Object rawValue, int maxLength, String fieldLabel) {
+        if (rawValue == null) return null;
+        String value = rawValue.toString().trim();
+        if (value.isEmpty()) return null;
+        if (value.length() > maxLength) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    fieldLabel + " must be " + maxLength + " characters or fewer"
+            );
+        }
+        return value;
     }
 
     @DeleteMapping("/{id}")

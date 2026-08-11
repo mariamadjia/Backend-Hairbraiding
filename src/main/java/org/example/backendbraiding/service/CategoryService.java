@@ -115,6 +115,8 @@ public class CategoryService {
             dto.setName(cat.getName());
             dto.setSlug(cat.getSlug());
             dto.setSummary(cat.getSummary());
+            dto.setServiceTagline(cat.getServiceTagline());
+            dto.setServiceDescription(cat.getServiceDescription());
             dto.setImage(cat.getImage());
             dto.setDisplayOrder(cat.getDisplayOrder());
             dto.setFlippingImages(cat.getFlippingImages() != null ? cat.getFlippingImages() : new ArrayList<>());
@@ -233,6 +235,8 @@ public class CategoryService {
             dto.setId(cat.getId());
             dto.setName(cat.getName());
             dto.setSlug(cat.getSlug());
+            dto.setServiceTagline(cat.getServiceTagline());
+            dto.setServiceDescription(cat.getServiceDescription());
             dto.setImage(cat.getImage());
             dto.setFlippingImages(cat.getFlippingImages());
             dto.setDisplayOrder(cat.getDisplayOrder());
@@ -299,6 +303,8 @@ public class CategoryService {
                     dto.setId(category.getId());
                     dto.setName(category.getName());
                     dto.setSlug(category.getSlug());
+                    dto.setServiceTagline(category.getServiceTagline());
+                    dto.setServiceDescription(category.getServiceDescription());
                     dto.setImage(category.getImage());
                     dto.setDisplayOrder(category.getDisplayOrder());
 
@@ -500,6 +506,8 @@ public class CategoryService {
         category.setName(categoryDetails.getName());
         category.setSlug(categoryDetails.getSlug());
         category.setSummary(categoryDetails.getSummary());
+        category.setServiceTagline(categoryDetails.getServiceTagline());
+        category.setServiceDescription(categoryDetails.getServiceDescription());
         category.setImage(categoryDetails.getImage());
         if (categoryDetails.getDisplayOrder() != null) {
             category.setDisplayOrder(categoryDetails.getDisplayOrder());
@@ -618,6 +626,8 @@ public class CategoryService {
         dto.setName(category.getName());
         dto.setSlug(category.getSlug());
         dto.setSummary(category.getSummary());
+        dto.setServiceTagline(category.getServiceTagline());
+        dto.setServiceDescription(category.getServiceDescription());
         dto.setImage(category.getImage());
         dto.setDisplayOrder(category.getDisplayOrder());
         dto.setFlippingImages(category.getFlippingImages() != null ? category.getFlippingImages() : new ArrayList<>());
@@ -675,6 +685,8 @@ public class CategoryService {
         dto.setName(category.getName());
         dto.setSlug(category.getSlug());
         dto.setSummary(category.getSummary());
+        dto.setServiceTagline(category.getServiceTagline());
+        dto.setServiceDescription(category.getServiceDescription());
         dto.setImage(category.getImage());
         dto.setDisplayOrder(category.getDisplayOrder());
         dto.setFlippingImages(category.getFlippingImages() != null ? category.getFlippingImages() : new ArrayList<>());

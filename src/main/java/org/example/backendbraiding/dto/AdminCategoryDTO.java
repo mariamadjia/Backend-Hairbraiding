@@ -9,6 +9,8 @@ public class AdminCategoryDTO {
     private String name;
     private String slug;
     private String summary;
+    private String serviceTagline;
+    private String serviceDescription;
     private String image;
     private Integer displayOrder;
     private List<String> flippingImages;

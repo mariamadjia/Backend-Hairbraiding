@@ -28,6 +28,12 @@ public class Category {
     @Column(columnDefinition = "TEXT")
     private String summary;
 
+    @Column(name = "service_tagline", length = 255)
+    private String serviceTagline;
+
+    @Column(name = "service_description", columnDefinition = "TEXT")
+    private String serviceDescription;
+
     private String image;
 
     @Column(name = "display_order")
