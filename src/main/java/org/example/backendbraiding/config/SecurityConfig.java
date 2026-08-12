@@ -36,7 +36,10 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/google", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/setup").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/session").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/auth/logout", "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/webhooks/**").permitAll()
                 .requestMatchers("/api/payments/**").permitAll()
                 .requestMatchers("/Gallery/**", "/gallery/**").permitAll()

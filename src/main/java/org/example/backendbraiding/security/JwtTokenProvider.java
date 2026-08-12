@@ -25,8 +25,12 @@ public class JwtTokenProvider {
     }
     
     public String generateToken(String email, String role) {
+        return generateToken(email, role, jwtExpiration);
+    }
+
+    public String generateToken(String email, String role, long expirationMillis) {
         Date now = new Date();
-        Date expiryDate = new Date(now.getTime() + jwtExpiration);
+        Date expiryDate = new Date(now.getTime() + expirationMillis);
         
         return Jwts.builder()
                 .setSubject(email)

@@ -4,6 +4,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -21,9 +22,11 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuthCookieService authCookieService;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, AuthCookieService authCookieService) {
         this.jwtTokenProvider = jwtTokenProvider;
+        this.authCookieService = authCookieService;
     }
 
     @Override
@@ -39,7 +42,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return false;
         }
         
-        boolean skip = path.startsWith("/api/auth/") ||
+        boolean publicAuthEndpoint = path.equals("/api/auth/login") ||
+               path.equals("/api/auth/google") ||
+               path.equals("/api/auth/setup") ||
+               path.equals("/api/auth/forgot-password") ||
+               path.equals("/api/auth/reset-password");
+
+        boolean skip = publicAuthEndpoint ||
                path.startsWith("/Gallery/") ||
                path.startsWith("/gallery/") ||
                path.startsWith("/api/webhooks/") ||
@@ -95,6 +104,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
     
     private String getJwtFromRequest(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (authCookieService.cookieName().equals(cookie.getName())) {
+                    return cookie.getValue();
+                }
+            }
+        }
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);

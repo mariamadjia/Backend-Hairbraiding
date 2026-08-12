@@ -1,15 +1,11 @@
 package org.example.backendbraiding.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-public class LoginRequest {
+public class GoogleLoginRequest {
     @NotBlank
-    @Email
-    private String email;
-    @NotBlank
-    private String password;
+    private String credential;
     private boolean rememberDevice;
 }
