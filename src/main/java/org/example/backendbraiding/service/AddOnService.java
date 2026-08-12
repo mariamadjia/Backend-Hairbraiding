@@ -35,6 +35,17 @@ public class AddOnService {
     }
 
     @Transactional(readOnly = true)
+    public List<AddOnResponse> listLibrary() {
+        return addOnRepository.findActiveLibrary().stream().map(addOn ->
+                AddOnResponse.builder().id(addOn.getId()).name(addOn.getName())
+                        .description(addOn.getDescription()).pricingMode(addOn.getPricingMode())
+                        .priceCents(addOn.getPriceCents()).depositBehavior(addOn.getDepositBehavior())
+                        .depositAdjustmentCents(addOn.getDepositAdjustmentCents()).active(addOn.getActive())
+                        .confirmationRequired(!"FIXED".equals(addOn.getPricingMode()))
+                        .serviceItemIds(List.of()).lengthOptionIds(List.of()).build()).toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<AddOnResponse> listAvailable(Long serviceId, Long lengthOptionId) {
         ServiceItem service = serviceItemRepository.findByIdAndActiveTrue(serviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Service not found"));

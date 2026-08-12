@@ -19,6 +19,11 @@ import java.util.Map;
 public class AddOnAdminController {
     private final AddOnService addOnService;
 
+    @GetMapping
+    public List<AddOnResponse> library() {
+        return addOnService.listLibrary();
+    }
+
     @GetMapping("/subcategory/{subcategoryId}")
     public List<AddOnResponse> list(@PathVariable Long subcategoryId) {
         return addOnService.listForSubcategory(subcategoryId);
