@@ -46,7 +46,8 @@ public class AuthController {
 
     @GetMapping("/session")
     public ResponseEntity<?> session(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
+        if (authentication == null || !authentication.isAuthenticated() ||
+                "anonymousUser".equals(authentication.getPrincipal())) {
             return ResponseEntity.status(401).body(Map.of("authenticated", false));
         }
         return ResponseEntity.ok(authService.currentAdmin(authentication.getName()));

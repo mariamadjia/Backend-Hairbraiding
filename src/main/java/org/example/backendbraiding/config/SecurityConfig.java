@@ -38,7 +38,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/google", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/setup").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/auth/session").authenticated()
+                // The controller reports the logged-out state itself. Keeping this public
+                // avoids Spring translating a normal anonymous session check into 403.
+                .requestMatchers(HttpMethod.GET, "/api/auth/session").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout", "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/webhooks/**").permitAll()
                 .requestMatchers("/api/payments/**").permitAll()
