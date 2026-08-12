@@ -49,6 +49,7 @@ public class AppointmentService {
     private final BlockedTimeSlotRepository blockedTimeSlotRepository;
     private final BookingPaymentTokenService bookingPaymentTokenService;
     private final BookingQuoteTokenService bookingQuoteTokenService;
+    private final AddOnService addOnService;
     private final TimeSlotRepository timeSlotRepository;
     private final EmailService emailService;
     private final EntityManager entityManager;
@@ -66,7 +67,9 @@ public class AppointmentService {
         LengthOption lengthOption = resolveLengthOption(service, requestDTO.getLengthOptionId(), requestDTO.getSelectedLength());
         String foundation = resolveFoundation(service, requestDTO.getSelectedFoundation());
         BookingQuoteTokenService.QuoteClaims quote = bookingQuoteTokenService.parse(requestDTO.getQuoteToken());
-        validateQuote(quote, service, lengthOption, foundation);
+        List<AddOnService.ResolvedAddOn> selectedAddOns = addOnService.validateClaims(
+                service, lengthOption, quote.addOns());
+        validateQuote(quote, service, lengthOption, foundation, selectedAddOns);
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
         
         String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
@@ -135,6 +138,19 @@ public class AppointmentService {
         appointment.setDurationMinutes(null);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
+
+        for (int index = 0; index < selectedAddOns.size(); index++) {
+            AddOnService.ResolvedAddOn resolved = selectedAddOns.get(index);
+            AppointmentAddOn snapshot = new AppointmentAddOn();
+            snapshot.setAppointment(appointment);
+            snapshot.setAddOn(resolved.assignment().getAddOn());
+            snapshot.setAddOnName(resolved.assignment().getAddOn().getName());
+            snapshot.setPricingMode(resolved.assignment().getAddOn().getPricingMode());
+            snapshot.setAdvertisedPriceCents(resolved.advertisedPriceCents());
+            snapshot.setChargedPriceCents(resolved.chargedPriceCents());
+            snapshot.setDisplayOrder(index);
+            appointment.getAddOns().add(snapshot);
+        }
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
         AppointmentResponseDTO response = mapToResponseDTO(savedAppointment);
@@ -578,6 +594,11 @@ public class AppointmentService {
         dto.setPaymentMethodBrand(appointment.getPaymentMethodBrand());
         dto.setNotificationStatus(appointment.getNotificationStatus());
         dto.setNotificationLastAttemptAt(appointment.getNotificationLastAttemptAt());
+        dto.setAddOns(appointment.getAddOns().stream().map(item ->
+                new org.example.backendbraiding.dto.QuotedAddOnDTO(
+                        item.getAddOn() == null ? null : item.getAddOn().getId(), item.getAddOnName(),
+                        item.getPricingMode(), item.getAdvertisedPriceCents(), item.getChargedPriceCents(),
+                        "STARTING_AT".equals(item.getPricingMode()))).toList());
 
         return dto;
     }
@@ -757,7 +778,8 @@ public class AppointmentService {
     }
 
     private void validateQuote(BookingQuoteTokenService.QuoteClaims quote, ServiceItem service,
-                               LengthOption lengthOption, String foundation) {
+                               LengthOption lengthOption, String foundation,
+                               List<AddOnService.ResolvedAddOn> addOns) {
         if (!service.getId().equals(quote.serviceId())) {
             throw new IllegalArgumentException("The booking quote does not match the selected service");
         }
@@ -778,7 +800,8 @@ public class AppointmentService {
         long currentPriceCents = MoneySupport.requirePositiveCents(
                 priceForFoundation(basePrice, service, foundation), "Selected price");
 
-        if (currentPriceCents != quote.priceCents()) {
+        long currentAddOnCents = addOns.stream().mapToLong(AddOnService.ResolvedAddOn::chargedPriceCents).sum();
+        if (Math.addExact(currentPriceCents, currentAddOnCents) != quote.priceCents()) {
             throw new IllegalStateException("Pricing changed while you were booking. Please review the updated price.");
         }
         if (quote.depositCents() <= 0 || quote.depositCents() > quote.priceCents()) {

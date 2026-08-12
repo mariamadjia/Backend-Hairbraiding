@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -41,6 +42,7 @@ public class AppointmentResponseDTO {
     private String paymentToken;
     private String notificationStatus;
     private LocalDateTime notificationLastAttemptAt;
+    private List<QuotedAddOnDTO> addOns;
 
     @Data
     @NoArgsConstructor

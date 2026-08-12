@@ -11,12 +11,15 @@ import org.example.backendbraiding.repository.ServiceItemRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class BookingQuoteService {
     private final ServiceItemRepository serviceItemRepository;
     private final AppointmentSettingsRepository settingsRepository;
     private final BookingQuoteTokenService tokenService;
+    private final AddOnService addOnService;
 
     @Transactional(readOnly = true)
     public BookingQuoteResponse quote(BookingQuoteRequest request) {
@@ -31,22 +34,34 @@ public class BookingQuoteService {
         long adjustmentCents = "KNOTLESS".equals(foundation)
                 && !"SEPARATE".equals(service.getKnotlessPricingMode())
                 ? MoneySupport.positiveCents(service.getKnotlessPriceAdjustment()).orElse(0L) : 0L;
-        long priceCents = Math.addExact(baseCents, adjustmentCents);
+        long basePriceCents = Math.addExact(baseCents, adjustmentCents);
+        List<AddOnService.ResolvedAddOn> addOns = addOnService.resolveSelections(
+                service, option, request.getAddOnIds());
+        long addOnTotalCents = addOns.stream().mapToLong(AddOnService.ResolvedAddOn::chargedPriceCents).sum();
+        long priceCents = Math.addExact(basePriceCents, addOnTotalCents);
         long configuredDeposit = service.getDepositOverrideCents() != null
                 ? service.getDepositOverrideCents()
                 : settingsRepository.findFirstByOrderByIdDesc()
                     .map(AppointmentSettings::getDefaultDepositCents).orElse(5000L);
         if (configuredDeposit <= 0) throw new IllegalStateException("Booking deposit is not configured");
-        long depositCents = Math.min(configuredDeposit, priceCents);
+        long addOnDepositCents = addOns.stream().mapToLong(AddOnService.ResolvedAddOn::depositAdjustmentCents).sum();
+        long depositCents = Math.min(Math.addExact(configuredDeposit, addOnDepositCents), priceCents);
         long version = service.getVersion() == null ? 0L : service.getVersion();
         BookingQuoteTokenService.SignedQuote signed = tokenService.create(
                 service.getId(), option == null ? null : option.getId(), foundation,
-                priceCents, depositCents, version);
+                priceCents, depositCents, version,
+                addOns.stream().map(item -> new BookingQuoteTokenService.AddOnClaim(
+                        item.assignment().getId(), item.assignment().getAddOn().getId(),
+                        item.assignment().getAddOn().getVersion(), item.assignment().getVersion(),
+                        item.advertisedPriceCents(), item.chargedPriceCents())).toList());
         return BookingQuoteResponse.builder()
                 .serviceId(service.getId())
                 .lengthOptionId(option == null ? null : option.getId())
                 .servicePrice(MoneySupport.fromCents(priceCents))
                 .servicePriceCents(priceCents)
+                .basePriceCents(basePriceCents)
+                .addOnTotalCents(addOnTotalCents)
+                .addOns(addOns.stream().map(addOnService::toQuoted).toList())
                 .depositCents(depositCents)
                 .remainingBalanceCents(priceCents - depositCents)
                 .serviceVersion(version)

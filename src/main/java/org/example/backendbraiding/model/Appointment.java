@@ -8,6 +8,8 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "appointments", indexes = {
@@ -116,6 +118,10 @@ public class Appointment {
 
     @Column(name = "notification_last_attempt_at")
     private LocalDateTime notificationLastAttemptAt;
+
+    @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("displayOrder ASC, id ASC")
+    private List<AppointmentAddOn> addOns = new ArrayList<>();
 
     public enum AppointmentStatus {
         PENDING,
