@@ -36,7 +36,8 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/google", "/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/google", "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/accept-invitation").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/password-token/validate").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/setup").permitAll()
                 // The controller reports the logged-out state itself. Keeping this public
                 // avoids Spring translating a normal anonymous session check into 403.

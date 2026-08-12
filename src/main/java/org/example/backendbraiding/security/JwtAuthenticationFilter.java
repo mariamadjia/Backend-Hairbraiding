@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.example.backendbraiding.repository.AdminRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -23,10 +24,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final AuthCookieService authCookieService;
+    private final AdminRepository adminRepository;
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, AuthCookieService authCookieService) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider, AuthCookieService authCookieService,
+                                   AdminRepository adminRepository) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.authCookieService = authCookieService;
+        this.adminRepository = adminRepository;
     }
 
     @Override
@@ -47,6 +51,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.equals("/api/auth/setup") ||
                path.equals("/api/auth/forgot-password") ||
                path.equals("/api/auth/reset-password");
+        publicAuthEndpoint = publicAuthEndpoint || path.equals("/api/auth/accept-invitation") ||
+                path.equals("/api/auth/password-token/validate");
 
         boolean skip = publicAuthEndpoint ||
                path.startsWith("/Gallery/") ||
@@ -80,6 +86,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(token) && jwtTokenProvider.validateToken(token)) {
             String email = jwtTokenProvider.getEmailFromToken(token);
             String role = jwtTokenProvider.getRoleFromToken(token);
+            Integer sessionVersion = jwtTokenProvider.getSessionVersionFromToken(token);
+            boolean accountValid = sessionVersion != null && adminRepository.findByEmailIgnoreCase(email)
+                    .filter(admin -> "ACTIVE".equals(admin.getStatus()))
+                    .filter(admin -> admin.getSessionVersion().equals(sessionVersion))
+                    .isPresent();
+
+            if (!accountValid) {
+                log.warn("JWT rejected because the administrator session was revoked or disabled: {}", email);
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             log.debug("JWT Authentication - Email: {}, Raw Role: {}", email, role);
 

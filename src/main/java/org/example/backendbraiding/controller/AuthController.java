@@ -80,4 +80,16 @@ public class AuthController {
     public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
         return ResponseEntity.ok(authService.resetPassword(request));
     }
+
+    @GetMapping("/password-token/validate")
+    public ResponseEntity<?> validatePasswordToken(@RequestParam String token, @RequestParam String purpose) {
+        String normalized = "INVITATION".equals(purpose) ? "INVITATION" : "PASSWORD_RESET";
+        return ResponseEntity.ok(authService.validatePasswordToken(token, normalized));
+    }
+
+    @PostMapping("/accept-invitation")
+    public ResponseEntity<?> acceptInvitation(@Valid @RequestBody PasswordTokenRequest request) {
+        authService.acceptInvitation(request);
+        return ResponseEntity.ok(Map.of("message", "Password created successfully"));
+    }
 }

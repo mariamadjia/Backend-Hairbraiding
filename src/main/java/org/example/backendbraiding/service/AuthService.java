@@ -30,24 +30,28 @@ public class AuthService {
     private final EmailService emailService;
     private final String googleClientId;
     private final long rememberDurationSeconds;
+    private final AdministratorService administratorService;
 
     public AuthService(AdminRepository adminRepository, PasswordEncoder passwordEncoder,
                       JwtTokenProvider jwtTokenProvider, EmailService emailService,
                       @Value("${auth.google-client-id:}") String googleClientId,
-                      @Value("${auth.remember-duration-seconds}") long rememberDurationSeconds) {
+                      @Value("${auth.remember-duration-seconds}") long rememberDurationSeconds,
+                      AdministratorService administratorService) {
         this.adminRepository = adminRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenProvider = jwtTokenProvider;
         this.emailService = emailService;
         this.googleClientId = googleClientId;
         this.rememberDurationSeconds = rememberDurationSeconds;
+        this.administratorService = administratorService;
     }
 
     public Map<String, Object> login(LoginRequest request) {
         Admin admin = adminRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
-        if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
+        if (!"ACTIVE".equals(admin.getStatus()) || !Boolean.TRUE.equals(admin.getPasswordConfigured()) ||
+                !passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
             throw new BadCredentialsException("Invalid credentials");
         }
 
@@ -81,6 +85,7 @@ public class AuthService {
                         log.warn("Rejected Google admin sign-in for unapproved email: {}", email);
                         return new IllegalArgumentException("This Google account is not approved for admin access");
                     });
+            if (!"ACTIVE".equals(admin.getStatus())) throw new IllegalArgumentException("This administrator account is not active");
 
             admin.setLastLogin(LocalDateTime.now());
             adminRepository.save(admin);
@@ -95,14 +100,15 @@ public class AuthService {
     }
 
     public Map<String, Object> currentAdmin(String email) {
-        Admin admin = adminRepository.findByEmail(email)
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new IllegalArgumentException("Admin account is not available"));
+        if (!"ACTIVE".equals(admin.getStatus())) throw new IllegalArgumentException("Admin account is not active");
         return Map.of("authenticated", true, "admin", adminView(admin));
     }
 
     private String createToken(Admin admin, boolean rememberDevice) {
         long expiration = rememberDevice ? rememberDurationSeconds * 1000L : 30 * 60 * 1000L;
-        return jwtTokenProvider.generateToken(admin.getEmail(), admin.getRole(), expiration);
+        return jwtTokenProvider.generateToken(admin.getEmail(), admin.getRole(), admin.getSessionVersion(), expiration);
     }
 
     private Map<String, Object> loginResponse(Admin admin, String token) {
@@ -169,34 +175,24 @@ public class AuthService {
     }
 
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {
-        Admin admin = adminRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Admin not found"));
-
-        String resetToken = UUID.randomUUID().toString();
-        
-        emailService.sendPasswordResetEmail(admin.getEmail(), resetToken);
-
-        return Map.of("message", "Password reset email sent");
+        administratorService.requestReset(request.getEmail());
+        return Map.of("message", "If an administrator account exists for this email, a reset link has been sent.");
     }
 
     public Map<String, String> resetPassword(ResetPasswordRequest request) {
-        if (request.getToken() == null || request.getToken().isEmpty()) {
-            throw new RuntimeException("Reset token is required");
-        }
-        
-        if (request.getNewPassword() == null || request.getNewPassword().isEmpty()) {
-            throw new RuntimeException("New password is required");
-        }
-        
-        // In a real implementation, you would validate the token and find the admin
-        // For now, this is a placeholder that would need token validation logic
-        // Admin admin = adminRepository.findByResetToken(request.getToken())
-        //         .orElseThrow(() -> new RuntimeException("Invalid or expired reset token"));
-        
-        // admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        // admin.setResetToken(null);
-        // adminRepository.save(admin);
-        
+        org.example.backendbraiding.dto.PasswordTokenRequest secure = new org.example.backendbraiding.dto.PasswordTokenRequest();
+        secure.setToken(request.getToken());
+        secure.setNewPassword(request.getNewPassword());
+        secure.setConfirmPassword(request.getConfirmPassword());
+        administratorService.setPassword(secure, AdminPasswordTokenService.PASSWORD_RESET);
         return Map.of("message", "Password reset successfully");
+    }
+
+    public Map<String, Object> validatePasswordToken(String token, String purpose) {
+        return administratorService.validateToken(token, purpose);
+    }
+
+    public void acceptInvitation(PasswordTokenRequest request) {
+        administratorService.setPassword(request, AdminPasswordTokenService.INVITATION);
     }
 }

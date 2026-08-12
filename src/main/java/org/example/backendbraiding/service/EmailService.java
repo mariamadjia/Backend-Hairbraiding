@@ -5,28 +5,50 @@ import org.slf4j.LoggerFactory;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class EmailService {
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private final JavaMailSender mailSender;
+    private final String frontendUrl;
 
-    public EmailService(JavaMailSender mailSender) {
+    public EmailService(JavaMailSender mailSender, @Value("${app.frontend-url}") String frontendUrl) {
         this.mailSender = mailSender;
+        this.frontendUrl = frontendUrl.replaceAll("/+$", "");
     }
 
     public void sendPasswordResetEmail(String toEmail, String resetToken) {
+        sendSecurityEmail(toEmail, "Reset your AH Braiding admin password",
+                "A password reset was requested for your AH Braiding administrator account.\n\n" +
+                "Create a new password within 30 minutes:\n" + frontendUrl + "/admin/reset-password?token=" + resetToken +
+                "\n\nIf you did not request this, you can ignore this email.");
+    }
+
+    public void sendAdminInvitation(String toEmail, String firstName, String token) {
+        sendSecurityEmail(toEmail, "You're invited to AH Braiding Admin",
+                "Hello " + firstName + ",\n\nYou've been invited to manage AH Braiding. " +
+                "Create your password within 24 hours:\n" + frontendUrl + "/admin/set-password?token=" + token +
+                "\n\nIf you were not expecting this invitation, you can ignore this email.");
+    }
+
+    public void sendPasswordChangedEmail(String toEmail) {
+        sendSecurityEmail(toEmail, "Your AH Braiding admin password was changed",
+                "Your administrator password was changed successfully. If you did not make this change, contact the account owner immediately.");
+    }
+
+    private void sendSecurityEmail(String toEmail, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
-        message.setSubject("Password Reset Request");
-        message.setText("To reset your password, use this token: " + resetToken);
+        message.setSubject(subject);
+        message.setText(body);
         
         try {
             mailSender.send(message);
-            log.info("Password reset email sent to: {}", toEmail);
+            log.info("Security email sent to: {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send password reset email to: {}", toEmail, e);
-            throw new RuntimeException("Failed to send password reset email");
+            log.error("Failed to send security email to: {}", toEmail, e);
+            throw new IllegalStateException("Email could not be sent. Please try again.");
         }
     }
 

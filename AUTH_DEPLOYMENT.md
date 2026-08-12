@@ -13,6 +13,9 @@ an `HttpOnly` cookie; browser JavaScript does not store the credential.
 - `AUTH_COOKIE_NAME=ah_admin_session`
 - `AUTH_REMEMBER_DURATION_SECONDS=604800`
 - `CORS_ALLOWED_ORIGINS`: the exact production frontend origin
+- `FRONTEND_URL=https://hair-braiding-coral.vercel.app`: trusted base URL used in invitation and reset links
+- `EMAIL_USERNAME`: Gmail account that sends administrator security emails
+- `EMAIL_PASSWORD`: a Google App Password, never the Gmail account password
 
 For local HTTP development set `AUTH_COOKIE_SECURE=false`.
 
