@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.io.BufferedInputStream;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -43,6 +46,7 @@ public class GalleryImageService {
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
     private static final List<String> ALLOWED_TYPES = List.of("image/jpeg", "image/png", "image/webp", "image/jpg");
     private static final int MAX_HERO_IMAGES = 5;
+    private static final int THUMBNAIL_MAX_EDGE = 640;
 
     public GalleryImageService(
             GalleryImageRepository imageRepository,
@@ -103,7 +107,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public synchronized ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
         // Validate file
         validateFile(file);
@@ -133,6 +137,8 @@ public class GalleryImageService {
         // Save file
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
+        Path thumbnailPath = createThumbnail(filePath, filename);
+
         // Create image entity
         GalleryImage image = new GalleryImage();
         image.setTitle(request.getTitle());
@@ -142,7 +148,9 @@ public class GalleryImageService {
         // Store correct image route that matches the serveImage endpoint
         String imageEndpoint = "/api/gallery/image/" + filename;
         image.setImageUrl(imageEndpoint);
-        image.setThumbnailUrl(imageEndpoint); // TODO: Generate thumbnail
+        image.setThumbnailUrl(thumbnailPath == null
+                ? imageEndpoint
+                : "/api/gallery/image/" + thumbnailPath.getFileName());
         
         image.setFileSize(file.getSize());
         image.setMimeType(file.getContentType());
@@ -183,12 +191,13 @@ public class GalleryImageService {
             return convertToResponse(saved);
         } catch (RuntimeException exception) {
             Files.deleteIfExists(filePath);
+            if (thumbnailPath != null) Files.deleteIfExists(thumbnailPath);
             throw exception;
         }
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public ImageResponse updateImage(Long id, ImageUpdateRequest request) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
@@ -234,7 +243,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public void deleteImage(Long id) {
         GalleryImage image = imageRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Image not found"));
@@ -244,6 +253,7 @@ public class GalleryImageService {
         // Resolve the physical file path BEFORE touching the DB,
         // but only delete the file AFTER the DB commit succeeds.
         Path resolvedFilePath = null;
+        Path resolvedThumbnailPath = null;
         if (image.getImageUrl() != null && image.getImageUrl().startsWith("/api/gallery/image/")) try {
             String filename = Paths.get(image.getImageUrl())
                     .getFileName()
@@ -262,6 +272,12 @@ public class GalleryImageService {
             }
 
             resolvedFilePath = filePath;
+            if (image.getThumbnailUrl() != null
+                    && image.getThumbnailUrl().startsWith("/api/gallery/image/")
+                    && !image.getThumbnailUrl().equals(image.getImageUrl())) {
+                Path thumbnailPath = uploadPath.resolve(Paths.get(image.getThumbnailUrl()).getFileName()).normalize();
+                if (thumbnailPath.startsWith(uploadPath)) resolvedThumbnailPath = thumbnailPath;
+            }
         } catch (Exception e) {
             log.warn("Could not resolve file path for deletion: {}", e.getMessage());
         }
@@ -272,11 +288,13 @@ public class GalleryImageService {
 
         if (resolvedFilePath != null) {
             Path fileToDelete = resolvedFilePath;
+            Path thumbnailToDelete = resolvedThumbnailPath;
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     try {
                         Files.deleteIfExists(fileToDelete);
+                        if (thumbnailToDelete != null) Files.deleteIfExists(thumbnailToDelete);
                     } catch (IOException e) {
                         log.error("Failed to delete file after DB commit: {}", e.getMessage());
                     }
@@ -286,7 +304,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public void reorderImages(List<Long> imageIds) {
         if (imageIds == null || imageIds.isEmpty()
                 || new java.util.HashSet<>(imageIds).size() != imageIds.size()) {
@@ -311,7 +329,7 @@ public class GalleryImageService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public ImageResponse registerImageUrl(String imageUrl, String title, Long categoryId, Long subcategoryId) {
         // Guard: if this URL is already a gallery record for this subcategory, return it as-is
         if (subcategoryId != null) {
@@ -408,6 +426,39 @@ public class GalleryImageService {
             return new int[]{image.getWidth(), image.getHeight()};
         } catch (IOException exception) {
             throw new RuntimeException("Could not read image dimensions", exception);
+        }
+    }
+
+    private Path createThumbnail(Path sourcePath, String sourceFilename) {
+        try {
+            BufferedImage source = ImageIO.read(sourcePath.toFile());
+            if (source == null) return null;
+
+            double scale = Math.min(1.0, (double) THUMBNAIL_MAX_EDGE
+                    / Math.max(source.getWidth(), source.getHeight()));
+            int width = Math.max(1, (int) Math.round(source.getWidth() * scale));
+            int height = Math.max(1, (int) Math.round(source.getHeight() * scale));
+            BufferedImage thumbnail = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = thumbnail.createGraphics();
+            try {
+                graphics.setColor(Color.WHITE);
+                graphics.fillRect(0, 0, width, height);
+                graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                graphics.drawImage(source, 0, 0, width, height, null);
+            } finally {
+                graphics.dispose();
+            }
+
+            String stem = sourceFilename.contains(".")
+                    ? sourceFilename.substring(0, sourceFilename.lastIndexOf('.'))
+                    : sourceFilename;
+            Path thumbnailPath = sourcePath.resolveSibling(stem + "-thumb.jpg");
+            if (!ImageIO.write(thumbnail, "jpg", thumbnailPath.toFile())) return null;
+            return thumbnailPath;
+        } catch (IOException exception) {
+            log.warn("Could not generate thumbnail for {}: {}", sourceFilename, exception.getMessage());
+            return null;
         }
     }
 

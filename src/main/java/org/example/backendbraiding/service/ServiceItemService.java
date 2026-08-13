@@ -61,7 +61,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public ServiceItem createService(ServiceItemRequest request) {
         ServiceItem service = new ServiceItem();
         applyRequest(service, request, true);
@@ -71,7 +71,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public ServiceItem updateService(Long id, ServiceItemRequest request) {
         ServiceItem service = getServiceById(id);
         String before = pricingSummary(service);
@@ -206,7 +206,7 @@ public class ServiceItemService {
     private String clean(String value) { return value == null ? "" : value.trim(); }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public void deleteService(Long id) {
         ServiceItem service = getServiceById(id);
         service.setActive(false);
@@ -215,7 +215,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public ServiceItem restoreService(Long id) {
         ServiceItem service = serviceItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Archived service not found"));
@@ -228,7 +228,7 @@ public class ServiceItemService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public void reorderServices(List<Long> serviceIds) {
         List<ServiceItem> services = serviceItemRepository.findAllById(serviceIds);
         if (services.size() != serviceIds.size() || services.stream().anyMatch(service -> !service.isActive())) {

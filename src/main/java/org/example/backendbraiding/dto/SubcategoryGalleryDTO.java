@@ -10,5 +10,6 @@ public class SubcategoryGalleryDTO {
     private String slug;
     private String image;
     private List<String> images;
+    private List<String> thumbnailImages;
     private List<String> imageAltTexts;
 }

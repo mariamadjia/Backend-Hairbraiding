@@ -101,7 +101,7 @@ public class PricingManagementService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public List<ServiceItem> updatePrices(PricingBatchRequest request) {
         String batchId = UUID.randomUUID().toString();
         HashSet<Long> serviceIds = new HashSet<>();
@@ -182,7 +182,7 @@ public class PricingManagementService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public ServiceItem cloneSize(ClonePricingSizeRequest request) {
         ServiceItem source = activeService(request.getCloneFromServiceId());
         if (serviceItemRepository.countActiveNameConflicts(
@@ -252,7 +252,7 @@ public class PricingManagementService {
     }
 
     @Transactional
-    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
+    @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
     public List<ServiceItem> addLength(AddPricingLengthRequest request) {
         Map<Long, AddPricingLengthRequest.ServicePrice> requestedPrices =
                 request.getServicePrices() == null ? Map.of() : request.getServicePrices().stream()

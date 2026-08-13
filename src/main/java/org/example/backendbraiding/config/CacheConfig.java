@@ -21,6 +21,7 @@ public class CacheConfig {
             "publicCategories",
             "allCategories",
             "galleryCards",
+            "galleryFull",
             "availableSlots",
             "appointments",
             "customers",
