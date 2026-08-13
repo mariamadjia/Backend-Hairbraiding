@@ -40,7 +40,6 @@ public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final CustomerRepository customerRepository;
-    private final SmsService smsService;
     private final ServiceItemRepository serviceItemRepository;
     private final AdminRepository adminRepository;
     private final AppointmentSettingsRepository settingsRepository;
@@ -51,10 +50,12 @@ public class AppointmentService {
     private final BookingQuoteTokenService bookingQuoteTokenService;
     private final AddOnService addOnService;
     private final TimeSlotRepository timeSlotRepository;
-    private final EmailService emailService;
     private final EntityManager entityManager;
+    private final AppointmentEventService appointmentEventService;
+    private final NotificationOutboxService notificationOutboxService;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
+    private static final String DEPOSIT_POLICY_VERSION = "non-refundable-v1";
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -135,6 +136,8 @@ public class AppointmentService {
         appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
         appointment.setPrice(MoneySupport.fromCents(quote.priceCents()));
         appointment.setDepositAmount(quote.depositCents());
+        appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
+        appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
         appointment.setDurationMinutes(null);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
@@ -153,11 +156,13 @@ public class AppointmentService {
         }
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
+        appointmentEventService.record(savedAppointment, "CREATED", null, null);
         AppointmentResponseDTO response = mapToResponseDTO(savedAppointment);
         response.setPaymentToken(bookingPaymentTokenService.createToken(savedAppointment.getId()));
-        emailService.sendAppointmentUpdate(customer.getEmail(), "Appointment request received",
+        notificationOutboxService.enqueueEmail(savedAppointment, "Appointment request received",
                 "We received your appointment request for " + appointment.getAppointmentDateTime()
-                        + " Central Time. Complete the payment authorization to send it for review.");
+                        + " in the salon timezone. Complete the payment authorization to send it for review. "
+                        + "As accepted during booking, the deposit is non-refundable once captured.");
         return response;
     }
 
@@ -185,6 +190,7 @@ public class AppointmentService {
             appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
             appointment.setAdminNotes("Automatically cancelled: payment was not completed in time");
             appointmentRepository.save(appointment);
+            appointmentEventService.record(appointment, "AUTOMATICALLY_CANCELLED", null, appointment.getAdminNotes());
         }
     }
 
@@ -200,11 +206,16 @@ public class AppointmentService {
         if (appointment.getApprovedAt() != null) {
             throw new IllegalStateException("Payment capture is already processing for this appointment");
         }
-        if (!appointment.getAppointmentDateTime().isAfter(LocalDateTime.now())) {
+        LocalDateTime now = salonNow();
+        if (!appointment.getAppointmentDateTime().isAfter(now)) {
             throw new IllegalStateException("Past appointments cannot be approved");
         }
         if (appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED) {
             throw new IllegalStateException("Payment must be authorized before approving an appointment");
+        }
+        if (PaymentLifecycleRules.isAuthorizationExpired(
+                appointment.getPaymentAuthorizationExpiresAt(), LocalDateTime.now())) {
+            throw new IllegalStateException("Payment authorization has expired; the customer must authorize payment again");
         }
 
         Admin admin = adminRepository.findById(adminId)
@@ -215,13 +226,14 @@ public class AppointmentService {
         // new enum value that older PostgreSQL check constraints reject.
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setApprovedBy(admin);
-        appointment.setApprovedAt(LocalDateTime.now());
+        appointment.setApprovedAt(now);
         
         if (actionDTO.getAdminNotes() != null) {
             appointment.setAdminNotes(actionDTO.getAdminNotes());
         }
 
         Appointment updatedAppointment = appointmentRepository.save(appointment);
+        appointmentEventService.record(updatedAppointment, "APPROVAL_REQUESTED", admin, actionDTO.getAdminNotes());
 
         if (appointment.getPaymentIntentId() != null &&
             appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
@@ -266,13 +278,14 @@ public class AppointmentService {
 
         appointment.setStatus(Appointment.AppointmentStatus.DENIED);
         appointment.setApprovedBy(admin);
-        appointment.setApprovedAt(LocalDateTime.now());
+        appointment.setApprovedAt(salonNow());
         
         if (actionDTO.getAdminNotes() != null) {
             appointment.setAdminNotes(actionDTO.getAdminNotes());
         }
 
         Appointment updatedAppointment = appointmentRepository.save(appointment);
+        appointmentEventService.record(updatedAppointment, "DENIED", admin, actionDTO.getAdminNotes());
         
         if (appointment.getPaymentIntentId() != null && appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
             String paymentIntentId = appointment.getPaymentIntentId();
@@ -288,16 +301,12 @@ public class AppointmentService {
             });
         }
         
-        String customerName = appointment.getCustomer().getFirstName();
-        boolean smsSent = smsService.sendAppointmentDeniedSms(
-            appointment.getCustomer().getPhoneNumber(),
-            customerName,
-            actionDTO.getAdminNotes()
-        );
-        boolean emailSent = emailService.sendAppointmentUpdate(appointment.getCustomer().getEmail(), "Appointment request update",
-                "Your appointment request could not be approved. "
-                        + (actionDTO.getAdminNotes() == null ? "Please contact the salon." : actionDTO.getAdminNotes()));
-        recordNotificationResult(updatedAppointment, emailSent, smsSent);
+        String denialMessage = "Hi " + appointment.getCustomer().getFirstName()
+                + ", unfortunately we cannot accommodate your appointment request. Reason: "
+                + actionDTO.getAdminNotes() + ". Please contact us to reschedule.";
+        notificationOutboxService.enqueueSms(updatedAppointment, denialMessage);
+        notificationOutboxService.enqueueEmail(updatedAppointment, "Appointment request update",
+                "Your appointment request could not be approved. " + actionDTO.getAdminNotes());
         
         return mapToResponseDTO(updatedAppointment);
     }
@@ -329,7 +338,7 @@ public class AppointmentService {
     private Specification<Appointment> workflowSpecification(String requestedView, String requestedDetail, String query) {
         String view = requestedView == null ? "NEEDS_ACTION" : requestedView.toUpperCase(Locale.ROOT);
         String detail = requestedDetail == null ? "ALL" : requestedDetail.toUpperCase(Locale.ROOT);
-        LocalDateTime now = ZonedDateTime.now(ZoneId.of("America/Chicago")).toLocalDateTime();
+        LocalDateTime now = salonNow();
 
         return (root, criteriaQuery, cb) -> {
             Predicate pending = cb.equal(root.get("status"), Appointment.AppointmentStatus.PENDING);
@@ -401,17 +410,20 @@ public class AppointmentService {
         if (appointment.getStatus() != Appointment.AppointmentStatus.APPROVED) {
             throw new IllegalStateException("Only approved appointments can be completed");
         }
-        LocalDateTime now = ZonedDateTime.now(ZoneId.of("America/Chicago")).toLocalDateTime();
+        LocalDateTime now = salonNow();
         if (appointment.getAppointmentDateTime().isAfter(now)) {
             throw new IllegalStateException("A future appointment cannot be marked complete");
         }
         appointment.setStatus(Appointment.AppointmentStatus.COMPLETED);
-        appointment.setApprovedBy(adminRepository.findById(adminId)
-                .orElseThrow(() -> new RuntimeException("Admin not found")));
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
+        appointment.setApprovedBy(admin);
         if (actionDTO.getAdminNotes() != null && !actionDTO.getAdminNotes().isBlank()) {
             appointment.setAdminNotes(actionDTO.getAdminNotes());
         }
-        return mapToResponseDTO(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+        appointmentEventService.record(saved, "COMPLETED", admin, actionDTO.getAdminNotes());
+        return mapToResponseDTO(saved);
     }
 
     @Transactional
@@ -431,11 +443,13 @@ public class AppointmentService {
         }
 
         appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
-        appointment.setApprovedBy(adminRepository.findById(adminId)
-                .orElseThrow(() -> new RuntimeException("Admin not found")));
-        appointment.setApprovedAt(LocalDateTime.now());
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
+        appointment.setApprovedBy(admin);
+        appointment.setApprovedAt(salonNow());
         appointment.setAdminNotes(actionDTO.getAdminNotes().trim());
         Appointment saved = appointmentRepository.save(appointment);
+        appointmentEventService.record(saved, "CANCELLED", admin, actionDTO.getAdminNotes());
 
         if (saved.getPaymentIntentId() != null
                 && saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
@@ -452,12 +466,12 @@ public class AppointmentService {
             });
         }
 
-        boolean smsSent = smsService.sendSms(saved.getCustomer().getPhoneNumber(),
+        notificationOutboxService.enqueueSms(saved,
                 "Hi " + saved.getCustomer().getFirstName()
                         + ", your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes());
-        boolean emailSent = emailService.sendAppointmentUpdate(saved.getCustomer().getEmail(), "Appointment cancelled",
-                "Your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes());
-        recordNotificationResult(saved, emailSent, smsSent);
+        notificationOutboxService.enqueueEmail(saved, "Appointment cancelled",
+                "Your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes()
+                        + ". The captured deposit remains non-refundable under the policy accepted at booking.");
         return mapToResponseDTO(saved);
     }
 
@@ -465,49 +479,32 @@ public class AppointmentService {
     public AppointmentResponseDTO retryNotification(Long appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
-        boolean smsSent;
-        boolean emailSent;
         String name = appointment.getCustomer().getFirstName();
         if (appointment.getStatus() == Appointment.AppointmentStatus.APPROVED) {
-            smsSent = smsService.sendAppointmentApprovedSms(
-                    appointment.getCustomer().getPhoneNumber(), name, appointment.getAppointmentDateTime().toString());
-            emailSent = emailService.sendAppointmentUpdate(
-                    appointment.getCustomer().getEmail(), "Appointment approved",
-                    "Your appointment for " + appointment.getAppointmentDateTime() + " Central Time has been approved.");
+            notificationOutboxService.enqueueSms(appointment,
+                    "Hi " + name + "! Your braiding appointment for " + appointment.getAppointmentDateTime()
+                            + " has been approved. We look forward to seeing you!");
+            notificationOutboxService.enqueueEmail(appointment, "Appointment approved",
+                    "Your appointment for " + appointment.getAppointmentDateTime() + " in the salon timezone has been approved.");
         } else if (appointment.getStatus() == Appointment.AppointmentStatus.DENIED) {
-            smsSent = smsService.sendAppointmentDeniedSms(
-                    appointment.getCustomer().getPhoneNumber(), name, appointment.getAdminNotes());
-            emailSent = emailService.sendAppointmentUpdate(
-                    appointment.getCustomer().getEmail(), "Appointment request update",
+            notificationOutboxService.enqueueSms(appointment,
+                    "Hi " + name + ", your appointment request was denied. Reason: " + appointment.getAdminNotes());
+            notificationOutboxService.enqueueEmail(appointment, "Appointment request update",
                     "Your appointment request could not be approved. " + appointment.getAdminNotes());
         } else if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {
             String message = "Your appointment was cancelled by the salon. Reason: " + appointment.getAdminNotes();
-            smsSent = smsService.sendSms(appointment.getCustomer().getPhoneNumber(), "Hi " + name + ", " + message);
-            emailSent = emailService.sendAppointmentUpdate(
-                    appointment.getCustomer().getEmail(), "Appointment cancelled", message);
+            notificationOutboxService.enqueueSms(appointment, "Hi " + name + ", " + message);
+            notificationOutboxService.enqueueEmail(appointment, "Appointment cancelled", message);
         } else {
             throw new IllegalStateException("Notifications can only be retried for approved, denied, or cancelled appointments");
         }
-        recordNotificationResult(appointment, emailSent, smsSent);
         return mapToResponseDTO(appointment);
     }
 
-    private void recordNotificationResult(Appointment appointment, boolean emailSent, boolean smsSent) {
-        appointment.setNotificationStatus(emailSent && smsSent ? "SENT"
-                : !emailSent && !smsSent ? "FAILED"
-                : emailSent ? "SMS_FAILED" : "EMAIL_FAILED");
-        appointment.setNotificationLastAttemptAt(LocalDateTime.now());
-        appointmentRepository.save(appointment);
-    }
-
-    public List<AppointmentResponseDTO> getUpcomingAppointments() {
-        AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
-                .orElseGet(this::createDefaultSettings);
-        LocalDateTime salonNow = ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
-        return appointmentRepository.findUpcomingAppointments(salonNow)
-            .stream()
-            .map(this::mapToResponseDTO)
-            .collect(Collectors.toList());
+    public Page<AppointmentResponseDTO> getUpcomingAppointments(Pageable pageable) {
+        LocalDateTime salonNow = salonNow();
+        return appointmentRepository.findActiveUpcomingAppointments(salonNow, pageable)
+                .map(this::mapToResponseDTO);
     }
 
     public Page<AppointmentResponseDTO> getAppointmentsByStatus(String status, Pageable pageable) {
@@ -533,11 +530,13 @@ public class AppointmentService {
         return mapToResponseDTO(appointment);
     }
 
-    public List<AppointmentResponseDTO> getAppointmentsByDateRange(LocalDateTime startDate, LocalDateTime endDate) {
-        return appointmentRepository.findAppointmentsBetweenDates(startDate, endDate, Pageable.unpaged())
-            .stream()
-            .map(this::mapToResponseDTO)
-            .collect(Collectors.toList());
+    public Page<AppointmentResponseDTO> getAppointmentsByDateRange(
+            LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
+        if (!endDate.isAfter(startDate)) throw new IllegalArgumentException("End date must be after start date");
+        if (!AppointmentManagementRules.isValidDateRange(startDate, endDate))
+            throw new IllegalArgumentException("Date range cannot exceed 366 days");
+        return appointmentRepository.findAppointmentsBetweenDates(startDate, endDate, pageable)
+                .map(this::mapToResponseDTO);
     }
 
     private AppointmentResponseDTO mapToResponseDTO(Appointment appointment) {
@@ -588,10 +587,14 @@ public class AppointmentService {
             dto.setPaymentStatus(appointment.getPaymentStatus().name());
         }
         dto.setDepositAmount(appointment.getDepositAmount());
+        dto.setAmountAuthorized(appointment.getAmountAuthorized());
+        dto.setAmountCaptured(appointment.getAmountCaptured());
         dto.setPaymentCapturedAt(appointment.getPaymentCapturedAt());
         dto.setPaymentAuthorizationExpiresAt(appointment.getPaymentAuthorizationExpiresAt());
         dto.setPaymentMethodLast4(appointment.getPaymentMethodLast4());
         dto.setPaymentMethodBrand(appointment.getPaymentMethodBrand());
+        dto.setDepositPolicyVersion(appointment.getDepositPolicyVersion());
+        dto.setDepositPolicyAcceptedAt(appointment.getDepositPolicyAcceptedAt());
         dto.setNotificationStatus(appointment.getNotificationStatus());
         dto.setNotificationLastAttemptAt(appointment.getNotificationLastAttemptAt());
         dto.setAddOns(appointment.getAddOns().stream().map(item ->
@@ -624,15 +627,17 @@ public class AppointmentService {
         settings.setMaxAppointmentsPerSlot(dto.getMaxAppointmentsPerSlot());
         settings.setRequireApproval(dto.getRequireApproval());
         settings.setAllowSameDayBooking(dto.getAllowSameDayBooking());
+        settings.setBufferTimeBetweenAppointments(dto.getBufferTimeBetweenAppointments());
+        try {
+            settings.setTimezone(ZoneId.of(dto.getTimezone().trim()).getId());
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("Timezone must be a valid IANA timezone, such as America/Chicago");
+        }
         settings.setUpdatedAt(LocalDateTime.now());
         settings.setUpdatedBy(admin);
         
         settings = settingsRepository.save(settings);
 
-        List<TimeSlot> existingSlots = timeSlotRepository.findAll();
-        existingSlots.forEach(slot -> slot.setCapacity(dto.getMaxAppointmentsPerSlot()));
-        timeSlotRepository.saveAll(existingSlots);
-        
         return mapToSettingsDTO(settings);
     }
 
@@ -643,6 +648,8 @@ public class AppointmentService {
         dto.setMaxAppointmentsPerSlot(settings.getMaxAppointmentsPerSlot());
         dto.setRequireApproval(settings.getRequireApproval());
         dto.setAllowSameDayBooking(settings.getAllowSameDayBooking());
+        dto.setBufferTimeBetweenAppointments(settings.getBufferTimeBetweenAppointments());
+        dto.setTimezone(settings.getTimezone());
         dto.setUpdatedAt(settings.getUpdatedAt());
         if (settings.getUpdatedBy() != null) {
             dto.setUpdatedByName(settings.getUpdatedBy().getFirstName() + " " + 
@@ -701,17 +708,23 @@ public class AppointmentService {
                 businessHours.getOpenTime() + " - " + businessHours.getCloseTime() + ")");
         }
 
+        int occupiedMinutes = slotIntervalMinutes(settings) + bufferMinutes(settings);
+        LocalDateTime slotEnd = appointmentDateTime.plusMinutes(occupiedMinutes);
+        if (slotEnd.isAfter(businessClose)) {
+            throw new IllegalArgumentException("Appointment slot and buffer must end before business closing time");
+        }
+
         List<TimeSlot> configuredSlots = timeSlotRepository.findByDayOfWeekOrderBySlotOrderAsc(
                 appointmentDateTime.getDayOfWeek().name());
         if (configuredSlots.isEmpty()) {
             long minutesFromOpening = java.time.Duration.between(businessOpen, appointmentDateTime).toMinutes();
-            if (minutesFromOpening % slotIntervalMinutes(settings) != 0) {
+            if (minutesFromOpening % occupiedMinutes != 0) {
                 throw new IllegalArgumentException("Appointment time must match an available slot");
             }
         }
-        List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findBlockingStart(appointmentDateTime);
+        List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findOverlappingSlots(appointmentDateTime, slotEnd);
         blockedTimeSlotRepository.findByIsRecurringTrue().stream()
-            .filter(block -> BookingRules.recurringBlockContains(block, appointmentDateTime))
+            .filter(block -> BookingRules.recurringBlockOverlaps(block, appointmentDateTime, slotEnd))
             .forEach(blockedSlots::add);
         if (!blockedSlots.isEmpty()) {
             throw new IllegalStateException("This time slot is blocked: " + blockedSlots.get(0).getReason());
@@ -727,7 +740,9 @@ public class AppointmentService {
                         }
                         long minutesFromWindowStart = java.time.Duration.between(
                                 slot.getStartTime(), appointmentTime).toMinutes();
-                        return minutesFromWindowStart % slotIntervalMinutes(settings) == 0;
+                        long windowMinutes = java.time.Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
+                        return minutesFromWindowStart % occupiedMinutes == 0
+                                && minutesFromWindowStart + occupiedMinutes <= windowMinutes;
                     })
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Appointment time is not a configured slot"));
@@ -766,6 +781,16 @@ public class AppointmentService {
     private int maximumCapacity(AppointmentSettings settings) {
         Integer configured = settings.getMaxAppointmentsPerSlot();
         return configured == null || configured < 1 ? 1 : configured;
+    }
+
+    private int bufferMinutes(AppointmentSettings settings) {
+        Integer configured = settings.getBufferTimeBetweenAppointments();
+        return configured == null || configured < 0 ? 0 : configured;
+    }
+
+    private LocalDateTime salonNow() {
+        AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc().orElseGet(this::createDefaultSettings);
+        return ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
     }
 
     private LengthOption resolveLengthOption(ServiceItem service, Long optionId, String selectedLength) {

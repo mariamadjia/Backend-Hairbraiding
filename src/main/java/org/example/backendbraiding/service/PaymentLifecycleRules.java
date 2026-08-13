@@ -1,6 +1,7 @@
 package org.example.backendbraiding.service;
 
 import java.util.Set;
+import java.time.LocalDateTime;
 
 final class PaymentLifecycleRules {
     private static final Set<String> RETRYABLE_CONFIRMATION_STATUSES = Set.of(
@@ -15,5 +16,13 @@ final class PaymentLifecycleRules {
 
     static boolean isAuthorizationComplete(String stripeStatus) {
         return "requires_capture".equals(stripeStatus) || "succeeded".equals(stripeStatus);
+    }
+
+    static boolean isAuthorizationExpired(LocalDateTime expiresAt, LocalDateTime now) {
+        return expiresAt == null || !expiresAt.isAfter(now);
+    }
+
+    static boolean isFullCapture(Long requestedAmount, long amountCapturable) {
+        return requestedAmount == null || requestedAmount == amountCapturable;
     }
 }

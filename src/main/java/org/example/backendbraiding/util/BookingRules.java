@@ -17,11 +17,9 @@ public final class BookingRules {
         if ("MONTHLY".equals(pattern) && block.getStartDateTime().getDayOfMonth() != start.getDayOfMonth()) return false;
         if (!"DAILY".equals(pattern) && !"WEEKLY".equals(pattern) && !"MONTHLY".equals(pattern)) return false;
 
-        LocalTime blockStart = block.getStartDateTime().toLocalTime();
-        LocalTime blockEnd = block.getEndDateTime().toLocalTime();
-        LocalTime slotStart = start.toLocalTime();
-        LocalTime slotEnd = end.toLocalTime();
-        return slotStart.isBefore(blockEnd) && slotEnd.isAfter(blockStart);
+        return recurringBlockContains(block, start)
+                || recurringBlockContains(block, end.minusNanos(1))
+                || intervalContainsTime(start, end, block.getStartDateTime().toLocalTime());
     }
 
     public static boolean recurringBlockContains(BlockedTimeSlot block, LocalDateTime start) {
@@ -40,5 +38,14 @@ public final class BookingRules {
             return !candidate.isBefore(blockStart) && candidate.isBefore(blockEnd);
         }
         return !candidate.isBefore(blockStart) || candidate.isBefore(blockEnd);
+    }
+
+    private static boolean intervalContainsTime(LocalDateTime start, LocalDateTime end, LocalTime candidate) {
+        LocalTime intervalStart = start.toLocalTime();
+        LocalTime intervalEnd = end.toLocalTime();
+        if (end.toLocalDate().isAfter(start.toLocalDate()) || !intervalEnd.isAfter(intervalStart)) {
+            return !candidate.isBefore(intervalStart) || candidate.isBefore(intervalEnd);
+        }
+        return !candidate.isBefore(intervalStart) && candidate.isBefore(intervalEnd);
     }
 }

@@ -6,6 +6,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -18,7 +20,16 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
     
     List<Appointment> findByStatus(Appointment.AppointmentStatus status);
     
+    @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "approvedBy"})
     Page<Appointment> findByStatus(Appointment.AppointmentStatus status, Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "approvedBy"})
+    Page<Appointment> findAll(Pageable pageable);
+
+    @Override
+    @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "approvedBy"})
+    Page<Appointment> findAll(Specification<Appointment> specification, Pageable pageable);
     
     List<Appointment> findByCustomerId(Long customerId);
 
@@ -30,11 +41,18 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
     
     @Query("SELECT a FROM Appointment a WHERE a.appointmentDateTime >= :startDate " +
            "AND a.appointmentDateTime < :endDate ORDER BY a.appointmentDateTime ASC")
+    @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "approvedBy"})
     Page<Appointment> findAppointmentsBetweenDates(
         @Param("startDate") LocalDateTime startDate, 
         @Param("endDate") LocalDateTime endDate,
         Pageable pageable
     );
+
+    @Query("SELECT a FROM Appointment a WHERE a.appointmentDateTime >= :fromDate " +
+           "AND (a.status = 'APPROVED' OR (a.status = 'PENDING' AND a.approvedAt IS NOT NULL)) " +
+           "ORDER BY a.appointmentDateTime ASC")
+    @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "approvedBy"})
+    Page<Appointment> findActiveUpcomingAppointments(@Param("fromDate") LocalDateTime fromDate, Pageable pageable);
     
     @Query("SELECT a FROM Appointment a WHERE a.status = :status AND a.appointmentDateTime >= :fromDate ORDER BY a.appointmentDateTime ASC")
     List<Appointment> findUpcomingAppointmentsByStatus(
@@ -77,6 +95,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
 
     @Query("SELECT a FROM Appointment a WHERE a.status = 'PENDING' AND a.paymentStatus = 'FAILED'")
     List<Appointment> findFailedPendingReservations();
+
+    @Query("SELECT a FROM Appointment a WHERE a.paymentStatus = 'AUTHORIZED' " +
+           "AND a.paymentAuthorizationExpiresAt IS NOT NULL AND a.paymentAuthorizationExpiresAt <= :now")
+    List<Appointment> findExpiredAuthorizations(@Param("now") LocalDateTime now);
     
     Optional<Appointment> findByPaymentIntentId(String paymentIntentId);
 

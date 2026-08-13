@@ -56,4 +56,7 @@ public class AppointmentRequestDTO {
 
     @Size(max = 1000, message = "Notes cannot exceed 1000 characters")
     private String notes;
+
+    @AssertTrue(message = "You must accept the non-refundable deposit policy")
+    private Boolean depositPolicyAccepted;
 }

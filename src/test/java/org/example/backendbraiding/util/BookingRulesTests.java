@@ -29,6 +29,19 @@ class BookingRulesTests {
                 LocalDateTime.parse("2026-08-20T12:30:00"), LocalDateTime.parse("2026-08-20T12:45:00")));
     }
 
+    @Test
+    void recurringBlocksDetectPartialAndOvernightOverlap() {
+        BlockedTimeSlot daytime = block("2026-07-20T10:30:00", "2026-07-20T11:30:00", "DAILY");
+        assertTrue(BookingRules.recurringBlockOverlaps(daytime,
+                LocalDateTime.parse("2026-07-21T10:00:00"), LocalDateTime.parse("2026-07-21T11:00:00")));
+
+        BlockedTimeSlot overnight = block("2026-07-20T22:00:00", "2026-07-21T02:00:00", "DAILY");
+        assertTrue(BookingRules.recurringBlockOverlaps(overnight,
+                LocalDateTime.parse("2026-07-22T23:00:00"), LocalDateTime.parse("2026-07-23T00:00:00")));
+        assertTrue(BookingRules.recurringBlockOverlaps(overnight,
+                LocalDateTime.parse("2026-07-23T01:30:00"), LocalDateTime.parse("2026-07-23T02:30:00")));
+    }
+
     private BlockedTimeSlot block(String start, String end, String pattern) {
         BlockedTimeSlot block = new BlockedTimeSlot();
         block.setStartDateTime(LocalDateTime.parse(start));

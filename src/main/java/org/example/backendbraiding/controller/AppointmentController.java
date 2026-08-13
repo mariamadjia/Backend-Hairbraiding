@@ -6,6 +6,7 @@ import org.example.backendbraiding.dto.AppointmentActionDTO;
 import org.example.backendbraiding.dto.AppointmentRequestDTO;
 import org.example.backendbraiding.dto.AppointmentResponseDTO;
 import org.example.backendbraiding.dto.AppointmentSettingsDTO;
+import org.example.backendbraiding.dto.AppointmentEventDTO;
 import org.example.backendbraiding.model.Admin;
 import org.example.backendbraiding.repository.AdminRepository;
 import org.example.backendbraiding.service.AppointmentService;
@@ -31,6 +32,7 @@ public class AppointmentController {
 
     private final AppointmentService appointmentService;
     private final AdminRepository adminRepository;
+    private final org.example.backendbraiding.service.AppointmentEventService appointmentEventService;
 
     @PostMapping
     public ResponseEntity<AppointmentResponseDTO> createAppointment(
@@ -66,8 +68,12 @@ public class AppointmentController {
 
     @GetMapping("/upcoming")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AppointmentResponseDTO>> getUpcomingAppointments() {
-        List<AppointmentResponseDTO> appointments = appointmentService.getUpcomingAppointments();
+    public ResponseEntity<Page<AppointmentResponseDTO>> getUpcomingAppointments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        int boundedSize = Math.min(Math.max(size, 1), 200);
+        Page<AppointmentResponseDTO> appointments = appointmentService.getUpcomingAppointments(
+                PageRequest.of(Math.max(page, 0), boundedSize, Sort.by("appointmentDateTime").ascending()));
         return ResponseEntity.ok(appointments);
     }
 
@@ -111,12 +117,24 @@ public class AppointmentController {
         return ResponseEntity.ok(appointment);
     }
 
+    @GetMapping("/{id}/events")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AppointmentEventDTO>> getAppointmentEvents(@PathVariable Long id) {
+        appointmentService.getAppointmentById(id);
+        return ResponseEntity.ok(appointmentEventService.history(id));
+    }
+
     @GetMapping("/date-range")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AppointmentResponseDTO>> getAppointmentsByDateRange(
+    public ResponseEntity<Page<AppointmentResponseDTO>> getAppointmentsByDateRange(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate) {
-        List<AppointmentResponseDTO> appointments = appointmentService.getAppointmentsByDateRange(startDate, endDate);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        int boundedSize = Math.min(Math.max(size, 1), 200);
+        Page<AppointmentResponseDTO> appointments = appointmentService.getAppointmentsByDateRange(
+                startDate, endDate, PageRequest.of(Math.max(page, 0), boundedSize,
+                        Sort.by("appointmentDateTime").ascending()));
         return ResponseEntity.ok(appointments);
     }
 

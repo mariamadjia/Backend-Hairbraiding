@@ -318,10 +318,12 @@ public class AvailabilityService {
             for (TimeSlot configured : configuredSlots) {
                 LocalDateTime windowStart = LocalDateTime.of(date, configured.getStartTime());
                 LocalDateTime windowEnd = LocalDateTime.of(date, configured.getEndTime());
-                for (LocalDateTime start = windowStart; start.isBefore(windowEnd);
-                     start = start.plusMinutes(slotIntervalMinutes(settings))) {
+                int occupiedMinutes = slotIntervalMinutes(settings) + bufferMinutes(settings);
+                for (LocalDateTime start = windowStart;
+                     AppointmentManagementRules.slotFitsWindow(start, occupiedMinutes, windowEnd);
+                     start = start.plusMinutes(occupiedMinutes)) {
                     slots.add(checkSlotAvailability(start, zoneId, slotCapacity(configured),
-                            blockedSlots, recurringBlocks, appointmentsByStart));
+                            occupiedMinutes, blockedSlots, recurringBlocks, appointmentsByStart));
                 }
             }
             return slots;
@@ -338,22 +340,25 @@ public class AvailabilityService {
         LocalDateTime slotStart = LocalDateTime.of(date, currentTime);
         LocalDateTime slotEnd = LocalDateTime.of(endDate, closeTime);
         
-        while (slotStart.isBefore(slotEnd)) {
+        int occupiedMinutes = slotIntervalMinutes(settings) + bufferMinutes(settings);
+        while (AppointmentManagementRules.slotFitsWindow(slotStart, occupiedMinutes, slotEnd)) {
             slots.add(checkSlotAvailability(slotStart, zoneId, maximumCapacity(settings),
-                    blockedSlots, recurringBlocks, appointmentsByStart));
-            slotStart = slotStart.plusMinutes(slotIntervalMinutes(settings));
+                    occupiedMinutes, blockedSlots, recurringBlocks, appointmentsByStart));
+            slotStart = slotStart.plusMinutes(occupiedMinutes);
         }
         
         return slots;
     }
     
     private AvailableSlotDTO checkSlotAvailability(LocalDateTime start, ZoneId timezone, int capacity,
+                                                    int occupiedMinutes,
                                                     List<BlockedTimeSlot> blockedSlots,
                                                     List<BlockedTimeSlot> recurringBlocks,
                                                     Map<LocalDateTime, Long> appointmentsByStart) {
         AvailableSlotDTO slot = new AvailableSlotDTO();
         slot.setStartTime(start);
-        slot.setEndTime(null);
+        LocalDateTime end = start.plusMinutes(occupiedMinutes);
+        slot.setEndTime(end);
         
         // Check if in the past (using configured timezone)
         ZonedDateTime now = ZonedDateTime.now(timezone);
@@ -368,13 +373,13 @@ public class AvailabilityService {
         
         // Check if blocked (including recurring blocks)
         BlockedTimeSlot blockingSlot = blockedSlots.stream()
-                .filter(block -> !start.isBefore(block.getStartDateTime()) && start.isBefore(block.getEndDateTime()))
+                .filter(block -> start.isBefore(block.getEndDateTime()) && end.isAfter(block.getStartDateTime()))
                 .findFirst()
                 .orElse(null);
         
         // Check for recurring blocks that might apply to this slot (cached for performance)
         for (BlockedTimeSlot recurringBlock : recurringBlocks) {
-            if (BookingRules.recurringBlockContains(recurringBlock, start)) {
+            if (BookingRules.recurringBlockOverlaps(recurringBlock, start, end)) {
                 blockingSlot = recurringBlock;
                 break;
             }
@@ -455,6 +460,11 @@ public class AvailabilityService {
         } catch (Exception ignored) {
             return ZoneId.of("America/Chicago");
         }
+    }
+
+    private int bufferMinutes(AppointmentSettings settings) {
+        Integer configured = settings.getBufferTimeBetweenAppointments();
+        return configured == null || configured < 0 ? 0 : configured;
     }
 
     private int slotIntervalMinutes(AppointmentSettings settings) {

@@ -11,6 +11,7 @@ import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.repository.AppointmentRepository;
 import org.example.backendbraiding.repository.AppointmentSettingsRepository;
 import org.example.backendbraiding.service.PaymentService;
+import org.example.backendbraiding.service.StripeWebhookEventService;
 import org.example.backendbraiding.dto.PaymentCaptureRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,7 @@ public class StripeWebhookController {
     private final AppointmentRepository appointmentRepository;
     private final AppointmentSettingsRepository settingsRepository;
     private final PaymentService paymentService;
+    private final StripeWebhookEventService webhookEventService;
 
     @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
@@ -61,6 +63,9 @@ public class StripeWebhookController {
 
     private ResponseEntity<String> handleEvent(Event event) {
         log.info("Received Stripe webhook event: {}", event.getType());
+        if (!webhookEventService.begin(event.getId(), event.getType())) {
+            return ResponseEntity.ok("Webhook already received");
+        }
         try {
             switch (event.getType()) {
                 case "payment_intent.succeeded",
@@ -71,11 +76,13 @@ public class StripeWebhookController {
                         handlePaymentIntentAmountCapturableUpdated(requirePaymentIntent(event));
                 default -> log.info("Unhandled event type: {}", event.getType());
             }
+            webhookEventService.processed(event.getId());
             return ResponseEntity.ok("Webhook received");
         } catch (RuntimeException exception) {
             // A non-2xx response asks Stripe to retry instead of silently losing
             // an event that could not be deserialized or persisted.
             log.error("Could not process Stripe event {}", event.getId(), exception);
+            webhookEventService.failed(event.getId(), exception.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Webhook processing failed");
         }
     }

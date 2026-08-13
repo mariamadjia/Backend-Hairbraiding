@@ -98,6 +98,12 @@ public class Appointment {
     @Column(name = "deposit_amount")
     private Long depositAmount;
 
+    @Column(name = "amount_authorized")
+    private Long amountAuthorized;
+
+    @Column(name = "amount_captured")
+    private Long amountCaptured;
+
     @Column(name = "payment_captured_at")
     private LocalDateTime paymentCapturedAt;
 
@@ -112,6 +118,12 @@ public class Appointment {
 
     @Column(name = "payment_authorization_expires_at")
     private LocalDateTime paymentAuthorizationExpiresAt;
+
+    @Column(name = "deposit_policy_version", length = 50)
+    private String depositPolicyVersion;
+
+    @Column(name = "deposit_policy_accepted_at")
+    private LocalDateTime depositPolicyAcceptedAt;
 
     @Column(name = "notification_status", length = 30)
     private String notificationStatus;

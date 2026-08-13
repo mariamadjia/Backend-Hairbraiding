@@ -35,10 +35,14 @@ public class AppointmentResponseDTO {
     private String paymentIntentId;
     private String paymentStatus;
     private Long depositAmount;
+    private Long amountAuthorized;
+    private Long amountCaptured;
     private LocalDateTime paymentAuthorizationExpiresAt;
     private LocalDateTime paymentCapturedAt;
     private String paymentMethodLast4;
     private String paymentMethodBrand;
+    private String depositPolicyVersion;
+    private LocalDateTime depositPolicyAcceptedAt;
     private String paymentToken;
     private String notificationStatus;
     private LocalDateTime notificationLastAttemptAt;
