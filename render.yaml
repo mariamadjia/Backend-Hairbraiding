@@ -4,6 +4,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     envVars:
+      - key: SPRING_FLYWAY_ENABLED
+        value: "true"
       - key: DATABASE_URL
         sync: false
       - key: DATABASE_USERNAME
