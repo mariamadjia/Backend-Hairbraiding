@@ -2,10 +2,12 @@ package org.example.backendbraiding.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
+
+import jakarta.mail.internet.MimeMessage;
 
 @Service
 public class EmailService {
@@ -41,14 +43,8 @@ public class EmailService {
     }
 
     private void sendSecurityEmail(String toEmail, String subject, String body) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(toEmail);
-        message.setReplyTo(salonEmail);
-        message.setSubject(subject);
-        message.setText(body);
-        
         try {
-            mailSender.send(message);
+            mailSender.send(createUtf8Message(toEmail, subject, body));
             log.info("Security email sent to: {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send security email to: {}", toEmail, e);
@@ -57,18 +53,23 @@ public class EmailService {
     }
 
     public boolean sendAppointmentUpdate(String toEmail, String subject, String body) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(toEmail);
-        message.setReplyTo(salonEmail);
-        message.setSubject(subject);
-        message.setText(body);
         try {
-            mailSender.send(message);
+            mailSender.send(createUtf8Message(toEmail, subject, body));
             return true;
         } catch (Exception e) {
             // Booking state must never roll back because a notification provider is unavailable.
             log.error("Failed to send appointment email to {}: {}", toEmail, e.getMessage());
             return false;
         }
+    }
+
+    private MimeMessage createUtf8Message(String toEmail, String subject, String body) throws Exception {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+        helper.setTo(toEmail);
+        helper.setReplyTo(salonEmail);
+        helper.setSubject(subject);
+        helper.setText(body, false);
+        return message;
     }
 }

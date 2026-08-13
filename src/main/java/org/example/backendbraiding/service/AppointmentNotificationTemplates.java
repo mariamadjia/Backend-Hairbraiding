@@ -30,7 +30,7 @@ public class AppointmentNotificationTemplates {
             @Value("${salon.email:adjiashairbraiding@gmail.com}") String email,
             @Value("${salon.address-line-1:1305 SW Loop 410, Unit 203}") String addressLine1,
             @Value("${salon.address-line-2:San Antonio, TX 78227}") String addressLine2,
-            @Value("${salon.hours.weekday:Monday–Saturday: 9:00 AM–7:00 PM}") String hoursWeekday,
+            @Value("${salon.hours.weekday:Monday-Saturday: 9:00 AM-7:00 PM}") String hoursWeekday,
             @Value("${salon.hours.sunday:Sunday: 10:00 AM–5:00 PM}") String hoursSunday,
             @Value("${salon.website:}") String website) {
         this.salonName = salonName;

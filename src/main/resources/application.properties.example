@@ -47,7 +47,7 @@ salon.phone=${SALON_PHONE:(210) 812-8121}
 salon.email=${SALON_EMAIL:adjiashairbraiding@gmail.com}
 salon.address-line-1=${SALON_ADDRESS_LINE_1:1305 SW Loop 410, Unit 203}
 salon.address-line-2=${SALON_ADDRESS_LINE_2:San Antonio, TX 78227}
-salon.hours.weekday=${SALON_HOURS_WEEKDAY:Monday–Saturday: 9:00 AM–7:00 PM}
+salon.hours.weekday=${SALON_HOURS_WEEKDAY:Monday-Saturday: 9:00 AM-7:00 PM}
 salon.hours.sunday=${SALON_HOURS_SUNDAY:Sunday: 10:00 AM–5:00 PM}
 salon.website=${SALON_WEBSITE:}
 
@@ -59,6 +59,7 @@ spring.mail.password=${EMAIL_PASSWORD}
 spring.mail.properties.mail.smtp.auth=true
 spring.mail.properties.mail.smtp.starttls.enable=true
 spring.mail.properties.mail.smtp.starttls.required=true
+spring.mail.default-encoding=UTF-8
 
 # CORS
 cors.allowed-origin-patterns=http://localhost:*,http://127.0.0.1:*
