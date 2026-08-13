@@ -111,6 +111,7 @@ public class ServiceItemService {
         Relationship relationship = resolveRelationship(request, service, creating);
         service.setCategory(relationship.category());
         service.setSubcategory(relationship.subcategory());
+        requireUniqueActiveName(service);
         mergeLengthOptions(service, request.getLengthOptions());
         if (service.getLengthOptions().isEmpty()) {
             MoneySupport.requirePositiveCents(service.getPrice(), "Base price");
@@ -218,8 +219,11 @@ public class ServiceItemService {
         ServiceItem service = serviceItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Archived service not found"));
         if (service.isActive()) throw new IllegalStateException("Service is already active");
+        requireUniqueActiveName(service);
         service.setActive(true);
-        return serviceItemRepository.save(service);
+        ServiceItem restored = serviceItemRepository.save(service);
+        pricingManagementService.record(restored, "SERVICE_RESTORED", "Service restored to booking");
+        return restored;
     }
 
     @Transactional
@@ -233,9 +237,22 @@ public class ServiceItemService {
         if (subcategoryId == null || services.stream().anyMatch(service -> service.getSubcategory() == null || !subcategoryId.equals(service.getSubcategory().getId()))) {
             throw new IllegalArgumentException("Services must belong to the same subcategory");
         }
+        Set<Long> activeIds = serviceItemRepository.findBySubcategoryId(subcategoryId).stream()
+                .map(ServiceItem::getId).collect(java.util.stream.Collectors.toSet());
+        if (activeIds.size() != serviceIds.size() || !activeIds.equals(new HashSet<>(serviceIds))) {
+            throw new IllegalArgumentException("Submit every active service in the subcategory when reordering");
+        }
         Map<Long, ServiceItem> byId = services.stream().collect(java.util.stream.Collectors.toMap(ServiceItem::getId, service -> service));
         for (int index = 0; index < serviceIds.size(); index++) byId.get(serviceIds.get(index)).setDisplayOrder(index);
         serviceItemRepository.saveAll(services);
+    }
+
+    private void requireUniqueActiveName(ServiceItem service) {
+        if (service.getSubcategory() == null) return;
+        if (serviceItemRepository.countActiveNameConflicts(
+                service.getSubcategory().getId(), service.getName(), service.getId()) > 0) {
+            throw new IllegalArgumentException("A size named " + service.getName() + " already exists for this style");
+        }
     }
 
     private record Relationship(Category category, Subcategory subcategory) {}

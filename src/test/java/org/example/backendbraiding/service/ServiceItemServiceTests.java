@@ -128,12 +128,32 @@ class ServiceItemServiceTests {
         second.setCategory(existing.getCategory());
         second.setSubcategory(existing.getSubcategory());
         when(services.findAllById(List.of(5L, 3L))).thenReturn(List.of(existing, second));
+        when(services.findBySubcategoryId(2L)).thenReturn(List.of(existing, second));
 
         subject.reorderServices(List.of(5L, 3L));
 
         assertEquals(0, second.getDisplayOrder());
         assertEquals(1, existing.getDisplayOrder());
         verify(services).saveAll(anyList());
+    }
+
+    @Test
+    void rejectsPartialServiceReorder() {
+        when(services.findAllById(List.of(3L))).thenReturn(List.of(existing));
+        ServiceItem second = new ServiceItem();
+        second.setId(5L);
+        second.setSubcategory(existing.getSubcategory());
+        when(services.findBySubcategoryId(2L)).thenReturn(List.of(existing, second));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.reorderServices(List.of(3L)));
+        verify(services, never()).saveAll(anyList());
+    }
+
+    @Test
+    void rejectsDuplicateActiveSizeName() {
+        when(services.countActiveNameConflicts(2L, "Small", 3L)).thenReturn(1L);
+
+        assertThrows(IllegalArgumentException.class, () -> subject.updateService(3L, baseRequest()));
     }
 
     private ServiceItemRequest baseRequest() {

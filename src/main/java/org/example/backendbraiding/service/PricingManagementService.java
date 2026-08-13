@@ -178,6 +178,16 @@ public class PricingManagementService {
     @CacheEvict(value = {"bookingCategories", "bookingCategory", "publicCategories", "allCategories", "galleryCards"}, allEntries = true)
     public ServiceItem cloneSize(ClonePricingSizeRequest request) {
         ServiceItem source = activeService(request.getCloneFromServiceId());
+        if (serviceItemRepository.countActiveNameConflicts(
+                source.getSubcategory().getId(), request.getName().trim(), null) > 0) {
+            throw new IllegalArgumentException("A size named " + request.getName().trim() + " already exists for this style");
+        }
+        int insertionOrder = source.getDisplayOrder() == null ? 0 : source.getDisplayOrder() + 1;
+        List<ServiceItem> siblings = serviceItemRepository.findBySubcategoryId(source.getSubcategory().getId());
+        siblings.stream()
+                .filter(item -> item.getDisplayOrder() != null && item.getDisplayOrder() >= insertionOrder)
+                .forEach(item -> item.setDisplayOrder(item.getDisplayOrder() + 1));
+        serviceItemRepository.saveAll(siblings);
         ServiceItem clone = new ServiceItem();
         clone.setName(request.getName().trim());
         clone.setPrice(source.getPrice());
@@ -192,7 +202,7 @@ public class PricingManagementService {
         clone.setKnotlessPriceAdjustment(source.getKnotlessPriceAdjustment());
         clone.setKnotlessPricingMode(source.getKnotlessPricingMode());
         clone.setDepositOverrideCents(source.getDepositOverrideCents());
-        clone.setDisplayOrder(source.getDisplayOrder() + 1);
+        clone.setDisplayOrder(insertionOrder);
         clone.setActive(true);
         clone.setAvailableSizes(new java.util.ArrayList<>(source.getAvailableSizes()));
         clone.setHairTextures(new java.util.ArrayList<>(source.getHairTextures()));

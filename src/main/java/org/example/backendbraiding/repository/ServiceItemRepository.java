@@ -24,6 +24,17 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, Long> 
     
     @Query("SELECT s FROM ServiceItem s WHERE s.subcategory.id = :subcategoryId AND s.active = true ORDER BY s.displayOrder ASC, s.id ASC")
     List<ServiceItem> findBySubcategoryId(@Param("subcategoryId") Long subcategoryId);
+
+    @Query("""
+        SELECT COUNT(s) FROM ServiceItem s
+        WHERE s.subcategory.id = :subcategoryId
+          AND s.active = true
+          AND LOWER(s.name) = LOWER(:name)
+          AND (:excludeId IS NULL OR s.id <> :excludeId)
+    """)
+    long countActiveNameConflicts(@Param("subcategoryId") Long subcategoryId,
+                                  @Param("name") String name,
+                                  @Param("excludeId") Long excludeId);
     
     ServiceItem findFirstByNameContainingIgnoreCaseAndActiveTrueOrderByDisplayOrderAscIdAsc(String name);
 

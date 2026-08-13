@@ -226,6 +226,7 @@ public class BookingController {
         bookingItem.put("id", item.getId());
         bookingItem.put("version", item.getVersion() == null ? 0L : item.getVersion());
         bookingItem.put("name", item.getName());
+        bookingItem.put("displayOrder", item.getDisplayOrder());
         bookingItem.put("price", item.getPrice());
         bookingItem.put("description", item.getDescription());
         bookingItem.put("notes", item.getNotes());
@@ -240,7 +241,7 @@ public class BookingController {
         bookingItem.put("knotlessPriceAdjustment", item.getKnotlessPriceAdjustment());
         bookingItem.put("knotlessPricingMode", item.getKnotlessPricingMode());
         List<LengthOption> options = item.getLengthOptions() == null ? List.of() : item.getLengthOptions();
-        bookingItem.put("lengthOptions", options.stream().filter(this::hasValidPrice).map(option -> {
+        bookingItem.put("lengthOptions", options.stream().filter(option -> hasValidPrice(item, option)).map(option -> {
             Map<String, Object> mapped = new LinkedHashMap<>();
             mapped.put("id", option.getId());
             mapped.put("name", option.getName());
@@ -256,13 +257,18 @@ public class BookingController {
     private boolean isBookable(ServiceItem item) {
         if (!item.isActive()) return false;
         List<LengthOption> options = item.getLengthOptions() == null ? List.of() : item.getLengthOptions();
-        if (!options.isEmpty()) return options.stream().anyMatch(this::hasValidPrice);
+        if (!options.isEmpty()) return options.stream().anyMatch(option -> hasValidPrice(item, option));
         return org.example.backendbraiding.service.MoneySupport.positiveCents(item.getPrice()).isPresent();
     }
 
-    private boolean hasValidPrice(LengthOption option) {
-        return option.getName() != null && !option.getName().isBlank()
-                && org.example.backendbraiding.service.MoneySupport.positiveCents(option.getPrice()).isPresent();
+    private boolean hasValidPrice(ServiceItem item, LengthOption option) {
+        if (option.getName() == null || option.getName().isBlank()
+                || org.example.backendbraiding.service.MoneySupport.positiveCents(option.getPrice()).isEmpty()) {
+            return false;
+        }
+        return !Boolean.TRUE.equals(item.getFoundationChoicesEnabled())
+                || !"SEPARATE".equals(item.getKnotlessPricingMode())
+                || org.example.backendbraiding.service.MoneySupport.positiveCents(option.getKnotlessPrice()).isPresent();
     }
 
     @PostMapping("/populate-images")
