@@ -33,6 +33,7 @@ public class PaymentService {
     private final BookingPaymentTokenService bookingPaymentTokenService;
     private final NotificationOutboxService notificationOutboxService;
     private final AppointmentEventService appointmentEventService;
+    private final AppointmentNotificationTemplates notificationTemplates;
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -138,12 +139,9 @@ public class PaymentService {
         appointmentRepository.save(appointment);
         if (notifyApproval) {
             appointmentEventService.record(appointment, "APPROVED", appointment.getApprovedBy(), null);
-            notificationOutboxService.enqueueSms(appointment,
-                    "Hi " + appointment.getCustomer().getFirstName() + "! Your braiding appointment for "
-                            + appointment.getAppointmentDateTime() + " has been approved. We look forward to seeing you!");
-            notificationOutboxService.enqueueEmail(appointment, "Appointment approved",
-                    "Your appointment for " + appointment.getAppointmentDateTime()
-                            + " in the salon timezone has been approved.");
+            AppointmentNotificationTemplates.Notification notification = notificationTemplates.approved(appointment);
+            notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
+            notificationOutboxService.enqueueSms(appointment, notification.smsBody());
         }
     }
 

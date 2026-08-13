@@ -41,6 +41,16 @@ stripe.publishable.key=${STRIPE_PUBLISHABLE_KEY}
 stripe.webhook.secret=${STRIPE_WEBHOOK_SECRET}
 stripe.reconciliation.interval-ms=300000
 
+# Customer-facing salon identity
+salon.name=${SALON_NAME:AH Braiding Salon}
+salon.phone=${SALON_PHONE:(210) 812-8121}
+salon.email=${SALON_EMAIL:adjiashairbraiding@gmail.com}
+salon.address-line-1=${SALON_ADDRESS_LINE_1:1305 SW Loop 410, Unit 203}
+salon.address-line-2=${SALON_ADDRESS_LINE_2:San Antonio, TX 78227}
+salon.hours.weekday=${SALON_HOURS_WEEKDAY:Monday–Saturday: 9:00 AM–7:00 PM}
+salon.hours.sunday=${SALON_HOURS_SUNDAY:Sunday: 10:00 AM–5:00 PM}
+salon.website=${SALON_WEBSITE:}
+
 # Email Configuration (Gmail example)
 spring.mail.host=smtp.gmail.com
 spring.mail.port=587

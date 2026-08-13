@@ -12,10 +12,13 @@ public class EmailService {
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private final JavaMailSender mailSender;
     private final String frontendUrl;
+    private final String salonEmail;
 
-    public EmailService(JavaMailSender mailSender, @Value("${app.frontend-url}") String frontendUrl) {
+    public EmailService(JavaMailSender mailSender, @Value("${app.frontend-url}") String frontendUrl,
+                        @Value("${salon.email:adjiashairbraiding@gmail.com}") String salonEmail) {
         this.mailSender = mailSender;
         this.frontendUrl = frontendUrl.replaceAll("/+$", "");
+        this.salonEmail = salonEmail;
     }
 
     public void sendPasswordResetEmail(String toEmail, String resetToken) {
@@ -40,6 +43,7 @@ public class EmailService {
     private void sendSecurityEmail(String toEmail, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
+        message.setReplyTo(salonEmail);
         message.setSubject(subject);
         message.setText(body);
         
@@ -55,6 +59,7 @@ public class EmailService {
     public boolean sendAppointmentUpdate(String toEmail, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
+        message.setReplyTo(salonEmail);
         message.setSubject(subject);
         message.setText(body);
         try {

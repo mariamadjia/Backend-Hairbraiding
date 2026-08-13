@@ -53,6 +53,7 @@ public class AppointmentService {
     private final EntityManager entityManager;
     private final AppointmentEventService appointmentEventService;
     private final NotificationOutboxService notificationOutboxService;
+    private final AppointmentNotificationTemplates notificationTemplates;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
     private static final String DEPOSIT_POLICY_VERSION = "non-refundable-v1";
@@ -159,10 +160,7 @@ public class AppointmentService {
         appointmentEventService.record(savedAppointment, "CREATED", null, null);
         AppointmentResponseDTO response = mapToResponseDTO(savedAppointment);
         response.setPaymentToken(bookingPaymentTokenService.createToken(savedAppointment.getId()));
-        notificationOutboxService.enqueueEmail(savedAppointment, "Appointment request received",
-                "We received your appointment request for " + appointment.getAppointmentDateTime()
-                        + " in the salon timezone. Complete the payment authorization to send it for review. "
-                        + "As accepted during booking, the deposit is non-refundable once captured.");
+        enqueueEmail(savedAppointment, notificationTemplates.bookingCreated(savedAppointment));
         return response;
     }
 
@@ -301,12 +299,7 @@ public class AppointmentService {
             });
         }
         
-        String denialMessage = "Hi " + appointment.getCustomer().getFirstName()
-                + ", unfortunately we cannot accommodate your appointment request. Reason: "
-                + actionDTO.getAdminNotes() + ". Please contact us to reschedule.";
-        notificationOutboxService.enqueueSms(updatedAppointment, denialMessage);
-        notificationOutboxService.enqueueEmail(updatedAppointment, "Appointment request update",
-                "Your appointment request could not be approved. " + actionDTO.getAdminNotes());
+        enqueueBoth(updatedAppointment, notificationTemplates.denied(updatedAppointment));
         
         return mapToResponseDTO(updatedAppointment);
     }
@@ -466,12 +459,7 @@ public class AppointmentService {
             });
         }
 
-        notificationOutboxService.enqueueSms(saved,
-                "Hi " + saved.getCustomer().getFirstName()
-                        + ", your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes());
-        notificationOutboxService.enqueueEmail(saved, "Appointment cancelled",
-                "Your appointment was cancelled by the salon. Reason: " + saved.getAdminNotes()
-                        + ". The captured deposit remains non-refundable under the policy accepted at booking.");
+        enqueueBoth(saved, notificationTemplates.cancelled(saved));
         return mapToResponseDTO(saved);
     }
 
@@ -479,26 +467,25 @@ public class AppointmentService {
     public AppointmentResponseDTO retryNotification(Long appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
-        String name = appointment.getCustomer().getFirstName();
         if (appointment.getStatus() == Appointment.AppointmentStatus.APPROVED) {
-            notificationOutboxService.enqueueSms(appointment,
-                    "Hi " + name + "! Your braiding appointment for " + appointment.getAppointmentDateTime()
-                            + " has been approved. We look forward to seeing you!");
-            notificationOutboxService.enqueueEmail(appointment, "Appointment approved",
-                    "Your appointment for " + appointment.getAppointmentDateTime() + " in the salon timezone has been approved.");
+            enqueueBoth(appointment, notificationTemplates.approved(appointment));
         } else if (appointment.getStatus() == Appointment.AppointmentStatus.DENIED) {
-            notificationOutboxService.enqueueSms(appointment,
-                    "Hi " + name + ", your appointment request was denied. Reason: " + appointment.getAdminNotes());
-            notificationOutboxService.enqueueEmail(appointment, "Appointment request update",
-                    "Your appointment request could not be approved. " + appointment.getAdminNotes());
+            enqueueBoth(appointment, notificationTemplates.denied(appointment));
         } else if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {
-            String message = "Your appointment was cancelled by the salon. Reason: " + appointment.getAdminNotes();
-            notificationOutboxService.enqueueSms(appointment, "Hi " + name + ", " + message);
-            notificationOutboxService.enqueueEmail(appointment, "Appointment cancelled", message);
+            enqueueBoth(appointment, notificationTemplates.cancelled(appointment));
         } else {
             throw new IllegalStateException("Notifications can only be retried for approved, denied, or cancelled appointments");
         }
         return mapToResponseDTO(appointment);
+    }
+
+    private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
+        notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
+        notificationOutboxService.enqueueSms(appointment, notification.smsBody());
+    }
+
+    private void enqueueEmail(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
+        notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
     }
 
     public Page<AppointmentResponseDTO> getUpcomingAppointments(Pageable pageable) {
