@@ -2,6 +2,8 @@ package org.example.backendbraiding.service;
 
 import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.model.Customer;
+import org.example.backendbraiding.model.ServiceItem;
+import org.example.backendbraiding.model.Subcategory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -78,6 +80,24 @@ class AppointmentNotificationTemplatesTests {
                 "https://example.com");
         assertTrue(withWebsite.approved(appointment(Appointment.PaymentStatus.CAPTURED))
                 .emailBody().contains("Website: https://example.com"));
+    }
+
+    @Test
+    void legacySizeSnapshotFallsBackToAuthoritativeStyleName() {
+        Appointment appointment = appointment(Appointment.PaymentStatus.PENDING);
+        appointment.setSelectedService("XSmall");
+        appointment.setSelectedSize("XSmall");
+        Subcategory style = new Subcategory();
+        style.setName("Knotless Box Braids");
+        ServiceItem size = new ServiceItem();
+        size.setName("XSmall");
+        size.setSubcategory(style);
+        appointment.setService(size);
+
+        String body = templates.bookingCreated(appointment).emailBody();
+        assertTrue(body.contains("Service: Knotless Box Braids"));
+        assertTrue(body.contains("Size: XSmall"));
+        assertFalse(body.contains("Service: XSmall"));
     }
 
     private Appointment appointment(Appointment.PaymentStatus paymentStatus) {

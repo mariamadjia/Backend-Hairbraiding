@@ -1,11 +1,23 @@
 package org.example.backendbraiding.service;
 
 import org.example.backendbraiding.model.ServiceItem;
+import org.example.backendbraiding.model.Subcategory;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class AppointmentFoundationTests {
+    @Test
+    void appointmentUsesStyleAsServiceAndItemAsSize() {
+        Subcategory style = new Subcategory();
+        style.setName("Knotless Box Braids");
+        ServiceItem size = new ServiceItem();
+        size.setName("XSmall");
+        size.setSubcategory(style);
+
+        assertEquals("Knotless Box Braids", AppointmentService.displayServiceName(size));
+    }
+
     @Test
     void disabledFoundationKeepsExistingBookingFlow() {
         ServiceItem service = new ServiceItem();

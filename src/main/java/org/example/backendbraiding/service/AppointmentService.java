@@ -130,8 +130,8 @@ public class AppointmentService {
         appointment.setAppointmentDateTime(requestDTO.getAppointmentDateTime());
         appointment.setAppointmentEndDateTime(null);
         appointment.setNotes(requestDTO.getNotes());
-        appointment.setSelectedService(service.getName());
-        appointment.setSelectedSize(requestDTO.getSelectedSize());
+        appointment.setSelectedService(displayServiceName(service));
+        appointment.setSelectedSize(service.getName());
         appointment.setSelectedLength(lengthOption != null ? lengthOption.getName() : requestDTO.getSelectedLength());
         appointment.setSelectedFoundation(foundation);
         appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
@@ -162,6 +162,15 @@ public class AppointmentService {
         response.setPaymentToken(bookingPaymentTokenService.createToken(savedAppointment.getId()));
         enqueueEmail(savedAppointment, notificationTemplates.bookingCreated(savedAppointment));
         return response;
+    }
+
+    static String displayServiceName(ServiceItem service) {
+        if (service.getSubcategory() != null
+                && service.getSubcategory().getName() != null
+                && !service.getSubcategory().getName().isBlank()) {
+            return service.getSubcategory().getName().trim();
+        }
+        return service.getName();
     }
 
     /**

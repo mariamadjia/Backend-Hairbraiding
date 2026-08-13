@@ -185,9 +185,22 @@ public class AppointmentNotificationTemplates {
     }
 
     private String serviceName(Appointment appointment) {
+        if (appointment.getSelectedService() != null && !appointment.getSelectedService().isBlank()
+                && !appointment.getSelectedService().equalsIgnoreCase(nullToEmpty(appointment.getSelectedSize()))) {
+            return appointment.getSelectedService();
+        }
+        if (appointment.getService() != null && appointment.getService().getSubcategory() != null
+                && appointment.getService().getSubcategory().getName() != null
+                && !appointment.getService().getSubcategory().getName().isBlank()) {
+            return appointment.getService().getSubcategory().getName().trim();
+        }
         if (appointment.getSelectedService() != null && !appointment.getSelectedService().isBlank()) return appointment.getSelectedService();
         if (appointment.getService() != null && appointment.getService().getName() != null) return appointment.getService().getName();
         return "Braiding appointment";
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private String friendlyFoundation(String foundation) {
