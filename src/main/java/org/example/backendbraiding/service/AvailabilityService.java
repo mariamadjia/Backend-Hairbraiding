@@ -101,6 +101,8 @@ public class AvailabilityService {
         List<BusinessHours> businessHoursToSave = new ArrayList<>();
         List<String> daysToDeleteSlots = new ArrayList<>();
         List<TimeSlot> timeSlotsToSave = new ArrayList<>();
+        Map<DayOfWeek, BusinessHours> existingHours = businessHoursRepository.findAll().stream()
+                .collect(Collectors.toMap(BusinessHours::getDayOfWeek, Function.identity()));
 
         java.util.Set<String> submittedDays = new java.util.HashSet<>();
         dto.getDays().forEach(day -> {
@@ -125,8 +127,7 @@ public class AvailabilityService {
 
                 log.debug("Processing day {}: isOpen={}, slots={}", dayOfWeek, isOpen, slots.size());
 
-                BusinessHours hours = businessHoursRepository.findByDayOfWeek(dayOfWeek)
-                        .orElse(new BusinessHours());
+                BusinessHours hours = existingHours.getOrDefault(dayOfWeek, new BusinessHours());
                 requireScheduleVersion(hours, day.getVersion(), dayOfWeek);
 
                 hours.setDayOfWeek(dayOfWeek);
