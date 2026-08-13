@@ -20,6 +20,7 @@ public class BusinessHours {
     private Long id;
 
     @Version
+    @Column(nullable = false)
     private Long version = 0L;
     
     @Enumerated(EnumType.STRING)
