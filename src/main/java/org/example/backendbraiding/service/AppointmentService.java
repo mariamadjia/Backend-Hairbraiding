@@ -71,7 +71,7 @@ public class AppointmentService {
         BookingQuoteTokenService.QuoteClaims quote = bookingQuoteTokenService.parse(requestDTO.getQuoteToken());
         List<AddOnService.ResolvedAddOn> selectedAddOns = addOnService.validateClaims(
                 service, lengthOption, quote.addOns());
-        validateQuote(quote, service, lengthOption, foundation, selectedAddOns);
+        validateQuote(quote, service, lengthOption, foundation, selectedAddOns, settings);
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
         
         String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
@@ -800,7 +800,7 @@ public class AppointmentService {
 
     private void validateQuote(BookingQuoteTokenService.QuoteClaims quote, ServiceItem service,
                                LengthOption lengthOption, String foundation,
-                               List<AddOnService.ResolvedAddOn> addOns) {
+                               List<AddOnService.ResolvedAddOn> addOns, AppointmentSettings settings) {
         if (!service.getId().equals(quote.serviceId())) {
             throw new IllegalArgumentException("The booking quote does not match the selected service");
         }
@@ -828,6 +828,20 @@ public class AppointmentService {
         if (quote.depositCents() <= 0 || quote.depositCents() > quote.priceCents()) {
             throw new IllegalArgumentException("The booking quote contains an invalid deposit");
         }
+        long configuredDeposit = service.getDepositOverrideCents() != null
+                ? service.getDepositOverrideCents()
+                : settings.getDefaultDepositCents() == null ? 5000L : settings.getDefaultDepositCents();
+        long addOnDepositCents = addOns.stream()
+                .mapToLong(AddOnService.ResolvedAddOn::depositAdjustmentCents).sum();
+        long currentDepositCents = effectiveDeposit(configuredDeposit, addOnDepositCents, quote.priceCents());
+        if (currentDepositCents != quote.depositCents()) {
+            throw new IllegalStateException("The deposit changed while you were booking. Please review the updated deposit.");
+        }
+    }
+
+    static long effectiveDeposit(long configuredDeposit, long addOnDepositCents, long priceCents) {
+        if (configuredDeposit <= 0) throw new IllegalStateException("Booking deposit is not configured");
+        return Math.min(Math.addExact(configuredDeposit, addOnDepositCents), priceCents);
     }
 
     static String resolveFoundation(ServiceItem service, String selectedFoundation) {

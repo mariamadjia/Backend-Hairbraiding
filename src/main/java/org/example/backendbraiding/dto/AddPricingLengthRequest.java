@@ -41,5 +41,8 @@ public class AddPricingLengthRequest {
 
         @NotNull @Min(1) @Max(1000000)
         private Long priceCents;
+
+        @Min(1) @Max(1000000)
+        private Long knotlessPriceCents;
     }
 }

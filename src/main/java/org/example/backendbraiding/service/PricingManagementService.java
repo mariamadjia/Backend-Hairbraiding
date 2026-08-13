@@ -30,6 +30,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class PricingManagementService {
+    static final long MAX_PRICE_CENTS = 1_000_000L;
     private final AppointmentSettingsRepository settingsRepository;
     private final ServiceItemRepository serviceItemRepository;
     private final PricingHistoryRepository historyRepository;
@@ -132,6 +133,12 @@ public class PricingManagementService {
                     LengthOption option = options.get(lengthChange.getLengthOptionId());
                     if (option == null) throw new IllegalArgumentException("A selected length is no longer available");
                     option.setPrice(MoneySupport.fromCents(lengthChange.getPriceCents()));
+                    if ("SEPARATE".equals(service.getKnotlessPricingMode())) {
+                        if (lengthChange.getKnotlessPriceCents() == null) {
+                            throw new IllegalArgumentException("Enter the Knotless " + option.getName() + " price");
+                        }
+                        option.setKnotlessPrice(MoneySupport.fromCents(lengthChange.getKnotlessPriceCents()));
+                    }
                     option.setDisplayOrder(lengthChange.getDisplayOrder());
                 }
             }
@@ -216,12 +223,20 @@ public class PricingManagementService {
         for (LengthOption sourceOption : source.getLengthOptions()) {
             LengthOption option = new LengthOption();
             option.setName(sourceOption.getName());
-            option.setKnotlessPrice(sourceOption.getKnotlessPrice());
             Long requestedPrice = request.getPrices().get(sourceOption.getName());
             if (requestedPrice == null) {
                 throw new IllegalArgumentException("Enter the " + sourceOption.getName() + " price for the new size");
             }
             option.setPrice(MoneySupport.fromCents(requestedPrice));
+            if ("SEPARATE".equals(source.getKnotlessPricingMode())) {
+                Map<String, Long> requestedKnotlessPrices = request.getKnotlessPrices() == null
+                        ? Map.of() : request.getKnotlessPrices();
+                Long requestedKnotlessPrice = requestedKnotlessPrices.get(sourceOption.getName());
+                if (requestedKnotlessPrice == null) {
+                    throw new IllegalArgumentException("Enter the Knotless " + sourceOption.getName() + " price for the new size");
+                }
+                option.setKnotlessPrice(MoneySupport.fromCents(requestedKnotlessPrice));
+            }
             option.setDisplayOrder(sourceOption.getDisplayOrder());
             option.setNotes(sourceOption.getNotes());
             option.setImageUrl(sourceOption.getImageUrl());
@@ -282,12 +297,18 @@ public class PricingManagementService {
                 priceCents = Math.addExact(MoneySupport.requirePositiveCents(source.getPrice(), "Length price"),
                         request.getAdjustmentCents() == null ? 0L : request.getAdjustmentCents());
             }
-            if (priceCents <= 0) throw new IllegalArgumentException("Length price must be greater than zero");
+            if (priceCents <= 0 || priceCents > MAX_PRICE_CENTS) {
+                throw new IllegalArgumentException("Length price must be between $0.01 and $10,000.00");
+            }
             LengthOption option = new LengthOption();
             option.setName(request.getName().trim());
             option.setPrice(MoneySupport.fromCents(priceCents));
             if ("SEPARATE".equals(service.getKnotlessPricingMode())) {
-                option.setKnotlessPrice(MoneySupport.fromCents(priceCents));
+                if (requestedPrice == null || requestedPrice.getKnotlessPriceCents() == null) {
+                    throw new IllegalArgumentException("Enter the Knotless " + request.getName().trim()
+                            + " price for " + service.getName());
+                }
+                option.setKnotlessPrice(MoneySupport.fromCents(requestedPrice.getKnotlessPriceCents()));
             }
             option.setDisplayOrder(service.getLengthOptions().stream()
                     .map(LengthOption::getDisplayOrder).filter(Objects::nonNull).max(Integer::compareTo).orElse(-1) + 1);
@@ -334,26 +355,47 @@ public class PricingManagementService {
     }
 
     private void validateBookable(ServiceItem service) {
+        if (Boolean.TRUE.equals(service.getFoundationChoicesEnabled())
+                && "SEPARATE".equals(service.getKnotlessPricingMode())
+                && (service.getLengthOptions() == null || service.getLengthOptions().isEmpty())) {
+            throw new IllegalArgumentException("Separate Knotless pricing requires length options");
+        }
         if (service.getLengthOptions() == null || service.getLengthOptions().isEmpty()) {
-            MoneySupport.requirePositiveCents(service.getPrice(), "Base price");
+            requireAllowedPrice(service.getPrice(), "Base price");
         } else {
             for (LengthOption option : service.getLengthOptions()) {
                 if (option.getName() == null || option.getName().isBlank()) {
                     throw new IllegalArgumentException("Every length needs a name");
                 }
-                MoneySupport.requirePositiveCents(option.getPrice(), option.getName() + " price");
+                requireAllowedPrice(option.getPrice(), option.getName() + " price");
+                if (Boolean.TRUE.equals(service.getFoundationChoicesEnabled())
+                        && "SEPARATE".equals(service.getKnotlessPricingMode())) {
+                    requireAllowedPrice(option.getKnotlessPrice(),
+                            "Knotless " + option.getName() + " price");
+                }
             }
         }
         if (Boolean.TRUE.equals(service.getFoundationChoicesEnabled())
                 && "ADJUSTMENT".equals(service.getKnotlessPricingMode())) {
             try {
-                if (new java.math.BigDecimal(Objects.toString(service.getKnotlessPriceAdjustment(), "0")
-                        .replace("$", "").trim()).signum() < 0) {
+                java.math.BigDecimal adjustment = new java.math.BigDecimal(
+                        Objects.toString(service.getKnotlessPriceAdjustment(), "0").replace("$", "").trim());
+                if (adjustment.signum() < 0) {
                     throw new IllegalArgumentException("Knotless adjustment cannot be negative");
+                }
+                if (adjustment.movePointRight(2).longValueExact() > MAX_PRICE_CENTS) {
+                    throw new IllegalArgumentException("Knotless adjustment cannot exceed $10,000.00");
                 }
             } catch (NumberFormatException exception) {
                 throw new IllegalArgumentException("Knotless adjustment must be a valid amount");
             }
+        }
+    }
+
+    private void requireAllowedPrice(String value, String label) {
+        long cents = MoneySupport.requirePositiveCents(value, label);
+        if (cents > MAX_PRICE_CENTS) {
+            throw new IllegalArgumentException(label + " cannot exceed $10,000.00");
         }
     }
 
@@ -363,7 +405,8 @@ public class PricingManagementService {
                 + service.getLengthOptions().stream()
                 .map(option -> "{\"id\":" + option.getId() + ",\"name\":\""
                         + Objects.toString(option.getName(), "").replace("\"", "\\\"") + "\",\"price\":\""
-                        + Objects.toString(option.getPrice(), "") + "\",\"order\":"
+                        + Objects.toString(option.getPrice(), "") + "\",\"knotlessPrice\":\""
+                        + Objects.toString(option.getKnotlessPrice(), "") + "\",\"order\":"
                         + option.getDisplayOrder() + "}")
                 .collect(java.util.stream.Collectors.joining(",")) + "]}";
     }
