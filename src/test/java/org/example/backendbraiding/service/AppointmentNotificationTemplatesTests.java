@@ -33,6 +33,8 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("Deposit to authorize: $50.00"));
         assertTrue(notification.emailBody().contains("1305 SW Loop 410, Unit 203"));
         assertTrue(notification.emailBody().contains("(210) 812-8121"));
+        assertTrue(notification.emailBody().contains("Monday-Saturday: 9:00 AM-7:00 PM"));
+        assertFalse(notification.emailBody().contains("Email: adjiashairbraiding@gmail.com"));
         assertFalse(notification.emailBody().contains("Website:"));
     }
 

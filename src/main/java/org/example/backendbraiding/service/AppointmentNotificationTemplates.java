@@ -38,8 +38,8 @@ public class AppointmentNotificationTemplates {
         this.email = email;
         this.addressLine1 = addressLine1;
         this.addressLine2 = addressLine2;
-        this.hoursWeekday = hoursWeekday;
-        this.hoursSunday = hoursSunday;
+        this.hoursWeekday = normalizeHours(hoursWeekday);
+        this.hoursSunday = normalizeHours(hoursSunday);
         this.website = website == null ? "" : website.trim();
     }
 
@@ -124,10 +124,16 @@ public class AppointmentNotificationTemplates {
                 .append("Warmly,\n").append(salonName).append("\n")
                 .append(addressLine1).append("\n").append(addressLine2).append("\n")
                 .append("Phone: ").append(phone).append("\n")
-                .append("Email: ").append(email).append("\n")
                 .append(hoursWeekday).append("\n").append(hoursSunday);
         if (!website.isBlank()) value.append("\nWebsite: ").append(website);
         return value.toString();
+    }
+
+    private String normalizeHours(String value) {
+        if (value == null) return "";
+        return value.replace("â€“", "-")
+                .replace("–", "-")
+                .replace("—", "-");
     }
 
     private String authorizationReleaseText(Appointment appointment) {
