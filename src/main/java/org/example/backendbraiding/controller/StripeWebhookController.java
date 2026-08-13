@@ -1,6 +1,7 @@
 package org.example.backendbraiding.controller;
 
 import com.google.gson.JsonSyntaxException;
+import com.google.gson.JsonParser;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
@@ -71,9 +72,9 @@ public class StripeWebhookController {
                 case "payment_intent.succeeded",
                      "payment_intent.payment_failed",
                      "payment_intent.canceled" ->
-                        paymentService.synchronizePaymentIntent(requirePaymentIntent(event).getId());
+                        paymentService.synchronizePaymentIntent(requirePaymentIntentId(event));
                 case "payment_intent.amount_capturable_updated" ->
-                        handlePaymentIntentAmountCapturableUpdated(requirePaymentIntent(event));
+                        handlePaymentIntentAmountCapturableUpdated(requirePaymentIntentId(event));
                 default -> log.info("Unhandled event type: {}", event.getType());
             }
             webhookEventService.processed(event.getId());
@@ -87,18 +88,31 @@ public class StripeWebhookController {
         }
     }
 
-    private PaymentIntent requirePaymentIntent(Event event) {
-        return (PaymentIntent) event.getDataObjectDeserializer().getObject()
-                .orElseThrow(() -> new IllegalStateException(
-                        "Stripe event object could not be deserialized; check webhook API version"));
+    private String requirePaymentIntentId(Event event) {
+        return event.getDataObjectDeserializer().getObject()
+                .filter(PaymentIntent.class::isInstance)
+                .map(PaymentIntent.class::cast)
+                .map(PaymentIntent::getId)
+                .orElseGet(() -> paymentIntentIdFromRawJson(
+                        event.getDataObjectDeserializer().getRawJson()));
     }
 
-    private void handlePaymentIntentAmountCapturableUpdated(PaymentIntent paymentIntent) {
-        log.info("Payment authorized for PaymentIntent: {}", paymentIntent.getId());
-        paymentService.synchronizePaymentIntent(paymentIntent.getId());
+    static String paymentIntentIdFromRawJson(String rawJson) {
+        try {
+            String id = JsonParser.parseString(rawJson).getAsJsonObject().get("id").getAsString();
+            if (id == null || !id.startsWith("pi_")) throw new IllegalStateException("Invalid PaymentIntent ID");
+            return id;
+        } catch (RuntimeException exception) {
+            throw new IllegalStateException("Stripe event does not contain a valid PaymentIntent ID", exception);
+        }
+    }
+
+    private void handlePaymentIntentAmountCapturableUpdated(String paymentIntentId) {
+        log.info("Payment authorized for PaymentIntent: {}", paymentIntentId);
+        paymentService.synchronizePaymentIntent(paymentIntentId);
 
         Optional<Appointment> appointmentOpt = appointmentRepository
-                .findByPaymentIntentId(paymentIntent.getId());
+                .findByPaymentIntentId(paymentIntentId);
 
         if (appointmentOpt.isPresent()) {
             Appointment appointment = appointmentOpt.get();
@@ -112,9 +126,9 @@ public class StripeWebhookController {
                         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
                         appointment.setApprovedAt(LocalDateTime.now());
                         appointmentRepository.save(appointment);
-                        paymentService.capturePayment(new PaymentCaptureRequest(paymentIntent.getId(), null));
+                        paymentService.capturePayment(new PaymentCaptureRequest(paymentIntentId, null));
                     } catch (Exception e) {
-                        paymentService.markCaptureFailed(paymentIntent.getId(), e.getMessage());
+                        paymentService.markCaptureFailed(paymentIntentId, e.getMessage());
                         log.error("Automatic capture failed for appointment {}", appointment.getId(), e);
                     }
                 }
