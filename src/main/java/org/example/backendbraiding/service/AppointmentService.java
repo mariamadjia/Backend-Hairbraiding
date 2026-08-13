@@ -316,22 +316,26 @@ public class AppointmentService {
         return mapToResponseDTO(updatedAppointment);
     }
 
+    @Transactional(readOnly = true)
     public Page<AppointmentResponseDTO> getPendingAppointments(Pageable pageable) {
         return appointmentRepository.findByStatus(Appointment.AppointmentStatus.PENDING, pageable)
             .map(this::mapToResponseDTO);
     }
 
+    @Transactional(readOnly = true)
     public Page<AppointmentResponseDTO> getAllAppointments(Pageable pageable) {
         return appointmentRepository.findAll(pageable)
             .map(this::mapToResponseDTO);
     }
 
+    @Transactional(readOnly = true)
     public Page<AppointmentResponseDTO> getWorkflowAppointments(
             String view, String detail, String query, Pageable pageable) {
         Specification<Appointment> specification = workflowSpecification(view, detail, query);
         return appointmentRepository.findAll(specification, pageable).map(this::mapToResponseDTO);
     }
 
+    @Transactional(readOnly = true)
     public Map<String, Long> getWorkflowCounts() {
         return Map.of(
                 "NEEDS_ACTION", appointmentRepository.count(workflowSpecification("NEEDS_ACTION", "ALL", "")),
@@ -500,12 +504,14 @@ public class AppointmentService {
         notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
     }
 
+    @Transactional(readOnly = true)
     public Page<AppointmentResponseDTO> getUpcomingAppointments(Pageable pageable) {
         LocalDateTime salonNow = salonNow();
         return appointmentRepository.findActiveUpcomingAppointments(salonNow, pageable)
                 .map(this::mapToResponseDTO);
     }
 
+    @Transactional(readOnly = true)
     public Page<AppointmentResponseDTO> getAppointmentsByStatus(String status, Pageable pageable) {
         try {
             // Backward compatibility for clients briefly deployed with the
@@ -523,12 +529,14 @@ public class AppointmentService {
         }
     }
 
+    @Transactional(readOnly = true)
     public AppointmentResponseDTO getAppointmentById(Long id) {
         Appointment appointment = appointmentRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Appointment not found"));
         return mapToResponseDTO(appointment);
     }
 
+    @Transactional(readOnly = true)
     public Page<AppointmentResponseDTO> getAppointmentsByDateRange(
             LocalDateTime startDate, LocalDateTime endDate, Pageable pageable) {
         if (!endDate.isAfter(startDate)) throw new IllegalArgumentException("End date must be after start date");
