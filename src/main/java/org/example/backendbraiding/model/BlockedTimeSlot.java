@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "blocked_time_slots")
@@ -32,6 +33,9 @@ public class BlockedTimeSlot {
     
     @Column
     private String recurrencePattern; // e.g., "WEEKLY", "DAILY", "MONTHLY"
+
+    @Column(name = "recurrence_end_date")
+    private LocalDate recurrenceEndDate;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by")

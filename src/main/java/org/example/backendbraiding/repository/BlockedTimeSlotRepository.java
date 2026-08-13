@@ -13,7 +13,7 @@ import java.util.List;
 public interface BlockedTimeSlotRepository extends JpaRepository<BlockedTimeSlot, Long> {
     
     @Query("SELECT b FROM BlockedTimeSlot b WHERE " +
-           "(b.startDateTime <= :endTime AND b.endDateTime >= :startTime)")
+           "(b.startDateTime < :endTime AND b.endDateTime > :startTime)")
     List<BlockedTimeSlot> findOverlappingSlots(
         @Param("startTime") LocalDateTime startTime,
         @Param("endTime") LocalDateTime endTime

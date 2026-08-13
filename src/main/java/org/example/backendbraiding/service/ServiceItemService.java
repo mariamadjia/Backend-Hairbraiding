@@ -87,6 +87,7 @@ public class ServiceItemService {
         service.setPrice(clean(request.getPrice()));
         service.setDescription(clean(request.getDescription()));
         service.setNotes(clean(request.getNotes()));
+        service.setDurationMinutes(request.getDurationMinutes() == null ? 60 : request.getDurationMinutes());
         service.setImage(clean(request.getImage()));
         service.setLink(clean(request.getLink()));
         service.setObjectPosition(clean(request.getObjectPosition()));

@@ -35,6 +35,7 @@ public class AvailabilityService {
     private final AppointmentRepository appointmentRepository;
     private final AdminRepository adminRepository;
     private final TimeSlotRepository timeSlotRepository;
+    private final ServiceItemRepository serviceItemRepository;
     
     @PostConstruct
     public void initializeDefaultSettings() {
@@ -56,12 +57,19 @@ public class AvailabilityService {
     @CacheEvict(value = "availableSlots", allEntries = true)
     public BusinessHoursDTO saveBusinessHours(BusinessHoursDTO dto) {
         // Validate business hours
-        if (dto.getIsOpen() && dto.getCloseTime().isBefore(dto.getOpenTime())) {
+        if (Boolean.TRUE.equals(dto.getIsOpen()) && (dto.getOpenTime() == null || dto.getCloseTime() == null)) {
+            throw new IllegalArgumentException("Open and close times are required for an open day");
+        }
+        if (Boolean.TRUE.equals(dto.getIsOpen()) && !dto.getCloseTime().isAfter(dto.getOpenTime())) {
             throw new IllegalArgumentException("Close time must be after open time");
+        }
+        if (dto.getNotes() != null && dto.getNotes().length() > 255) {
+            throw new IllegalArgumentException("Business-hours notes cannot exceed 255 characters");
         }
 
         BusinessHours hours = businessHoursRepository.findByDayOfWeek(dto.getDayOfWeek())
             .orElse(new BusinessHours());
+        requireScheduleVersion(hours, dto.getVersion(), dto.getDayOfWeek());
 
         hours.setDayOfWeek(dto.getDayOfWeek());
         hours.setOpenTime(dto.getOpenTime());
@@ -83,8 +91,8 @@ public class AvailabilityService {
     @Transactional
     @CacheEvict(value = "availableSlots", allEntries = true)
     public void saveWeeklySchedule(WeeklyScheduleDTO dto) {
-        if (dto == null || dto.getDays() == null || dto.getDays().isEmpty()) {
-            throw new IllegalArgumentException("A weekly schedule with at least one day is required");
+        if (dto == null || dto.getDays() == null || dto.getDays().size() != 7) {
+            throw new IllegalArgumentException("A complete seven-day weekly schedule is required");
         }
 
         log.info("Saving weekly schedule with {} days", dto.getDays().size());
@@ -109,6 +117,9 @@ public class AvailabilityService {
                 List<TimeSlotDTO> slots = day.getTimeSlots() != null
                         ? day.getTimeSlots()
                         : List.of();
+                if (slots.size() > 200) {
+                    throw new IllegalArgumentException(dayKey + " cannot contain more than 200 starts");
+                }
 
                 boolean isOpen = Boolean.TRUE.equals(day.getIsAvailable()) && !slots.isEmpty();
 
@@ -116,6 +127,7 @@ public class AvailabilityService {
 
                 BusinessHours hours = businessHoursRepository.findByDayOfWeek(dayOfWeek)
                         .orElse(new BusinessHours());
+                requireScheduleVersion(hours, day.getVersion(), dayOfWeek);
 
                 hours.setDayOfWeek(dayOfWeek);
                 hours.setIsOpen(isOpen);
@@ -140,6 +152,9 @@ public class AvailabilityService {
                     }
                     if (slot.getCapacity() != null && slot.getCapacity() < 1) {
                         throw new IllegalArgumentException(dayKey + " slot capacity must be at least 1");
+                    }
+                    if (slot.getCapacity() != null && slot.getCapacity() > 10) {
+                        throw new IllegalArgumentException(dayKey + " slot capacity cannot exceed 10");
                     }
                     if (previousEnd != null && start.isBefore(previousEnd)) {
                         throw new IllegalArgumentException(dayKey + " time slots cannot overlap");
@@ -224,9 +239,16 @@ public class AvailabilityService {
         if (dto.getReason() == null || dto.getReason().isBlank()) {
             throw new IllegalArgumentException("A reason is required");
         }
+        if (dto.getReason().trim().length() > 255) {
+            throw new IllegalArgumentException("Blocked-time reason cannot exceed 255 characters");
+        }
         boolean recurring = Boolean.TRUE.equals(dto.getIsRecurring());
         if (recurring && (dto.getRecurrencePattern() == null || dto.getRecurrencePattern().isBlank())) {
             throw new IllegalArgumentException("A recurrence pattern is required for recurring blocks");
+        }
+        if (recurring && dto.getRecurrenceEndDate() != null
+                && dto.getRecurrenceEndDate().isBefore(dto.getStartDateTime().toLocalDate())) {
+            throw new IllegalArgumentException("Recurrence end date cannot be before its start date");
         }
         Admin admin = adminRepository.findByEmail(adminEmail)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
@@ -245,6 +267,7 @@ public class AvailabilityService {
         slot.setReason(dto.getReason().trim());
         slot.setIsRecurring(recurring);
         slot.setRecurrencePattern(recurring ? dto.getRecurrencePattern().toUpperCase() : null);
+        slot.setRecurrenceEndDate(recurring ? dto.getRecurrenceEndDate() : null);
         slot.setCreatedBy(admin);
         slot.setCreatedAt(LocalDateTime.now());
         
@@ -268,9 +291,9 @@ public class AvailabilityService {
     }
     
     // Available Slots Calculation
-    @Cacheable(value = "availableSlots", key = "#date")
     public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone, Long serviceId, Long lengthOptionId) {
         List<AvailableSlotDTO> slots = new ArrayList<>();
+        int serviceMinutes = resolveServiceDuration(serviceId, lengthOptionId);
         
         // Get business hours for this day
         BusinessHoursDTO businessHours = getBusinessHoursByDay(date.getDayOfWeek());
@@ -308,22 +331,21 @@ public class AvailabilityService {
         LocalDateTime now = salonNow(settings);
         List<BlockedTimeSlot> blockedSlots = blockedTimeSlotRepository.findByDateRange(queryStart, queryEnd);
         List<BlockedTimeSlot> recurringBlocks = blockedTimeSlotRepository.findByIsRecurringTrue();
-        Map<LocalDateTime, Long> appointmentsByStart = appointmentRepository
-                .findActiveStartsBetween(queryStart, queryEnd, now).stream()
-                .map(Appointment::getAppointmentDateTime)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        List<Appointment> activeAppointments = appointmentRepository
+                .findActiveStartsBetween(queryStart.minusDays(1), queryEnd, now);
         List<TimeSlot> configuredSlots = timeSlotRepository
                 .findByDayOfWeekOrderBySlotOrderAsc(date.getDayOfWeek().name());
         if (!configuredSlots.isEmpty()) {
-            for (TimeSlot configured : configuredSlots) {
+            for (int index = 0; index < configuredSlots.size(); index++) {
+                TimeSlot configured = configuredSlots.get(index);
                 LocalDateTime windowStart = LocalDateTime.of(date, configured.getStartTime());
-                LocalDateTime windowEnd = LocalDateTime.of(date, configured.getEndTime());
-                int occupiedMinutes = slotIntervalMinutes(settings) + bufferMinutes(settings);
-                for (LocalDateTime start = windowStart;
-                     AppointmentManagementRules.slotFitsWindow(start, occupiedMinutes, windowEnd);
-                     start = start.plusMinutes(occupiedMinutes)) {
-                    slots.add(checkSlotAvailability(start, zoneId, slotCapacity(configured),
-                            occupiedMinutes, blockedSlots, recurringBlocks, appointmentsByStart));
+                LocalTime contiguousEnd = contiguousWindowEnd(configuredSlots, index);
+                LocalDateTime windowEnd = LocalDateTime.of(date, contiguousEnd);
+                int occupiedMinutes = serviceMinutes + bufferMinutes(settings);
+                if (AppointmentManagementRules.slotFitsWindow(windowStart, occupiedMinutes, windowEnd)) {
+                    slots.add(checkSlotAvailability(windowStart, zoneId, slotCapacity(configured),
+                            occupiedMinutes, blockedSlots, recurringBlocks, activeAppointments,
+                            slotIntervalMinutes(settings) + bufferMinutes(settings)));
                 }
             }
             return slots;
@@ -340,11 +362,13 @@ public class AvailabilityService {
         LocalDateTime slotStart = LocalDateTime.of(date, currentTime);
         LocalDateTime slotEnd = LocalDateTime.of(endDate, closeTime);
         
-        int occupiedMinutes = slotIntervalMinutes(settings) + bufferMinutes(settings);
+        int occupiedMinutes = serviceMinutes + bufferMinutes(settings);
+        int startGapMinutes = slotIntervalMinutes(settings);
         while (AppointmentManagementRules.slotFitsWindow(slotStart, occupiedMinutes, slotEnd)) {
             slots.add(checkSlotAvailability(slotStart, zoneId, maximumCapacity(settings),
-                    occupiedMinutes, blockedSlots, recurringBlocks, appointmentsByStart));
-            slotStart = slotStart.plusMinutes(occupiedMinutes);
+                    occupiedMinutes, blockedSlots, recurringBlocks, activeAppointments,
+                    slotIntervalMinutes(settings) + bufferMinutes(settings)));
+            slotStart = slotStart.plusMinutes(startGapMinutes);
         }
         
         return slots;
@@ -354,7 +378,8 @@ public class AvailabilityService {
                                                     int occupiedMinutes,
                                                     List<BlockedTimeSlot> blockedSlots,
                                                     List<BlockedTimeSlot> recurringBlocks,
-                                                    Map<LocalDateTime, Long> appointmentsByStart) {
+                                                    List<Appointment> activeAppointments,
+                                                    int legacyOccupiedMinutes) {
         AvailableSlotDTO slot = new AvailableSlotDTO();
         slot.setStartTime(start);
         LocalDateTime end = start.plusMinutes(occupiedMinutes);
@@ -393,7 +418,13 @@ public class AvailabilityService {
         }
         
         // Check existing appointments (true interval overlap, excluding expired unpaid reservations)
-        long appointmentCount = appointmentsByStart.getOrDefault(start, 0L);
+        long appointmentCount = activeAppointments.stream().filter(appointment -> {
+            LocalDateTime appointmentStart = appointment.getAppointmentDateTime();
+            LocalDateTime appointmentEnd = appointment.getAppointmentEndDateTime() != null
+                    ? appointment.getAppointmentEndDateTime()
+                    : appointmentStart.plusMinutes(legacyOccupiedMinutes);
+            return appointmentStart.isBefore(end) && appointmentEnd.isAfter(start);
+        }).count();
         int availableSpots = capacity - (int) appointmentCount;
         
         slot.setIsAvailable(availableSpots > 0);
@@ -486,17 +517,47 @@ public class AvailabilityService {
         Integer configured = slot.getCapacity();
         return configured == null || configured < 1 ? 1 : configured;
     }
+
+    private int resolveServiceDuration(Long serviceId, Long lengthOptionId) {
+        if (serviceId == null) return 60;
+        ServiceItem service = serviceItemRepository.findByIdAndActiveTrue(serviceId)
+                .orElseThrow(() -> new IllegalArgumentException("Service is unavailable"));
+        if (lengthOptionId != null && service.getLengthOptions().stream()
+                .noneMatch(option -> lengthOptionId.equals(option.getId()))) {
+            throw new IllegalArgumentException("Selected length is unavailable for this service");
+        }
+        Integer configured = service.getDurationMinutes();
+        return configured == null || configured < 15 ? 60 : configured;
+    }
+
+    private LocalTime contiguousWindowEnd(List<TimeSlot> slots, int startIndex) {
+        LocalTime end = slots.get(startIndex).getEndTime();
+        for (int index = startIndex + 1; index < slots.size(); index++) {
+            TimeSlot next = slots.get(index);
+            if (!next.getStartTime().equals(end)) break;
+            end = next.getEndTime();
+        }
+        return end;
+    }
     
     // Helper methods
     private BusinessHoursDTO mapToBusinessHoursDTO(BusinessHours hours) {
         BusinessHoursDTO dto = new BusinessHoursDTO();
         dto.setId(hours.getId());
+        dto.setVersion(hours.getVersion());
         dto.setDayOfWeek(hours.getDayOfWeek());
         dto.setOpenTime(hours.getOpenTime());
         dto.setCloseTime(hours.getCloseTime());
         dto.setIsOpen(hours.getIsOpen());
         dto.setNotes(hours.getNotes());
         return dto;
+    }
+
+    private void requireScheduleVersion(BusinessHours hours, Long requested, Object day) {
+        if (hours.getId() != null && !java.util.Objects.equals(hours.getVersion(), requested)) {
+            throw new org.springframework.dao.OptimisticLockingFailureException(
+                    day + " availability changed in another session. Reload before saving.");
+        }
     }
     
     private BlockedTimeSlotDTO mapToBlockedTimeSlotDTO(BlockedTimeSlot slot) {
@@ -507,6 +568,7 @@ public class AvailabilityService {
         dto.setReason(slot.getReason());
         dto.setIsRecurring(slot.getIsRecurring());
         dto.setRecurrencePattern(slot.getRecurrencePattern());
+        dto.setRecurrenceEndDate(slot.getRecurrenceEndDate());
         dto.setCreatedByName(slot.getCreatedBy() != null ? 
             slot.getCreatedBy().getFirstName() + " " + slot.getCreatedBy().getLastName() : null);
         dto.setCreatedAt(slot.getCreatedAt());
@@ -518,7 +580,9 @@ public class AvailabilityService {
         dto.setDayOfWeek(day);
         dto.setOpenTime(LocalTime.of(9, 0));
         dto.setCloseTime(LocalTime.of(17, 0));
-        dto.setIsOpen(day != DayOfWeek.SUNDAY);
+        // Missing configuration must fail closed. Otherwise the public calendar
+        // advertises default hours that appointment creation cannot honor.
+        dto.setIsOpen(false);
         return dto;
     }
 }

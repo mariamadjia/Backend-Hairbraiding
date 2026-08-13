@@ -6,6 +6,7 @@ public class DayScheduleDTO {
     private String dayOfWeek;
     private Boolean isAvailable;
     private List<TimeSlotDTO> timeSlots;
+    private Long version;
 
     public String getDayOfWeek() {
         return dayOfWeek;
@@ -30,4 +31,7 @@ public class DayScheduleDTO {
     public void setTimeSlots(List<TimeSlotDTO> timeSlots) {
         this.timeSlots = timeSlots;
     }
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

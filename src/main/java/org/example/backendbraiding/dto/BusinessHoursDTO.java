@@ -12,6 +12,7 @@ import java.time.LocalTime;
 @AllArgsConstructor
 public class BusinessHoursDTO {
     private Long id;
+    private Long version;
     private DayOfWeek dayOfWeek;
     private LocalTime openTime;
     private LocalTime closeTime;

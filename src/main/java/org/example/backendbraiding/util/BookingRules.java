@@ -11,6 +11,7 @@ public final class BookingRules {
     public static boolean recurringBlockOverlaps(BlockedTimeSlot block, LocalDateTime start, LocalDateTime end) {
         if (!Boolean.TRUE.equals(block.getIsRecurring()) || block.getRecurrencePattern() == null
                 || start.isBefore(block.getStartDateTime())) return false;
+        if (block.getRecurrenceEndDate() != null && start.toLocalDate().isAfter(block.getRecurrenceEndDate())) return false;
 
         String pattern = block.getRecurrencePattern().toUpperCase();
         if ("WEEKLY".equals(pattern) && block.getStartDateTime().getDayOfWeek() != start.getDayOfWeek()) return false;
@@ -25,6 +26,7 @@ public final class BookingRules {
     public static boolean recurringBlockContains(BlockedTimeSlot block, LocalDateTime start) {
         if (!Boolean.TRUE.equals(block.getIsRecurring()) || block.getRecurrencePattern() == null
                 || start.isBefore(block.getStartDateTime())) return false;
+        if (block.getRecurrenceEndDate() != null && start.toLocalDate().isAfter(block.getRecurrenceEndDate())) return false;
 
         String pattern = block.getRecurrencePattern().toUpperCase();
         if ("WEEKLY".equals(pattern) && block.getStartDateTime().getDayOfWeek() != start.getDayOfWeek()) return false;

@@ -13,6 +13,7 @@ public class ServiceItemResponse {
     private String price;
     private String description;
     private String notes;
+    private Integer durationMinutes;
     private String image;
     private List<String> images;
     private List<String> sizePhotos;
@@ -48,6 +49,7 @@ public class ServiceItemResponse {
         response.setPrice(service.getPrice());
         response.setDescription(service.getDescription());
         response.setNotes(service.getNotes());
+        response.setDurationMinutes(service.getDurationMinutes());
         response.setImage(service.getImage());
         response.setImages(service.getImages());
         response.setSizePhotos(service.getSizePhotos());

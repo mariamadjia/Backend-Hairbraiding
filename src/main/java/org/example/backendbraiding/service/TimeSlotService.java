@@ -34,6 +34,7 @@ public class TimeSlotService {
     public void saveTimeSlotsForDay(String dayOfWeek, List<TimeSlotDTO> slots) {
         DayOfWeek.valueOf(dayOfWeek);
         if (slots == null) throw new IllegalArgumentException("Time slots are required");
+        if (slots.size() > 200) throw new IllegalArgumentException("A day cannot contain more than 200 starts");
         List<TimeSlotDTO> sortedSlots = new ArrayList<>(slots);
         sortedSlots.sort(Comparator.comparing(slot -> LocalTime.parse(slot.getStartTime())));
         LocalTime previousEnd = null;
@@ -43,6 +44,9 @@ public class TimeSlotService {
             if (!end.isAfter(start)) throw new IllegalArgumentException("Slot end must be after its start");
             if (dto.getCapacity() != null && dto.getCapacity() < 1) {
                 throw new IllegalArgumentException("Slot capacity must be at least 1");
+            }
+            if (dto.getCapacity() != null && dto.getCapacity() > 10) {
+                throw new IllegalArgumentException("Slot capacity cannot exceed 10");
             }
             if (previousEnd != null && start.isBefore(previousEnd)) {
                 throw new IllegalArgumentException("Time slots cannot overlap");

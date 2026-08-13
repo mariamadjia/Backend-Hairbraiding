@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @NoArgsConstructor
@@ -16,6 +17,7 @@ public class BlockedTimeSlotDTO {
     private String reason;
     private Boolean isRecurring;
     private String recurrencePattern;
+    private LocalDate recurrenceEndDate;
     private String createdByName;
     private LocalDateTime createdAt;
 }

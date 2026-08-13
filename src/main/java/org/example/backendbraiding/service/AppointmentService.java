@@ -122,13 +122,16 @@ public class AppointmentService {
             }
         }
 
-        validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), settings);
+        lockAppointmentSlot(requestDTO.getAppointmentDateTime());
+        int durationMinutes = serviceDurationMinutes(service);
+        validateAppointmentAvailability(requestDTO.getAppointmentDateTime(), settings, durationMinutes);
 
         Appointment appointment = new Appointment();
         appointment.setCustomer(customer);
         appointment.setService(service);
         appointment.setAppointmentDateTime(requestDTO.getAppointmentDateTime());
-        appointment.setAppointmentEndDateTime(null);
+        appointment.setAppointmentEndDateTime(requestDTO.getAppointmentDateTime()
+                .plusMinutes(durationMinutes + bufferMinutes(settings)));
         appointment.setNotes(requestDTO.getNotes());
         appointment.setSelectedService(displayServiceName(service));
         appointment.setSelectedSize(service.getName());
@@ -139,7 +142,7 @@ public class AppointmentService {
         appointment.setDepositAmount(quote.depositCents());
         appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
         appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
-        appointment.setDurationMinutes(null);
+        appointment.setDurationMinutes(durationMinutes);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
 
@@ -614,6 +617,10 @@ public class AppointmentService {
     public AppointmentSettingsDTO updateSettings(AppointmentSettingsDTO dto, Long adminId) {
         AppointmentSettings settings = settingsRepository.findFirstByOrderByIdDesc()
             .orElseGet(this::createDefaultSettings);
+        if (!java.util.Objects.equals(settings.getVersion() == null ? 0L : settings.getVersion(), dto.getVersion())) {
+            throw new org.springframework.dao.OptimisticLockingFailureException(
+                    "Booking rules changed in another session. Reload before saving.");
+        }
         
         Admin admin = adminRepository.findById(adminId)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
@@ -639,6 +646,7 @@ public class AppointmentService {
 
     private AppointmentSettingsDTO mapToSettingsDTO(AppointmentSettings settings) {
         AppointmentSettingsDTO dto = new AppointmentSettingsDTO();
+        dto.setVersion(settings.getVersion() == null ? 0L : settings.getVersion());
         dto.setSlotDurationMinutes(settings.getSlotDurationMinutes());
         dto.setAdvanceBookingDays(settings.getAdvanceBookingDays());
         dto.setMaxAppointmentsPerSlot(settings.getMaxAppointmentsPerSlot());
@@ -686,7 +694,8 @@ public class AppointmentService {
         }
     }
     
-    private void validateAppointmentAvailability(LocalDateTime appointmentDateTime, AppointmentSettings settings) {
+    private void validateAppointmentAvailability(LocalDateTime appointmentDateTime, AppointmentSettings settings,
+                                                 int serviceDurationMinutes) {
         BusinessHours businessHours = businessHoursRepository.findByDayOfWeek(appointmentDateTime.getDayOfWeek())
             .orElse(null);
         
@@ -704,7 +713,7 @@ public class AppointmentService {
                 businessHours.getOpenTime() + " - " + businessHours.getCloseTime() + ")");
         }
 
-        int occupiedMinutes = slotIntervalMinutes(settings) + bufferMinutes(settings);
+        int occupiedMinutes = serviceDurationMinutes + bufferMinutes(settings);
         LocalDateTime slotEnd = appointmentDateTime.plusMinutes(occupiedMinutes);
         if (slotEnd.isAfter(businessClose)) {
             throw new IllegalArgumentException("Appointment slot and buffer must end before business closing time");
@@ -714,7 +723,7 @@ public class AppointmentService {
                 appointmentDateTime.getDayOfWeek().name());
         if (configuredSlots.isEmpty()) {
             long minutesFromOpening = java.time.Duration.between(businessOpen, appointmentDateTime).toMinutes();
-            if (minutesFromOpening % occupiedMinutes != 0) {
+            if (minutesFromOpening % slotIntervalMinutes(settings) != 0) {
                 throw new IllegalArgumentException("Appointment time must match an available slot");
             }
         }
@@ -728,29 +737,48 @@ public class AppointmentService {
         
         int capacity = maximumCapacity(settings);
         if (!configuredSlots.isEmpty()) {
-            TimeSlot configured = configuredSlots.stream()
-                    .filter(slot -> {
-                        LocalTime appointmentTime = appointmentDateTime.toLocalTime();
-                        if (appointmentTime.isBefore(slot.getStartTime()) || !appointmentTime.isBefore(slot.getEndTime())) {
-                            return false;
-                        }
-                        long minutesFromWindowStart = java.time.Duration.between(
-                                slot.getStartTime(), appointmentTime).toMinutes();
-                        long windowMinutes = java.time.Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
-                        return minutesFromWindowStart % occupiedMinutes == 0
-                                && minutesFromWindowStart + occupiedMinutes <= windowMinutes;
-                    })
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("Appointment time is not a configured slot"));
+            int configuredIndex = -1;
+            for (int index = 0; index < configuredSlots.size(); index++) {
+                if (configuredSlots.get(index).getStartTime().equals(appointmentDateTime.toLocalTime())) {
+                    configuredIndex = index;
+                    break;
+                }
+            }
+            if (configuredIndex < 0) throw new IllegalArgumentException("Appointment time is not a configured slot");
+            TimeSlot configured = configuredSlots.get(configuredIndex);
+            LocalTime contiguousEnd = configured.getEndTime();
+            for (int index = configuredIndex + 1; index < configuredSlots.size(); index++) {
+                TimeSlot next = configuredSlots.get(index);
+                if (!next.getStartTime().equals(contiguousEnd)) break;
+                contiguousEnd = next.getEndTime();
+            }
+            LocalDateTime configuredEnd = LocalDateTime.of(appointmentDateTime.toLocalDate(), contiguousEnd);
+            if (appointmentDateTime.plusMinutes(occupiedMinutes).isAfter(configuredEnd)) {
+                throw new IllegalArgumentException("The selected service does not fit in this availability window");
+            }
             capacity = configured.getCapacity() == null || configured.getCapacity() < 1
                     ? 1 : configured.getCapacity();
         }
 
         LocalDateTime salonNow = ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
-        long appointmentCount = appointmentRepository.countActiveAtStart(appointmentDateTime, salonNow);
+        long appointmentCount = appointmentRepository.countOverlapping(
+                appointmentDateTime, appointmentDateTime.plusMinutes(occupiedMinutes), salonNow);
         if (appointmentCount >= capacity) {
             throw new IllegalStateException("This time slot is fully booked");
         }
+    }
+
+    private void lockAppointmentSlot(LocalDateTime appointmentDateTime) {
+        // Lock the entire salon date, not only one start. Long services can
+        // overlap a different start time on the same day.
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))")
+                .setParameter(1, "appointment-date:" + appointmentDateTime.toLocalDate())
+                .getSingleResult();
+    }
+
+    private int serviceDurationMinutes(ServiceItem service) {
+        Integer configured = service.getDurationMinutes();
+        return configured == null || configured < 15 ? 60 : configured;
     }
 
     private ZoneId salonZone(AppointmentSettings settings) {

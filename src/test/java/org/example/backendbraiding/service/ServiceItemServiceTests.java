@@ -70,6 +70,17 @@ class ServiceItemServiceTests {
     }
 
     @Test
+    void savesServiceDurationUsedByAvailability() {
+        ServiceItemRequest request = baseRequest();
+        request.setDurationMinutes(360);
+        request.setPrice("250");
+
+        ServiceItem updated = subject.updateService(3L, request);
+
+        assertEquals(360, updated.getDurationMinutes());
+    }
+
+    @Test
     void savesSeparateKnotlessLengthPrice() {
         ServiceItemRequest request = baseRequest();
         request.setFoundationChoicesEnabled(true);

@@ -181,6 +181,7 @@ public class CategoryService {
         dto.setPrice(item.getPrice());
         dto.setDescription(item.getDescription());
         dto.setNotes(item.getNotes());
+        dto.setDurationMinutes(item.getDurationMinutes());
         dto.setImage(item.getImage());
         dto.setImages(item.getImages());
         dto.setSizePhotos(item.getSizePhotos());

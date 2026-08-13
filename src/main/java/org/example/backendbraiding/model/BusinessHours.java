@@ -18,6 +18,9 @@ public class BusinessHours {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    private Long version = 0L;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, unique = true)

@@ -4,6 +4,7 @@ import org.example.backendbraiding.model.BlockedTimeSlot;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -40,6 +41,15 @@ class BookingRulesTests {
                 LocalDateTime.parse("2026-07-22T23:00:00"), LocalDateTime.parse("2026-07-23T00:00:00")));
         assertTrue(BookingRules.recurringBlockOverlaps(overnight,
                 LocalDateTime.parse("2026-07-23T01:30:00"), LocalDateTime.parse("2026-07-23T02:30:00")));
+    }
+
+    @Test
+    void recurrenceStopsAfterConfiguredEndDate() {
+        BlockedTimeSlot daily = block("2026-07-20T12:00:00", "2026-07-20T13:00:00", "DAILY");
+        daily.setRecurrenceEndDate(LocalDate.parse("2026-07-25"));
+
+        assertTrue(BookingRules.recurringBlockContains(daily, LocalDateTime.parse("2026-07-25T12:30:00")));
+        assertFalse(BookingRules.recurringBlockContains(daily, LocalDateTime.parse("2026-07-26T12:30:00")));
     }
 
     private BlockedTimeSlot block(String start, String end, String pattern) {

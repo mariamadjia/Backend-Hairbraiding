@@ -200,6 +200,7 @@ public class PricingManagementService {
         clone.setPrice(source.getPrice());
         clone.setDescription(source.getDescription());
         clone.setNotes(source.getNotes());
+        clone.setDurationMinutes(source.getDurationMinutes());
         clone.setImage(source.getImage());
         clone.setImages(new java.util.ArrayList<>(source.getImages()));
         clone.setSizePhotos(new java.util.ArrayList<>(source.getSizePhotos()));

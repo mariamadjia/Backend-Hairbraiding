@@ -36,6 +36,9 @@ public class ServiceItem {
 
     private String notes;
 
+    @Column(name = "duration_minutes", nullable = false)
+    private Integer durationMinutes = 60;
+
     private String image;
 
     @ElementCollection

@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Max;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -21,6 +23,9 @@ public class ServiceItemRequest {
     private String price = "";
     @Size(max = 5000) private String description = "";
     @Size(max = 1000) private String notes = "";
+    @Min(value = 15, message = "Service duration must be at least 15 minutes")
+    @Max(value = 1440, message = "Service duration cannot exceed 24 hours")
+    private Integer durationMinutes = 60;
     @Size(max = 2000) private String image = "";
     @Size(max = 2000) private String link = "";
     @Size(max = 100) private String objectPosition = "";

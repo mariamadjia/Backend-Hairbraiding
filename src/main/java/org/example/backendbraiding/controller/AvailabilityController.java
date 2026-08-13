@@ -46,6 +46,8 @@ public class AvailabilityController {
         } catch (IllegalArgumentException e) {
             log.error("Invalid schedule data: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (org.springframework.dao.OptimisticLockingFailureException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to save weekly schedule", e);
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to save schedule: " + e.getMessage()));
