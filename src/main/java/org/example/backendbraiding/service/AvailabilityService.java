@@ -554,7 +554,16 @@ public class AvailabilityService {
     }
 
     private void requireScheduleVersion(BusinessHours hours, Long requested, Object day) {
-        if (hours.getId() != null && !java.util.Objects.equals(hours.getVersion(), requested)) {
+        // Legacy production rows can have a null @Version even after the column
+        // was added. Normalize the managed entity before Hibernate attempts to
+        // calculate its next version; treat an older client's null as version 0.
+        Long current = hours.getVersion();
+        if (hours.getId() != null && current == null) {
+            current = 0L;
+            hours.setVersion(current);
+        }
+        Long submitted = requested == null ? 0L : requested;
+        if (hours.getId() != null && !java.util.Objects.equals(current, submitted)) {
             throw new org.springframework.dao.OptimisticLockingFailureException(
                     day + " availability changed in another session. Reload before saving.");
         }
