@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -70,7 +71,13 @@ public class HomepageSettingsController {
         String heroVideoSrc = request.get("heroVideoSrc") != null ? request.get("heroVideoSrc").toString() : "";
         Boolean useHeroVideo = request.get("useHeroVideo") != null ? Boolean.valueOf(request.get("useHeroVideo").toString()) : false;
 
+        String previousVideoSrc = service.getSettings()
+            .map(HomepageSettingsDTO::getHeroVideoSrc)
+            .orElse("");
         HomepageSettingsDTO updated = service.updateHeroVideo(heroVideoSrc, useHeroVideo, adminId);
+        if (!previousVideoSrc.isBlank() && !previousVideoSrc.equals(updated.getHeroVideoSrc())) {
+            deleteManagedHomepageVideo(previousVideoSrc);
+        }
         return ResponseEntity.ok(updated);
     }
 
@@ -159,10 +166,13 @@ public class HomepageSettingsController {
             return ResponseEntity.badRequest().body(Map.of("error", "Video must be 50MB or smaller."));
         }
         String contentType = file.getContentType();
-        if (contentType == null || !(contentType.equals("video/mp4")
-                || contentType.equals("video/quicktime")
-                || contentType.equals("video/webm"))) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Only MP4, MOV, and WebM videos are supported."));
+        if (!"video/mp4".equalsIgnoreCase(contentType)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Only MP4 videos are supported."));
+        }
+        byte[] header = Arrays.copyOf(file.getBytes(), 12);
+        if (header.length < 12 || header[4] != 'f' || header[5] != 't'
+                || header[6] != 'y' || header[7] != 'p') {
+            return ResponseEntity.badRequest().body(Map.of("error", "This file is not a valid MP4 video."));
         }
         
         String uploadDir = System.getenv("UPLOAD_DIR") != null 
@@ -176,11 +186,7 @@ public class HomepageSettingsController {
         }
         
         // Generate unique filename
-        String originalFilename = file.getOriginalFilename();
-        String extension = contentType.equals("video/quicktime")
-            ? ".mov"
-            : contentType.equals("video/webm") ? ".webm" : ".mp4";
-        String filename = UUID.randomUUID().toString() + extension;
+        String filename = UUID.randomUUID() + ".mp4";
         Path filePath = uploadPath.resolve(filename);
         
         // Save file
@@ -200,14 +206,30 @@ public class HomepageSettingsController {
     public ResponseEntity<Map<String, String>> deleteUnusedHomepageVideo(
             @RequestParam("path") String videoPath) throws IOException {
         String filename = Paths.get(videoPath).getFileName().toString();
-        if (filename.isBlank() || !filename.matches("[0-9a-fA-F-]+\\.(mp4|mov|webm)")) {
+        if (filename.isBlank() || !filename.matches("[0-9a-fA-F-]+\\.mp4")) {
             return ResponseEntity.badRequest().body(Map.of("error", "Invalid video path."));
         }
-        String uploadDir = System.getenv("UPLOAD_DIR") != null
-            ? System.getenv("UPLOAD_DIR")
-            : "public/Gallery/uploads";
-        Files.deleteIfExists(Paths.get(uploadDir).resolve(filename));
+        deleteManagedHomepageVideo(videoPath);
         return ResponseEntity.ok(Map.of("message", "Unused video removed."));
+    }
+
+    private void deleteManagedHomepageVideo(String videoPath) {
+        try {
+            String filename = Paths.get(videoPath).getFileName().toString();
+            if (!filename.matches("[0-9a-fA-F-]+\\.mp4")) {
+                return;
+            }
+            String uploadDir = System.getenv("UPLOAD_DIR") != null
+                ? System.getenv("UPLOAD_DIR")
+                : "public/Gallery/uploads";
+            Path root = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Path target = root.resolve(filename).normalize();
+            if (target.startsWith(root)) {
+                Files.deleteIfExists(target);
+            }
+        } catch (IOException | RuntimeException exception) {
+            log.warn("Could not remove replaced homepage video {}", videoPath, exception);
+        }
     }
     
     private Long extractAdminId(Authentication authentication) {
