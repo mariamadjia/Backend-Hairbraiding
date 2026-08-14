@@ -25,7 +25,8 @@ public class CacheConfig {
             "availableSlots",
             "appointments",
             "customers",
-            "homepageSettings"
+            "homepageSettings",
+            "guideSettings"
         );
         // Expire entries 10 minutes after write; cap each cache at 500 entries
         cacheManager.setCaffeine(
