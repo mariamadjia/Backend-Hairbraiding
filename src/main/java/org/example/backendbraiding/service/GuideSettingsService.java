@@ -27,7 +27,7 @@ public class GuideSettingsService {
     @Transactional
     @CacheEvict(value = "guideSettings", allEntries = true)
     public GuideSettingsDTO update(GuideSettingsDTO request) {
-        GuideSettings settings = settingsRepository.findById(1L).orElseGet(GuideSettings::new);
+        GuideSettings settings = settingsRepository.findByIdForUpdate(1L).orElseGet(GuideSettings::new);
         String lengthImage = cleanUrl(request.getLengthGuideImageUrl());
         settings.setLengthGuideImageUrl(lengthImage);
         settings.setLengthGuideEnabled(Boolean.TRUE.equals(request.getLengthGuideEnabled()) && lengthImage != null);
@@ -37,11 +37,18 @@ public class GuideSettingsService {
         Map<Long, GuideSettingsDTO.SizeGuideDTO> requested = new HashMap<>();
         if (request.getSizes() != null) for (var size : request.getSizes()) if (size.getId() != null) requested.put(size.getId(), size);
         List<SizeGuideProfile> profiles = profileRepository.findAllByOrderByDisplayOrderAscIdAsc();
+        List<SizeGuideProfile> changedProfiles = new ArrayList<>();
         for (SizeGuideProfile profile : profiles) {
             var update = requested.get(profile.getId());
-            if (update != null) profile.setImageUrl(cleanUrl(update.getImageUrl()));
+            if (update != null) {
+                String nextImageUrl = cleanUrl(update.getImageUrl());
+                if (!Objects.equals(profile.getImageUrl(), nextImageUrl)) {
+                    profile.setImageUrl(nextImageUrl);
+                    changedProfiles.add(profile);
+                }
+            }
         }
-        profileRepository.saveAll(profiles);
+        if (!changedProfiles.isEmpty()) profileRepository.saveAll(changedProfiles);
         return map(settings, profiles);
     }
 
