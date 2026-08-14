@@ -10,6 +10,7 @@ import java.util.List;
 public class ServiceItemResponse {
     private Long id;
     private String name;
+    private String sizeGuideKey;
     private String price;
     private String description;
     private String notes;
@@ -46,6 +47,7 @@ public class ServiceItemResponse {
         ServiceItemResponse response = new ServiceItemResponse();
         response.setId(service.getId());
         response.setName(service.getName());
+        response.setSizeGuideKey(service.getSizeGuideKey());
         response.setPrice(service.getPrice());
         response.setDescription(service.getDescription());
         response.setNotes(service.getNotes());

@@ -226,6 +226,7 @@ public class BookingController {
         bookingItem.put("id", item.getId());
         bookingItem.put("version", item.getVersion() == null ? 0L : item.getVersion());
         bookingItem.put("name", item.getName());
+        bookingItem.put("sizeGuideKey", item.getSizeGuideKey());
         bookingItem.put("displayOrder", item.getDisplayOrder());
         bookingItem.put("price", item.getPrice());
         bookingItem.put("description", item.getDescription());

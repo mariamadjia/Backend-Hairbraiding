@@ -29,6 +29,9 @@ public class ServiceItem {
     @Column(nullable = false)
     private String name;
 
+    @Column(name = "size_guide_key", length = 40)
+    private String sizeGuideKey;
+
     private String price;
 
     @Column(columnDefinition = "TEXT")

@@ -84,6 +84,12 @@ public class ServiceItemService {
 
     private void applyRequest(ServiceItem service, ServiceItemRequest request, boolean creating) {
         service.setName(request.getName().trim());
+        if (service.getSizeGuideKey() == null || service.getSizeGuideKey().isBlank()) {
+            String candidate = request.getName().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z]", "");
+            if (java.util.Set.of("xsmall", "small", "smedium", "medium", "large", "jumbo").contains(candidate)) {
+                service.setSizeGuideKey(candidate);
+            }
+        }
         service.setPrice(clean(request.getPrice()));
         service.setDescription(clean(request.getDescription()));
         service.setNotes(clean(request.getNotes()));
