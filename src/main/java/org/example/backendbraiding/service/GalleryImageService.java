@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -465,29 +466,50 @@ public class GalleryImageService {
     private void removeImageReferences(String imageUrl) {
         if (imageUrl == null || imageUrl.isBlank()) return;
 
-        List<Category> categories = categoryRepository.findAll();
-        categories.forEach(category -> {
-            if (imageUrl.equals(category.getImage())) category.setImage(null);
-            category.getFlippingImages().removeIf(imageUrl::equals);
-        });
-        categoryRepository.saveAll(categories);
+        List<Category> changedCategories = new ArrayList<>();
+        for (Category category : categoryRepository.findAll()) {
+            boolean changed = false;
+            if (imageUrl.equals(category.getImage())) {
+                category.setImage(null);
+                changed = true;
+            }
+            if (category.getFlippingImages() != null
+                    && category.getFlippingImages().removeIf(imageUrl::equals)) {
+                changed = true;
+            }
+            if (changed) changedCategories.add(category);
+        }
+        if (!changedCategories.isEmpty()) categoryRepository.saveAll(changedCategories);
 
-        List<Subcategory> subcategories = subcategoryRepository.findAll();
-        subcategories.forEach(subcategory -> {
-            if (imageUrl.equals(subcategory.getImage())) subcategory.setImage(null);
-        });
-        subcategoryRepository.saveAll(subcategories);
+        List<Subcategory> changedSubcategories = new ArrayList<>();
+        for (Subcategory subcategory : subcategoryRepository.findAll()) {
+            if (imageUrl.equals(subcategory.getImage())) {
+                subcategory.setImage(null);
+                changedSubcategories.add(subcategory);
+            }
+        }
+        if (!changedSubcategories.isEmpty()) subcategoryRepository.saveAll(changedSubcategories);
 
-        List<ServiceItem> serviceItems = serviceItemRepository.findAll();
-        serviceItems.forEach(item -> {
-            if (imageUrl.equals(item.getImage())) item.setImage(null);
-            item.getImages().removeIf(imageUrl::equals);
-            item.getSizePhotos().removeIf(imageUrl::equals);
-            item.getLengthOptions().forEach(option -> {
-                if (imageUrl.equals(option.getImageUrl())) option.setImageUrl(null);
-            });
-        });
-        serviceItemRepository.saveAll(serviceItems);
+        List<ServiceItem> changedServiceItems = new ArrayList<>();
+        for (ServiceItem item : serviceItemRepository.findAll()) {
+            boolean changed = false;
+            if (imageUrl.equals(item.getImage())) {
+                item.setImage(null);
+                changed = true;
+            }
+            if (item.getImages() != null && item.getImages().removeIf(imageUrl::equals)) changed = true;
+            if (item.getSizePhotos() != null && item.getSizePhotos().removeIf(imageUrl::equals)) changed = true;
+            if (item.getLengthOptions() != null) {
+                for (var option : item.getLengthOptions()) {
+                    if (imageUrl.equals(option.getImageUrl())) {
+                        option.setImageUrl(null);
+                        changed = true;
+                    }
+                }
+            }
+            if (changed) changedServiceItems.add(item);
+        }
+        if (!changedServiceItems.isEmpty()) serviceItemRepository.saveAll(changedServiceItems);
     }
 
     private ImageResponse convertToResponse(GalleryImage image) {
