@@ -109,7 +109,7 @@ public class GalleryImageService {
 
     @Transactional
     @CacheEvict(value = {"bookingCategories", "publicCategories", "allCategories", "galleryCards", "galleryFull"}, allEntries = true)
-    public synchronized ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
+    public ImageResponse uploadImage(MultipartFile file, ImageUploadRequest request, String uploadedBy) throws IOException {
         // Validate file
         validateFile(file);
         int[] dimensions = readDimensions(file);
