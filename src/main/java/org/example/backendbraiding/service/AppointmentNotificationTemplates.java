@@ -23,6 +23,7 @@ public class AppointmentNotificationTemplates {
     private final String hoursWeekday;
     private final String hoursSunday;
     private final String website;
+    private final String frontendUrl;
 
     public AppointmentNotificationTemplates(
             @Value("${salon.name:AH Braiding Salon}") String salonName,
@@ -32,7 +33,8 @@ public class AppointmentNotificationTemplates {
             @Value("${salon.address-line-2:San Antonio, TX 78227}") String addressLine2,
             @Value("${salon.hours.weekday:Monday-Saturday: 9:00 AM-7:00 PM}") String hoursWeekday,
             @Value("${salon.hours.sunday:Sunday: 10:00 AM–5:00 PM}") String hoursSunday,
-            @Value("${salon.website:}") String website) {
+            @Value("${salon.website:}") String website,
+            @Value("${app.frontend-url}") String frontendUrl) {
         this.salonName = salonName;
         this.phone = phone;
         this.email = email;
@@ -41,18 +43,129 @@ public class AppointmentNotificationTemplates {
         this.hoursWeekday = normalizeHours(hoursWeekday);
         this.hoursSunday = normalizeHours(hoursSunday);
         this.website = website == null ? "" : website.trim();
+        this.frontendUrl = frontendUrl == null ? "" : frontendUrl.replaceAll("/+$", "");
+    }
+
+    public Notification pending(Appointment appointment) {
+        String body = brandedEmail(
+                "Your appointment request is pending",
+                "Thank you for submitting your appointment request to " + salonName + ".",
+                "Your request has been received and is currently awaiting confirmation from our team. "
+                        + "We’ll notify you by email as soon as your appointment is approved or if any changes are needed.",
+                appointment,
+                "Deposit authorized",
+                "Your card has not been charged. The deposit will only be charged if your appointment is approved.",
+                "Please do not submit another request while this appointment is under review.",
+                null,
+                null);
+        return new Notification("Appointment request received — awaiting confirmation", body, "");
     }
 
     public Notification approved(Appointment appointment) {
-        String body = greeting(appointment)
-                + "Your appointment with " + salonName + " is confirmed.\n\n"
-                + summary(appointment, "Deposit charged")
-                + "Your deposit is non-refundable under the policy accepted when booking. Please arrive on time and contact us if you have any questions before your appointment.\n\n"
-                + footer();
+        String body = brandedEmail(
+                "Your appointment is confirmed",
+                "We’re excited to see you! Your appointment has been confirmed. Here are the details:",
+                null,
+                appointment,
+                "Deposit charged",
+                "Your deposit is non-refundable under the policy accepted when booking.",
+                "Please arrive on time.",
+                "Manage Appointment",
+                frontendUrl + "/booking");
         return new Notification("Your appointment is confirmed — " + shortDate(appointment), body,
                 "Hi " + firstName(appointment) + ", your " + salonName + " appointment is confirmed for "
                         + dateTime(appointment) + " CT. Deposit charged: " + money(capturedAmount(appointment))
                         + ". Questions? " + phone);
+    }
+
+    private String brandedEmail(String heading, String intro, String secondary, Appointment appointment,
+                                String depositLabel, String notice, String closing,
+                                String buttonLabel, String buttonUrl) {
+        String button = buttonLabel == null ? "" : """
+                <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="margin:28px 0 24px">
+                  <tr><td align="center"><a href="%s" style="display:inline-block;background:#632b14;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:17px;font-weight:600;padding:16px 44px;border-radius:8px">%s</a></td></tr>
+                </table>
+                """.formatted(html(buttonUrl), html(buttonLabel));
+        String secondaryParagraph = secondary == null ? "" : paragraph(secondary);
+        return """
+                <!doctype html>
+                <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title></head>
+                <body style="margin:0;padding:0;background:#f6f3ef;color:#231f1c">
+                  <div style="display:none;max-height:0;overflow:hidden;opacity:0">%s</div>
+                  <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="background:#f6f3ef"><tr><td align="center" style="padding:28px 12px">
+                    <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background:#ffffff;border:1px solid #eee7df;border-radius:12px;box-shadow:0 3px 18px rgba(55,36,25,.07)">
+                      <tr><td style="padding:46px 40px 38px">
+                        <div style="font-family:Georgia,'Times New Roman',serif;font-size:36px;letter-spacing:5px;text-align:center;color:#4a2115">AH BRAIDING</div>
+                        <div style="height:1px;background:#c78b2d;margin:28px 0 38px"></div>
+                        <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:42px;line-height:1.08;text-align:center;color:#4a2115;margin:0 0 38px">%s</h1>
+                        <p style="font-family:Arial,sans-serif;font-size:17px;line-height:1.6;margin:0 0 22px">Hi %s,</p>
+                        %s%s
+                        %s
+                        <div style="background:#fbf7f1;border:1px solid #ead9c7;border-radius:10px;padding:20px 24px;margin:24px 0;font-family:Arial,sans-serif;font-size:16px;line-height:1.55">%s</div>
+                        <p style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;margin:0 0 18px">%s</p>
+                        %s
+                        <p style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;text-align:center;margin:0 0 28px">Questions? Reply to this email or call/text %s.</p>
+                        <div style="height:1px;background:#c78b2d;margin:0 0 24px"></div>
+                        %s
+                      </td></tr>
+                    </table>
+                  </td></tr></table>
+                </body></html>
+                """.formatted(
+                html(heading), html(heading), html(heading), html(firstName(appointment)),
+                paragraph(intro), secondaryParagraph,
+                htmlDetails(appointment, depositLabel), html(notice), html(closing), button,
+                html(phone), htmlFooter());
+    }
+
+    private String paragraph(String text) {
+        return "<p style=\"font-family:Arial,sans-serif;font-size:17px;line-height:1.6;margin:0 0 22px\">"
+                + html(text) + "</p>";
+    }
+
+    private String htmlDetails(Appointment appointment, String depositLabel) {
+        StringBuilder rows = new StringBuilder();
+        detailRow(rows, "Date and time", dateTime(appointment) + " CT");
+        detailRow(rows, "Service", serviceName(appointment));
+        detailRow(rows, "Size", appointment.getSelectedSize());
+        detailRow(rows, "Length", appointment.getSelectedLength());
+        detailRow(rows, "Foundation", friendlyFoundation(appointment.getSelectedFoundation()));
+        detailRow(rows, "Texture", appointment.getSelectedTexture());
+        if (appointment.getAddOns() != null && !appointment.getAddOns().isEmpty()) {
+            detailRow(rows, "Add-ons", appointment.getAddOns().stream()
+                    .map(AppointmentAddOn::getAddOnName).collect(Collectors.joining(", ")));
+        }
+        detailRow(rows, depositLabel, money("Deposit charged".equals(depositLabel)
+                ? capturedAmount(appointment) : authorizedAmount(appointment)));
+        return "<table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\" "
+                + "style=\"background:#fbf7f1;border:1px solid #ead9c7;border-radius:10px;margin:24px 0;border-collapse:separate\">"
+                + rows + "</table>";
+    }
+
+    private void detailRow(StringBuilder rows, String label, String value) {
+        if (value == null || value.isBlank()) return;
+        rows.append("<tr><td style=\"padding:15px 20px;border-bottom:1px solid #eadfd3;font-family:Arial,sans-serif;font-size:15px;font-weight:700;color:#4a2115;vertical-align:top;width:34%\">")
+                .append(html(label)).append(":</td><td style=\"padding:15px 20px;border-bottom:1px solid #eadfd3;font-family:Arial,sans-serif;font-size:15px;line-height:1.45;vertical-align:top\">")
+                .append(html(value)).append("</td></tr>");
+    }
+
+    private String htmlFooter() {
+        StringBuilder footer = new StringBuilder("<div style=\"font-family:Arial,sans-serif;font-size:14px;line-height:1.55;text-align:center;color:#40352f\">")
+                .append("<strong style=\"font-family:Georgia,'Times New Roman',serif;font-size:20px;color:#4a2115\">").append(html(salonName)).append("</strong><br>")
+                .append(html(addressLine1)).append("<br>").append(html(addressLine2)).append("<br>")
+                .append(html(hoursWeekday)).append("<br>").append(html(hoursSunday));
+        if (!website.isBlank()) footer.append("<br><a href=\"").append(html(website)).append("\" style=\"color:#632b14\">Website</a>");
+        return footer.append("</div>").toString();
+    }
+
+    private long authorizedAmount(Appointment appointment) {
+        return appointment.getAmountAuthorized() == null ? depositAmount(appointment) : appointment.getAmountAuthorized();
+    }
+
+    private String html(String value) {
+        if (value == null) return "";
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&#39;");
     }
 
     public Notification denied(Appointment appointment) {

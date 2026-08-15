@@ -114,6 +114,7 @@ public class PaymentService {
     }
 
     private void recordAuthorization(Appointment appointment, PaymentIntent intent) {
+        boolean firstAuthorization = appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED;
         appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
         appointment.setAmountAuthorized(intent.getAmountCapturable() != null && intent.getAmountCapturable() > 0
                 ? intent.getAmountCapturable() : intent.getAmount());
@@ -122,6 +123,13 @@ public class PaymentService {
         // operational deadline for the shortest commonly enabled methods.
         appointment.setPaymentAuthorizationExpiresAt(LocalDateTime.now().plusDays(6));
         appointmentRepository.save(appointment);
+        boolean requiresAdminApproval = appointmentSettingsRepository.findFirstByOrderByIdDesc()
+                .map(settings -> settings.getRequireApproval())
+                .orElse(true);
+        if (firstAuthorization && requiresAdminApproval) {
+            AppointmentNotificationTemplates.Notification notification = notificationTemplates.pending(appointment);
+            notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
+        }
     }
 
     private void recordCapture(Appointment appointment, PaymentIntent intent) {

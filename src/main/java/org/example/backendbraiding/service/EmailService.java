@@ -69,7 +69,7 @@ public class EmailService {
         helper.setTo(toEmail);
         helper.setReplyTo(salonEmail);
         helper.setSubject(subject);
-        helper.setText(body, false);
+        helper.setText(body, body != null && body.stripLeading().startsWith("<!doctype html>"));
         return message;
     }
 }

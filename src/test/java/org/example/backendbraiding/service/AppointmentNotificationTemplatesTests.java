@@ -20,7 +20,8 @@ class AppointmentNotificationTemplatesTests {
         templates = new AppointmentNotificationTemplates(
                 "AH Braiding Salon", "(210) 812-8121", "adjiashairbraiding@gmail.com",
                 "1305 SW Loop 410, Unit 203", "San Antonio, TX 78227",
-                "Monday–Saturday: 9:00 AM–7:00 PM", "Sunday: 10:00 AM–5:00 PM", "");
+                "Monday–Saturday: 9:00 AM–7:00 PM", "Sunday: 10:00 AM–5:00 PM", "",
+                "https://example.com");
     }
 
     @Test
@@ -29,9 +30,28 @@ class AppointmentNotificationTemplatesTests {
         appointment.setAmountCaptured(5000L);
         var notification = templates.approved(appointment);
 
-        assertTrue(notification.emailBody().contains("Deposit charged: $50.00"));
+        assertTrue(notification.emailBody().startsWith("<!doctype html>"));
+        assertTrue(notification.emailBody().contains("Deposit charged"));
+        assertTrue(notification.emailBody().contains("$50.00"));
         assertTrue(notification.emailBody().contains("deposit is non-refundable"));
+        assertTrue(notification.emailBody().contains("Manage Appointment"));
+        assertTrue(notification.emailBody().contains("Sunday: 10:00 AM-5:00 PM"));
         assertTrue(notification.smsBody().contains("Deposit charged: $50.00"));
+    }
+
+    @Test
+    void pendingMessageStatesAuthorizationIsNotACharge() {
+        Appointment appointment = appointment(Appointment.PaymentStatus.AUTHORIZED);
+        appointment.setAmountAuthorized(5000L);
+
+        var notification = templates.pending(appointment);
+
+        assertTrue(notification.subject().contains("awaiting confirmation"));
+        assertTrue(notification.emailBody().startsWith("<!doctype html>"));
+        assertTrue(notification.emailBody().contains("Your appointment request is pending"));
+        assertTrue(notification.emailBody().contains("Deposit authorized"));
+        assertTrue(notification.emailBody().contains("Your card has not been charged"));
+        assertFalse(notification.emailBody().contains("Manage Appointment"));
     }
 
     @Test
@@ -64,9 +84,9 @@ class AppointmentNotificationTemplatesTests {
                 "AH Braiding Salon", "(210) 812-8121", "adjiashairbraiding@gmail.com",
                 "1305 SW Loop 410, Unit 203", "San Antonio, TX 78227",
                 "Monday–Saturday: 9:00 AM–7:00 PM", "Sunday: 10:00 AM–5:00 PM",
-                "https://example.com");
+                "https://example.com", "https://example.com");
         assertTrue(withWebsite.approved(appointment(Appointment.PaymentStatus.CAPTURED))
-                .emailBody().contains("Website: https://example.com"));
+                .emailBody().contains("href=\"https://example.com\""));
     }
 
     @Test
@@ -83,9 +103,9 @@ class AppointmentNotificationTemplatesTests {
 
         appointment.setAmountCaptured(5000L);
         String body = templates.approved(appointment).emailBody();
-        assertTrue(body.contains("Service: Knotless Box Braids"));
-        assertTrue(body.contains("Size: XSmall"));
-        assertFalse(body.contains("Service: XSmall"));
+        assertTrue(body.contains("Knotless Box Braids"));
+        assertTrue(body.contains("XSmall"));
+        assertFalse(body.contains(">XSmall</td><td"));
     }
 
     private Appointment appointment(Appointment.PaymentStatus paymentStatus) {

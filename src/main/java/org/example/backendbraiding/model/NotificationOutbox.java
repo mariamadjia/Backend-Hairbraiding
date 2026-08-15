@@ -23,7 +23,7 @@ public class NotificationOutbox {
     private String recipient;
     @Column(length = 255)
     private String subject;
-    @Column(nullable = false, length = 2000)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private Status status = Status.PENDING;
