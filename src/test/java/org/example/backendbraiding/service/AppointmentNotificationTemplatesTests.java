@@ -24,21 +24,6 @@ class AppointmentNotificationTemplatesTests {
     }
 
     @Test
-    void bookingMessageFormatsCustomerDateMoneyAndSalonDetails() {
-        var notification = templates.bookingCreated(appointment(Appointment.PaymentStatus.PENDING));
-
-        assertTrue(notification.subject().contains("Complete your appointment request"));
-        assertTrue(notification.emailBody().contains("Hi Gloria,"));
-        assertTrue(notification.emailBody().contains("Thursday, August 20, 2026 at 2:00 PM CT"));
-        assertTrue(notification.emailBody().contains("Deposit to authorize: $50.00"));
-        assertTrue(notification.emailBody().contains("1305 SW Loop 410, Unit 203"));
-        assertTrue(notification.emailBody().contains("(210) 812-8121"));
-        assertTrue(notification.emailBody().contains("Monday-Saturday: 9:00 AM-7:00 PM"));
-        assertFalse(notification.emailBody().contains("Email: adjiashairbraiding@gmail.com"));
-        assertFalse(notification.emailBody().contains("Website:"));
-    }
-
-    @Test
     void approvedMessageStatesCapturedNonRefundableDeposit() {
         Appointment appointment = appointment(Appointment.PaymentStatus.CAPTURED);
         appointment.setAmountCaptured(5000L);
@@ -96,7 +81,8 @@ class AppointmentNotificationTemplatesTests {
         size.setSubcategory(style);
         appointment.setService(size);
 
-        String body = templates.bookingCreated(appointment).emailBody();
+        appointment.setAmountCaptured(5000L);
+        String body = templates.approved(appointment).emailBody();
         assertTrue(body.contains("Service: Knotless Box Braids"));
         assertTrue(body.contains("Size: XSmall"));
         assertFalse(body.contains("Service: XSmall"));

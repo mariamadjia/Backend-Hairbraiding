@@ -43,19 +43,6 @@ public class AppointmentNotificationTemplates {
         this.website = website == null ? "" : website.trim();
     }
 
-    public Notification bookingCreated(Appointment appointment) {
-        String body = greeting(appointment)
-                + "We’ve temporarily reserved " + dateTime(appointment) + " while you complete your deposit authorization.\n\n"
-                + "Your card will not be charged unless your appointment is approved. Please complete authorization within 15 minutes, or the appointment time will be released.\n\n"
-                + summary(appointment, "Deposit to authorize")
-                + "Once authorization is complete, we’ll review your request and send you a confirmation. The deposit becomes non-refundable only after your appointment is approved and the deposit is captured.\n\n"
-                + footer();
-        return new Notification("Complete your appointment request with " + salonName, body,
-                "Hi " + firstName(appointment) + ", your appointment time is reserved for 15 minutes. "
-                        + "Complete the deposit authorization to submit your request. Your card is not charged unless approved. "
-                        + phone);
-    }
-
     public Notification approved(Appointment appointment) {
         String body = greeting(appointment)
                 + "Your appointment with " + salonName + " is confirmed.\n\n"

@@ -163,7 +163,6 @@ public class AppointmentService {
         appointmentEventService.record(savedAppointment, "CREATED", null, null);
         AppointmentResponseDTO response = mapToResponseDTO(savedAppointment);
         response.setPaymentToken(bookingPaymentTokenService.createToken(savedAppointment.getId()));
-        enqueueEmail(savedAppointment, notificationTemplates.bookingCreated(savedAppointment));
         return response;
     }
 
@@ -498,10 +497,6 @@ public class AppointmentService {
     private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
         notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
         notificationOutboxService.enqueueSms(appointment, notification.smsBody());
-    }
-
-    private void enqueueEmail(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
-        notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
     }
 
     @Transactional(readOnly = true)
