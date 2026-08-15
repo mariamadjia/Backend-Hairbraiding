@@ -34,6 +34,7 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("Deposit charged"));
         assertTrue(notification.emailBody().contains("$50.00"));
         assertTrue(notification.emailBody().contains("deposit is non-refundable"));
+        assertTrue(notification.emailBody().contains("Missed appointments will incur a 60% service fee."));
         assertTrue(notification.emailBody().contains("Manage Appointment"));
         assertTrue(notification.emailBody().contains("Sunday: 10:00 AM–5:00 PM"));
         assertTrue(notification.smsBody().contains("Deposit charged: $50.00"));
@@ -51,6 +52,7 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("Your appointment request is pending"));
         assertTrue(notification.emailBody().contains("Deposit authorized"));
         assertTrue(notification.emailBody().contains("Your card has not been charged"));
+        assertFalse(notification.emailBody().contains("60% service fee"));
         assertFalse(notification.emailBody().contains("Manage Appointment"));
     }
 

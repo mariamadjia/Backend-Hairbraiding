@@ -57,6 +57,7 @@ public class AppointmentNotificationTemplates {
                 "Your card has not been charged. The deposit will only be charged if your appointment is approved.",
                 "Please do not submit another request while this appointment is under review.",
                 null,
+                null,
                 null);
         return new Notification("Appointment request received — awaiting confirmation", body, "");
     }
@@ -70,6 +71,7 @@ public class AppointmentNotificationTemplates {
                 "Deposit charged",
                 "Your deposit is non-refundable under the policy accepted when booking.",
                 "Please arrive on time.",
+                "Missed appointments will incur a 60% service fee.",
                 "Manage Appointment",
                 frontendUrl + "/booking");
         return new Notification("Your appointment is confirmed — " + shortDate(appointment), body,
@@ -80,13 +82,15 @@ public class AppointmentNotificationTemplates {
 
     private String brandedEmail(String heading, String intro, String secondary, Appointment appointment,
                                 String depositLabel, String notice, String closing,
-                                String buttonLabel, String buttonUrl) {
+                                String noShowPolicy, String buttonLabel, String buttonUrl) {
         String button = buttonLabel == null ? "" : """
                 <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="margin:28px 0 24px">
                   <tr><td align="center"><a href="%s" style="display:inline-block;background:#632b14;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:17px;font-weight:600;padding:16px 44px;border-radius:8px">%s</a></td></tr>
                 </table>
                 """.formatted(html(buttonUrl), html(buttonLabel));
         String secondaryParagraph = secondary == null ? "" : paragraph(secondary);
+        String noShowParagraph = noShowPolicy == null ? "" : "<p style=\"font-family:Arial,sans-serif;font-size:15px;line-height:1.55;margin:0 0 18px\"><strong>No-show policy:</strong> "
+                + html(noShowPolicy) + "</p>";
         return """
                 <!doctype html>
                 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>%s</title></head>
@@ -104,6 +108,7 @@ public class AppointmentNotificationTemplates {
                         <div style="background:#fbf7f1;border:1px solid #ead9c7;border-radius:10px;padding:20px 24px;margin:24px 0;font-family:Arial,sans-serif;font-size:16px;line-height:1.55">%s</div>
                         <p style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;margin:0 0 18px">%s</p>
                         %s
+                        %s
                         <p style="font-family:Arial,sans-serif;font-size:16px;line-height:1.6;text-align:center;margin:0 0 28px">Questions? Reply to this email or call/text %s.</p>
                         <div style="height:1px;background:#c78b2d;margin:0 0 24px"></div>
                         %s
@@ -114,7 +119,7 @@ public class AppointmentNotificationTemplates {
                 """.formatted(
                 html(heading), html(heading), html(heading), html(firstName(appointment)),
                 paragraph(intro), secondaryParagraph,
-                htmlDetails(appointment, depositLabel), html(notice), html(closing), button,
+                htmlDetails(appointment, depositLabel), html(notice), html(closing), noShowParagraph, button,
                 html(phone), htmlFooter());
     }
 
