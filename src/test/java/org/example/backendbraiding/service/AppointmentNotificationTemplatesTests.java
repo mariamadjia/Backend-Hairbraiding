@@ -35,7 +35,7 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("$50.00"));
         assertTrue(notification.emailBody().contains("deposit is non-refundable"));
         assertTrue(notification.emailBody().contains("Manage Appointment"));
-        assertTrue(notification.emailBody().contains("Sunday: 10:00 AM-5:00 PM"));
+        assertTrue(notification.emailBody().contains("Sunday: 10:00 AM–5:00 PM"));
         assertTrue(notification.smsBody().contains("Deposit charged: $50.00"));
     }
 
@@ -52,6 +52,20 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("Deposit authorized"));
         assertTrue(notification.emailBody().contains("Your card has not been charged"));
         assertFalse(notification.emailBody().contains("Manage Appointment"));
+    }
+
+    @Test
+    void repairsMojibakeInConfiguredSundayHours() {
+        AppointmentNotificationTemplates withCorruptedHours = new AppointmentNotificationTemplates(
+                "AH Braiding Salon", "(210) 812-8121", "adjiashairbraiding@gmail.com",
+                "1305 SW Loop 410, Unit 203", "San Antonio, TX 78227",
+                "Monday-Saturday: 9:00 AM-7:00 PM", "Sunday: 10:00 AM\u00e2\u20ac\u201c5:00 PM", "",
+                "https://example.com");
+
+        String body = withCorruptedHours.pending(appointment(Appointment.PaymentStatus.AUTHORIZED)).emailBody();
+
+        assertTrue(body.contains("Sunday: 10:00 AM–5:00 PM"));
+        assertFalse(body.contains("â€“"));
     }
 
     @Test

@@ -231,9 +231,12 @@ public class AppointmentNotificationTemplates {
 
     private String normalizeHours(String value) {
         if (value == null) return "";
-        return value.replace("â€“", "-")
-                .replace("–", "-")
-                .replace("—", "-");
+        return value
+                // UTF-8 en dash decoded as Windows-1252 (the production symptom).
+                .replace("\u00e2\u20ac\u201c", "\u2013")
+                // UTF-8 en dash decoded as ISO-8859-1 and retained as controls.
+                .replace("\u00e2\u0080\u0093", "\u2013")
+                .replace("\u2014", "\u2013");
     }
 
     private String authorizationReleaseText(Appointment appointment) {
