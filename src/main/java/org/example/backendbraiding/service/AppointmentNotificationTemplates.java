@@ -96,13 +96,20 @@ public class AppointmentNotificationTemplates {
     }
 
     public Notification customerCancelled(Appointment appointment) {
-        String body = greeting(appointment)
-                + "Your appointment for " + dateTime(appointment) + " CT has been cancelled as requested.\n\n"
-                + "Your captured deposit remains non-refundable under the policy accepted when booking.\n\n"
-                + "This cancellation is final.\n\n" + footer();
+        String body = brandedEmail(
+                "Your appointment has been cancelled",
+                "Your appointment has been cancelled as requested.",
+                "This cancellation is final and your appointment time has been released.",
+                appointment,
+                cancellationDepositLabel(appointment),
+                cancellationPaymentNotice(appointment),
+                "You may submit a new request whenever you are ready to book another available time.",
+                null,
+                null,
+                null);
         return new Notification("Your appointment has been cancelled", body,
                 "Hi " + firstName(appointment) + ", your appointment for " + dateTime(appointment)
-                        + " CT has been cancelled. The deposit remains non-refundable.");
+                        + " CT has been cancelled. " + shortPaymentOutcome(appointment));
     }
 
     private String brandedEmail(String heading, String intro, String secondary, Appointment appointment,
@@ -212,12 +219,17 @@ public class AppointmentNotificationTemplates {
     }
 
     public Notification cancelled(Appointment appointment) {
-        String body = greeting(appointment)
-                + "Your appointment for " + dateTime(appointment) + " has been cancelled.\n\n"
-                + "Reason: " + reason(appointment) + "\n\n"
-                + cancellationPaymentText(appointment)
-                + "Please contact us if you have questions or would like to book another available time.\n\n"
-                + footer();
+        String body = brandedEmail(
+                "Your appointment has been cancelled",
+                "Your appointment has been cancelled and the appointment time has been released.",
+                "Cancellation reason: " + reason(appointment),
+                appointment,
+                cancellationDepositLabel(appointment),
+                cancellationPaymentNotice(appointment),
+                "You may submit a new request whenever you are ready to book another available time.",
+                null,
+                null,
+                null);
         return new Notification("Your " + salonName + " appointment has been cancelled", body,
                 "Hi " + firstName(appointment) + ", your appointment for " + dateTime(appointment)
                         + " CT was cancelled. Reason: " + reason(appointment) + " "
@@ -284,6 +296,15 @@ public class AppointmentNotificationTemplates {
             case AUTHORIZED, CANCELLATION_FAILED -> "We are releasing the payment authorization; your deposit was not charged. Your bank may take a few business days to remove a pending hold.\n\n";
             default -> "No deposit was charged for this appointment.\n\n";
         };
+    }
+
+    private String cancellationDepositLabel(Appointment appointment) {
+        return paymentStatus(appointment) == Appointment.PaymentStatus.CAPTURED
+                ? "Deposit charged" : "Deposit authorization";
+    }
+
+    private String cancellationPaymentNotice(Appointment appointment) {
+        return cancellationPaymentText(appointment).trim();
     }
 
     private String shortPaymentOutcome(Appointment appointment) {
