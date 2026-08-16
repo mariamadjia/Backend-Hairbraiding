@@ -131,6 +131,24 @@ public class Appointment {
     @Column(name = "off_session_consent_policy_version", length = 50)
     private String offSessionConsentPolicyVersion;
 
+    @Column(name = "management_token_hash", length = 64)
+    private String managementTokenHash;
+
+    @Column(name = "management_token_expires_at")
+    private LocalDateTime managementTokenExpiresAt;
+
+    @Column(name = "self_service_change_count", nullable = false)
+    private Integer selfServiceChangeCount = 0;
+
+    @Column(name = "last_self_service_change_at")
+    private LocalDateTime lastSelfServiceChangeAt;
+
+    @Column(name = "rescheduled_from_datetime")
+    private LocalDateTime rescheduledFromDateTime;
+
+    @Column(name = "cancelled_by_customer", nullable = false)
+    private Boolean cancelledByCustomer = false;
+
     @Column(name = "no_show_marked_at")
     private LocalDateTime noShowMarkedAt;
 

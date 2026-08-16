@@ -103,6 +103,12 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
     List<Appointment> findExpiredAuthorizations(@Param("now") LocalDateTime now);
     
     Optional<Appointment> findByPaymentIntentId(String paymentIntentId);
+    @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "addOns"})
+    Optional<Appointment> findByManagementTokenHash(String managementTokenHash);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Appointment a JOIN FETCH a.customer LEFT JOIN FETCH a.service s LEFT JOIN FETCH s.subcategory WHERE a.managementTokenHash = :hash")
+    Optional<Appointment> findByManagementTokenHashForUpdate(@Param("hash") String hash);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT a FROM Appointment a JOIN FETCH a.customer WHERE a.id = :id")

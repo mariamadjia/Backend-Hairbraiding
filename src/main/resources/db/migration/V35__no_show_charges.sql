@@ -10,6 +10,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_stripe_customer_id
 ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS off_session_consent_at TIMESTAMP,
     ADD COLUMN IF NOT EXISTS off_session_consent_policy_version VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS management_token_hash VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS management_token_expires_at TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS self_service_change_count INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS last_self_service_change_at TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS rescheduled_from_datetime TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS cancelled_by_customer BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS no_show_marked_at TIMESTAMP,
     ADD COLUMN IF NOT EXISTS no_show_marked_by BIGINT REFERENCES admins(id);
 
@@ -40,6 +46,9 @@ CREATE TABLE IF NOT EXISTS appointment_no_show_fees (
         AND deposit_credit_cents >= 0 AND amount_to_charge_cents >= 0
     )
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_appointments_management_token_hash
+    ON appointments(management_token_hash) WHERE management_token_hash IS NOT NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_no_show_fee_payment_intent
     ON appointment_no_show_fees(stripe_payment_intent_id)
