@@ -57,6 +57,8 @@ public class AppointmentService {
     private final NoShowService noShowService;
     private final NoShowFeeRepository noShowFeeRepository;
     private final AppointmentManagementTokenService managementTokenService;
+    private final AppointmentNotificationDispatchService notificationDispatchService;
+    private final NotificationOutboxClaimService notificationOutboxClaimService;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
     private static final String DEPOSIT_POLICY_VERSION = "non-refundable-v1";
@@ -199,19 +201,28 @@ public class AppointmentService {
         expired.addAll(appointmentRepository.findFailedPendingReservations());
         for (Appointment appointment : expired) {
             log.info("Releasing expired reservation for appointment {}", appointment.getId());
-            if (appointment.getPaymentIntentId() != null) {
-                try {
-                    paymentService.cancelPayment(appointment.getPaymentIntentId());
-                } catch (Exception e) {
-                    log.warn("Could not cancel Stripe payment intent {} for expired appointment {}: {}",
-                        appointment.getPaymentIntentId(), appointment.getId(), e.getMessage());
-                }
-            }
             appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
-            appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+            if (appointment.getPaymentIntentId() == null) {
+                appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+            }
             appointment.setAdminNotes("Automatically cancelled: payment was not completed in time");
             appointmentRepository.save(appointment);
             appointmentEventService.record(appointment, "AUTOMATICALLY_CANCELLED", null, appointment.getAdminNotes());
+            String expiredPaymentIntentId = appointment.getPaymentIntentId();
+            Long expiredAppointmentId = appointment.getId();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    if (expiredPaymentIntentId != null) {
+                        try {
+                            paymentService.cancelPayment(expiredPaymentIntentId);
+                        } catch (Exception exception) {
+                            paymentService.markCancellationFailed(expiredPaymentIntentId, exception.getMessage());
+                        }
+                    }
+                    notificationDispatchService.expired(expiredAppointmentId);
+                }
+            });
         }
     }
 
@@ -308,21 +319,22 @@ public class AppointmentService {
         Appointment updatedAppointment = appointmentRepository.save(appointment);
         appointmentEventService.record(updatedAppointment, "DENIED", admin, actionDTO.getAdminNotes());
         
-        if (appointment.getPaymentIntentId() != null && appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
-            String paymentIntentId = appointment.getPaymentIntentId();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
+        String denialPaymentIntentId = appointment.getPaymentIntentId();
+        boolean releaseDenialAuthorization = denialPaymentIntentId != null
+                && appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                if (releaseDenialAuthorization) {
                     try {
-                        paymentService.cancelPayment(paymentIntentId);
+                        paymentService.cancelPayment(denialPaymentIntentId);
                     } catch (Exception e) {
-                        paymentService.markCancellationFailed(paymentIntentId, e.getMessage());
+                        paymentService.markCancellationFailed(denialPaymentIntentId, e.getMessage());
                     }
                 }
-            });
-        }
-        
-        enqueueBoth(updatedAppointment, notificationTemplates.denied(updatedAppointment));
+                notificationDispatchService.denied(updatedAppointment.getId());
+            }
+        });
         
         return mapToResponseDTO(updatedAppointment);
     }
@@ -483,22 +495,22 @@ public class AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
         appointmentEventService.record(saved, "CANCELLED", admin, actionDTO.getAdminNotes());
 
-        if (saved.getPaymentIntentId() != null
-                && saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
-            String paymentIntentId = saved.getPaymentIntentId();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
+        String cancellationPaymentIntentId = saved.getPaymentIntentId();
+        boolean releaseCancellationAuthorization = cancellationPaymentIntentId != null
+                && saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED;
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                if (releaseCancellationAuthorization) {
                     try {
-                        paymentService.cancelPayment(paymentIntentId);
+                        paymentService.cancelPayment(cancellationPaymentIntentId);
                     } catch (Exception e) {
-                        paymentService.markCancellationFailed(paymentIntentId, e.getMessage());
+                        paymentService.markCancellationFailed(cancellationPaymentIntentId, e.getMessage());
                     }
                 }
-            });
-        }
-
-        enqueueBoth(saved, notificationTemplates.cancelled(saved));
+                notificationDispatchService.cancelled(saved.getId());
+            }
+        });
         return mapToResponseDTO(saved);
     }
 
@@ -506,21 +518,13 @@ public class AppointmentService {
     public AppointmentResponseDTO retryNotification(Long appointmentId) {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
-        if (appointment.getStatus() == Appointment.AppointmentStatus.APPROVED) {
-            enqueueBoth(appointment, notificationTemplates.approved(appointment, managementTokenService.issue(appointment)));
-        } else if (appointment.getStatus() == Appointment.AppointmentStatus.DENIED) {
-            enqueueBoth(appointment, notificationTemplates.denied(appointment));
-        } else if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {
-            enqueueBoth(appointment, notificationTemplates.cancelled(appointment));
-        } else {
-            throw new IllegalStateException("Notifications can only be retried for approved, denied, or cancelled appointments");
-        }
+        if (!notificationOutboxClaimService.retryLatestFailed(appointmentId))
+            throw new IllegalStateException("There is no failed notification channel to retry");
         return mapToResponseDTO(appointment);
     }
 
     private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
-        notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
-        notificationOutboxService.enqueueSms(appointment, notification.smsBody());
+        notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
     }
 
     @Transactional(readOnly = true)

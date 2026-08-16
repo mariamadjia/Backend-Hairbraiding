@@ -25,6 +25,10 @@ public class NotificationOutbox {
     private String subject;
     @Column(nullable = false, columnDefinition = "TEXT")
     private String body;
+    @Column(name = "event_key", nullable = false, length = 64)
+    private String eventKey;
+    @Column(name = "delivery_key", nullable = false, length = 100, unique = true)
+    private String deliveryKey;
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 20)
     private Status status = Status.PENDING;
     @Column(nullable = false)
@@ -33,11 +37,13 @@ public class NotificationOutbox {
     private LocalDateTime nextAttemptAt = LocalDateTime.now();
     @Column(name = "last_error", length = 1000)
     private String lastError;
+    @Column(name = "claimed_at")
+    private LocalDateTime claimedAt;
     @CreationTimestamp @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     @UpdateTimestamp @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
     public enum Channel { EMAIL, SMS }
-    public enum Status { PENDING, SENT, FAILED }
+    public enum Status { PENDING, PROCESSING, SENT, FAILED }
 }

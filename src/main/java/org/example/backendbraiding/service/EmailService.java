@@ -6,6 +6,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
+import jakarta.annotation.PostConstruct;
 
 import jakarta.mail.internet.MimeMessage;
 
@@ -15,12 +16,33 @@ public class EmailService {
     private final JavaMailSender mailSender;
     private final String frontendUrl;
     private final String salonEmail;
+    private final String salonName;
+    private final String mailUsername;
+    private final String mailPassword;
+    private final boolean emailRequired;
 
     public EmailService(JavaMailSender mailSender, @Value("${app.frontend-url}") String frontendUrl,
-                        @Value("${salon.email:adjiashairbraiding@gmail.com}") String salonEmail) {
+                        @Value("${salon.email:adjiashairbraiding@gmail.com}") String salonEmail,
+                        @Value("${salon.name:AH Braiding Salon}") String salonName,
+                        @Value("${spring.mail.username:}") String mailUsername,
+                        @Value("${spring.mail.password:}") String mailPassword,
+                        @Value("${notifications.email.required:false}") boolean emailRequired) {
         this.mailSender = mailSender;
         this.frontendUrl = frontendUrl.replaceAll("/+$", "");
         this.salonEmail = salonEmail;
+        this.salonName = salonName;
+        this.mailUsername = mailUsername;
+        this.mailPassword = mailPassword;
+        this.emailRequired = emailRequired;
+    }
+
+    @PostConstruct
+    void validateConfiguration() {
+        if (!emailRequired) return;
+        if (mailUsername.isBlank() || mailPassword.isBlank()
+                || mailUsername.startsWith("your-") || mailPassword.startsWith("your-")) {
+            throw new IllegalStateException("Production email delivery is required but SMTP credentials are not configured");
+        }
     }
 
     public void sendPasswordResetEmail(String toEmail, String resetToken) {
@@ -65,11 +87,23 @@ public class EmailService {
 
     private MimeMessage createUtf8Message(String toEmail, String subject, String body) throws Exception {
         MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setTo(toEmail);
+        helper.setFrom(mailUsername == null || mailUsername.isBlank() ? salonEmail : mailUsername, salonName);
         helper.setReplyTo(salonEmail);
         helper.setSubject(subject);
-        helper.setText(body, body != null && body.stripLeading().startsWith("<!doctype html>"));
+        boolean html = body != null && body.stripLeading().startsWith("<!doctype html>");
+        if (html) helper.setText(toPlainText(body), body);
+        else helper.setText(body == null ? "" : body);
         return message;
+    }
+
+    private String toPlainText(String html) {
+        return html.replaceAll("(?is)<style.*?</style>|<script.*?</script>", "")
+                .replaceAll("(?i)<br\\s*/?>|</p>|</div>|</tr>|</h[1-6]>", "\n")
+                .replaceAll("(?s)<[^>]+>", "")
+                .replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<")
+                .replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'")
+                .replaceAll("[ \\t]+", " ").replaceAll("\\n{3,}", "\n\n").trim();
     }
 }

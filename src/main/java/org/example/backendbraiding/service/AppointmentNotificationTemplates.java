@@ -85,11 +85,17 @@ public class AppointmentNotificationTemplates {
     }
 
     public Notification customerRescheduled(Appointment appointment) {
-        String body = greeting(appointment)
-                + "Your one-time appointment change is confirmed. Your new appointment is "
-                + dateTime(appointment) + " CT.\n\n"
-                + "Your deposit remains applied to this appointment and is non-refundable. "
-                + "Your self-service change has now been used.\n\n" + footer();
+        String body = brandedEmail(
+                "Your appointment has been rescheduled",
+                "Your one-time appointment change is confirmed.",
+                "The appointment details below reflect your new date and time.",
+                appointment,
+                "Deposit charged",
+                "Your deposit remains applied to this appointment and is non-refundable.",
+                "Your one self-service appointment change has now been used.",
+                null,
+                null,
+                null);
         return new Notification("Your appointment has been rescheduled", body,
                 "Hi " + firstName(appointment) + ", your appointment is now " + dateTime(appointment)
                         + " CT. Your one self-service change has been used. Questions? " + phone);
@@ -206,12 +212,17 @@ public class AppointmentNotificationTemplates {
     }
 
     public Notification denied(Appointment appointment) {
-        String body = greeting(appointment)
-                + "Unfortunately, we’re unable to accommodate your appointment request for " + dateTime(appointment) + ".\n\n"
-                + "Reason: " + reason(appointment) + "\n\n"
-                + authorizationReleaseText(appointment)
-                + "We’d be happy to help you select another available time.\n\n"
-                + footer();
+        String body = brandedEmail(
+                "Update on your appointment request",
+                "Unfortunately, we’re unable to accommodate this appointment request.",
+                "Reason: " + reason(appointment),
+                appointment,
+                cancellationDepositLabel(appointment),
+                authorizationReleaseText(appointment).trim(),
+                "You may submit a new request for another available time.",
+                null,
+                null,
+                null);
         return new Notification("Update on your " + salonName + " appointment request", body,
                 "Hi " + firstName(appointment) + ", we’re unable to accommodate your appointment request for "
                         + dateTime(appointment) + " CT. Reason: " + reason(appointment) + " "
@@ -234,6 +245,63 @@ public class AppointmentNotificationTemplates {
                 "Hi " + firstName(appointment) + ", your appointment for " + dateTime(appointment)
                         + " CT was cancelled. Reason: " + reason(appointment) + " "
                         + shortPaymentOutcome(appointment) + " Questions? " + phone);
+    }
+
+    public Notification expired(Appointment appointment) {
+        String body = brandedEmail(
+                "Your appointment request expired",
+                "The payment step was not completed before the reservation expired, so the appointment time has been released.",
+                null,
+                appointment,
+                cancellationDepositLabel(appointment),
+                cancellationPaymentNotice(appointment),
+                "No appointment is confirmed. You may submit a new request for any available time.",
+                null,
+                null,
+                null);
+        return new Notification("Your appointment request expired", body,
+                "Hi " + firstName(appointment) + ", your appointment request for " + dateTime(appointment)
+                        + " CT expired and the time was released. " + shortPaymentOutcome(appointment));
+    }
+
+    public Notification noShowPaid(Appointment appointment, long servicePriceCents, long totalFeeCents,
+                                   long depositCreditCents, long additionalChargeCents) {
+        String breakdown = "Scheduled service price: " + money(servicePriceCents)
+                + ". Total 60% no-show fee: " + money(totalFeeCents)
+                + ". Deposit applied: " + money(depositCreditCents)
+                + ". Saved-card charge: " + money(additionalChargeCents) + ".";
+        String body = brandedEmail(
+                "No-show fee receipt",
+                "Your appointment was marked as a no-show and the no-show fee has been paid.",
+                breakdown,
+                appointment,
+                "Deposit credit",
+                money(additionalChargeCents) + " was charged to your saved card.",
+                "The no-show balance is resolved and the booking restriction has been removed.",
+                null,
+                null,
+                null);
+        return new Notification("Your " + salonName + " no-show fee receipt", body, "");
+    }
+
+    public Notification noShowFailed(Appointment appointment, long servicePriceCents, long totalFeeCents,
+                                     long depositCreditCents, long additionalChargeCents) {
+        String breakdown = "Scheduled service price: " + money(servicePriceCents)
+                + ". Total 60% no-show fee: " + money(totalFeeCents)
+                + ". Deposit applied: " + money(depositCreditCents)
+                + ". Remaining balance: " + money(additionalChargeCents) + ".";
+        String body = brandedEmail(
+                "No-show balance requires attention",
+                "Your appointment was marked as a no-show, but the remaining balance could not be charged to the saved card.",
+                breakdown,
+                appointment,
+                "Deposit credit",
+                "The remaining balance is still unpaid.",
+                "You cannot submit another appointment request until this balance is resolved. Call or text " + phone + " for assistance.",
+                null,
+                null,
+                null);
+        return new Notification("Action required: your " + salonName + " no-show balance", body, "");
     }
 
     private String greeting(Appointment appointment) {
@@ -284,7 +352,8 @@ public class AppointmentNotificationTemplates {
     private String authorizationReleaseText(Appointment appointment) {
         return switch (paymentStatus(appointment)) {
             case CAPTURED -> "The deposit was already captured and remains non-refundable under the policy accepted when booking.\n\n";
-            case AUTHORIZED, CANCELLATION_FAILED -> "We are releasing the payment authorization; your deposit was not charged. Your bank may take a few business days to remove a pending hold.\n\n";
+            case AUTHORIZED -> "The payment authorization is being released; your deposit was not charged. Your bank may take a few business days to remove a pending hold.\n\n";
+            case CANCELLATION_FAILED -> "Your appointment request is cancelled, but we could not confirm release of the payment authorization. Your deposit has not been captured; our team will review the authorization status.\n\n";
             default -> "No deposit was charged for this request.\n\n";
         };
     }
@@ -293,7 +362,8 @@ public class AppointmentNotificationTemplates {
         return switch (paymentStatus(appointment)) {
             case CAPTURED -> "As stated in the policy accepted during booking, the captured deposit of "
                     + money(capturedAmount(appointment)) + " is non-refundable.\n\n";
-            case AUTHORIZED, CANCELLATION_FAILED -> "We are releasing the payment authorization; your deposit was not charged. Your bank may take a few business days to remove a pending hold.\n\n";
+            case AUTHORIZED -> "The payment authorization is being released; your deposit was not charged. Your bank may take a few business days to remove a pending hold.\n\n";
+            case CANCELLATION_FAILED -> "Your appointment is cancelled, but we could not confirm release of the payment authorization. Your deposit has not been captured; our team will review the authorization status.\n\n";
             default -> "No deposit was charged for this appointment.\n\n";
         };
     }
@@ -310,7 +380,8 @@ public class AppointmentNotificationTemplates {
     private String shortPaymentOutcome(Appointment appointment) {
         return switch (paymentStatus(appointment)) {
             case CAPTURED -> "The captured deposit is non-refundable.";
-            case AUTHORIZED, CANCELLATION_FAILED -> "The authorization is being released; your deposit was not charged.";
+            case AUTHORIZED -> "The authorization was released; your deposit was not charged.";
+            case CANCELLATION_FAILED -> "The deposit was not captured, but authorization release requires review.";
             default -> "No deposit was charged.";
         };
     }

@@ -13,4 +13,7 @@ public interface NotificationOutboxRepository extends JpaRepository<Notification
     List<NotificationOutbox> findTop100ByStatusAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
             NotificationOutbox.Status status, LocalDateTime now);
     List<NotificationOutbox> findByAppointmentId(Long appointmentId);
+    List<NotificationOutbox> findByAppointmentIdOrderByCreatedAtDesc(Long appointmentId);
+    List<NotificationOutbox> findTop100ByStatusAndClaimedAtLessThanEqualOrderByCreatedAtAsc(
+            NotificationOutbox.Status status, LocalDateTime claimedBefore);
 }

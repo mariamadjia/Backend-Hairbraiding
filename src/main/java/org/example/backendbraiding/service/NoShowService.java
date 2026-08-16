@@ -36,6 +36,7 @@ public class NoShowService {
     private final AdminRepository adminRepository;
     private final AppointmentEventService appointmentEventService;
     private final NotificationOutboxService notificationOutboxService;
+    private final AppointmentNotificationTemplates notificationTemplates;
     private final TransactionTemplate transactionTemplate;
 
     public NoShowFeeDTO markAndCharge(Long appointmentId, Long adminId, NoShowChargeRequest request) {
@@ -162,6 +163,7 @@ public class NoShowService {
 
     private NoShowFee applyIntent(Long feeId, PaymentIntent intent) {
         NoShowFee fee = noShowFeeRepository.findById(feeId).orElseThrow();
+        NoShowFee.PaymentStatus previousStatus = fee.getPaymentStatus();
         fee.setStripePaymentIntentId(intent.getId());
         fee.setChargeAttemptedAt(salonNow());
         fee.setFailureMessage(null);
@@ -178,7 +180,11 @@ public class NoShowService {
             }
         }
         NoShowFee saved = noShowFeeRepository.save(fee);
-        enqueueResult(saved);
+        if (saved.getPaymentStatus() != previousStatus
+                && (saved.getPaymentStatus() == NoShowFee.PaymentStatus.PAID
+                || saved.getPaymentStatus() == NoShowFee.PaymentStatus.FAILED)) {
+            enqueueResult(saved);
+        }
         return saved;
     }
 
@@ -187,7 +193,9 @@ public class NoShowService {
         fee.setPaymentStatus(NoShowFee.PaymentStatus.FAILED);
         fee.setChargeAttemptedAt(salonNow());
         fee.setFailureMessage(message == null ? "The saved card could not be charged" : message.substring(0, Math.min(1000, message.length())));
-        return noShowFeeRepository.save(fee);
+        NoShowFee saved = noShowFeeRepository.save(fee);
+        enqueueResult(saved);
+        return saved;
     }
 
     private NoShowFee markPaidWithoutCharge(Long feeId) {
@@ -201,15 +209,16 @@ public class NoShowService {
 
     private void enqueueResult(NoShowFee fee) {
         Appointment appointment = fee.getAppointment();
-        String dollars = "$" + BigDecimal.valueOf(fee.getAmountToChargeCents(), 2).setScale(2);
         if (fee.getPaymentStatus() == NoShowFee.PaymentStatus.PAID) {
-            notificationOutboxService.enqueueEmail(appointment, "AH Braiding Salon no-show charge receipt",
-                    "Hi " + appointment.getCustomer().getFirstName() + ",\n\nYour appointment was marked as a no-show. "
-                            + dollars + " was charged to the saved card. Your deposit was applied toward the total 60% no-show fee.\n\nAH Braiding Salon");
+            AppointmentNotificationTemplates.Notification notification = notificationTemplates.noShowPaid(
+                    appointment, fee.getScheduledServicePriceCents(), fee.getTotalFeeCents(),
+                    fee.getDepositCreditCents(), fee.getAmountToChargeCents());
+            notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
         } else if (fee.getPaymentStatus() == NoShowFee.PaymentStatus.FAILED) {
-            notificationOutboxService.enqueueEmail(appointment, "AH Braiding Salon no-show balance",
-                    "Hi " + appointment.getCustomer().getFirstName() + ",\n\nYour appointment was marked as a no-show, but the remaining "
-                            + dollars + " balance could not be charged. Please call or text (210) 812-8121 before booking again.\n\nAH Braiding Salon");
+            AppointmentNotificationTemplates.Notification notification = notificationTemplates.noShowFailed(
+                    appointment, fee.getScheduledServicePriceCents(), fee.getTotalFeeCents(),
+                    fee.getDepositCreditCents(), fee.getAmountToChargeCents());
+            notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
         }
     }
 

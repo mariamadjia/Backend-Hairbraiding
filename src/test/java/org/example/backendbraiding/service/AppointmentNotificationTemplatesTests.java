@@ -95,6 +95,36 @@ class AppointmentNotificationTemplatesTests {
     }
 
     @Test
+    void rescheduleDenialExpirationAndNoShowUseBrandedHtml() {
+        Appointment captured = appointment(Appointment.PaymentStatus.CAPTURED);
+        captured.setAmountCaptured(5000L);
+        assertTrue(templates.customerRescheduled(captured).emailBody().startsWith("<!doctype html>"));
+
+        Appointment denied = appointment(Appointment.PaymentStatus.CANCELLED);
+        denied.setAdminNotes("The requested time is unavailable");
+        assertTrue(templates.denied(denied).emailBody().startsWith("<!doctype html>"));
+
+        assertTrue(templates.expired(denied).emailBody().startsWith("<!doctype html>"));
+
+        String receipt = templates.noShowPaid(captured, 30000, 18000, 5000, 13000).emailBody();
+        assertTrue(receipt.startsWith("<!doctype html>"));
+        assertTrue(receipt.contains("Scheduled service price: $300.00"));
+        assertTrue(receipt.contains("Total 60% no-show fee: $180.00"));
+        assertTrue(receipt.contains("Saved-card charge: $130.00"));
+
+        String failure = templates.noShowFailed(captured, 30000, 18000, 5000, 13000).emailBody();
+        assertTrue(failure.contains("cannot submit another appointment request"));
+    }
+
+    @Test
+    void failedAuthorizationReleaseDoesNotClaimItWasReleased() {
+        Appointment appointment = appointment(Appointment.PaymentStatus.CANCELLATION_FAILED);
+        String body = templates.cancelled(appointment).emailBody();
+        assertTrue(body.contains("could not confirm release"));
+        assertFalse(body.contains("authorization was released"));
+    }
+
+    @Test
     void configuredWebsiteAppearsOnlyWhenAvailable() {
         AppointmentNotificationTemplates withWebsite = new AppointmentNotificationTemplates(
                 "AH Braiding Salon", "(210) 812-8121", "adjiashairbraiding@gmail.com",

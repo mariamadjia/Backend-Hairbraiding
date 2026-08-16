@@ -36,6 +36,7 @@ public class PaymentService {
     private final AppointmentEventService appointmentEventService;
     private final AppointmentNotificationTemplates notificationTemplates;
     private final AppointmentManagementTokenService managementTokenService;
+    private final AppointmentNotificationDispatchService notificationDispatchService;
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -150,8 +151,7 @@ public class PaymentService {
             appointmentEventService.record(appointment, "APPROVED", appointment.getApprovedBy(), null);
             String managementUrl = managementTokenService.issue(appointment);
             AppointmentNotificationTemplates.Notification notification = notificationTemplates.approved(appointment, managementUrl);
-            notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
-            notificationOutboxService.enqueueSms(appointment, notification.smsBody());
+            notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
         }
     }
 
@@ -407,6 +407,7 @@ public class PaymentService {
                 appointment.setAdminNotes("Automatically cancelled: payment authorization expired");
                 appointmentRepository.save(appointment);
                 appointmentEventService.record(appointment, "AUTHORIZATION_EXPIRED", null, appointment.getAdminNotes());
+                notificationDispatchService.expired(appointment.getId());
             } catch (RuntimeException exception) {
                 markCancellationFailed(appointment.getPaymentIntentId(), exception.getMessage());
                 log.warn("Could not release expired authorization {}: {}",

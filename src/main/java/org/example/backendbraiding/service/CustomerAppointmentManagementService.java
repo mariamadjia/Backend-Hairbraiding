@@ -145,8 +145,7 @@ public class CustomerAppointmentManagementService {
     }
 
     private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
-        notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
-        notificationOutboxService.enqueueSms(appointment, notification.smsBody());
+        notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
     }
 
     private int safeCount(Appointment appointment) {
