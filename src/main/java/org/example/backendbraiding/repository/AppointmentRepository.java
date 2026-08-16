@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -101,6 +103,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
     List<Appointment> findExpiredAuthorizations(@Param("now") LocalDateTime now);
     
     Optional<Appointment> findByPaymentIntentId(String paymentIntentId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Appointment a JOIN FETCH a.customer WHERE a.id = :id")
+    Optional<Appointment> findByIdForUpdate(@Param("id") Long id);
 
     @Query("SELECT a FROM Appointment a WHERE a.paymentIntentId IS NOT NULL AND a.paymentStatus IN " +
            "('PENDING', 'AUTHORIZED', 'CAPTURE_FAILED', 'CANCELLATION_FAILED')")

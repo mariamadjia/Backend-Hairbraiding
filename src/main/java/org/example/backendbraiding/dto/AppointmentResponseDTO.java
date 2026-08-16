@@ -47,6 +47,7 @@ public class AppointmentResponseDTO {
     private String notificationStatus;
     private LocalDateTime notificationLastAttemptAt;
     private List<QuotedAddOnDTO> addOns;
+    private NoShowFeeDTO noShowFee;
 
     @Data
     @NoArgsConstructor

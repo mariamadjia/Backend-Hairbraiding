@@ -125,6 +125,19 @@ public class Appointment {
     @Column(name = "deposit_policy_accepted_at")
     private LocalDateTime depositPolicyAcceptedAt;
 
+    @Column(name = "off_session_consent_at")
+    private LocalDateTime offSessionConsentAt;
+
+    @Column(name = "off_session_consent_policy_version", length = 50)
+    private String offSessionConsentPolicyVersion;
+
+    @Column(name = "no_show_marked_at")
+    private LocalDateTime noShowMarkedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "no_show_marked_by")
+    private Admin noShowMarkedBy;
+
     @Column(name = "notification_status", length = 30)
     private String notificationStatus;
 
@@ -140,7 +153,8 @@ public class Appointment {
         APPROVED,
         DENIED,
         CANCELLED,
-        COMPLETED
+        COMPLETED,
+        NO_SHOW
     }
 
     public enum PaymentStatus {

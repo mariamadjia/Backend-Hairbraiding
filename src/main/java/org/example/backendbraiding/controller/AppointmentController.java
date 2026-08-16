@@ -7,6 +7,8 @@ import org.example.backendbraiding.dto.AppointmentRequestDTO;
 import org.example.backendbraiding.dto.AppointmentResponseDTO;
 import org.example.backendbraiding.dto.AppointmentSettingsDTO;
 import org.example.backendbraiding.dto.AppointmentEventDTO;
+import org.example.backendbraiding.dto.NoShowChargeRequest;
+import org.example.backendbraiding.dto.NoShowFeeDTO;
 import org.example.backendbraiding.model.Admin;
 import org.example.backendbraiding.repository.AdminRepository;
 import org.example.backendbraiding.service.AppointmentService;
@@ -33,6 +35,7 @@ public class AppointmentController {
     private final AppointmentService appointmentService;
     private final AdminRepository adminRepository;
     private final org.example.backendbraiding.service.AppointmentEventService appointmentEventService;
+    private final org.example.backendbraiding.service.NoShowService noShowService;
 
     @PostMapping
     public ResponseEntity<AppointmentResponseDTO> createAppointment(
@@ -175,6 +178,16 @@ public class AppointmentController {
         return ResponseEntity.ok(appointmentService.completeAppointment(
                 id, extractAdminId(authentication),
                 actionDTO != null ? actionDTO : new AppointmentActionDTO()));
+    }
+
+    @PostMapping("/{id}/no-show")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<NoShowFeeDTO> markNoShow(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) NoShowChargeRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(noShowService.markAndCharge(id, extractAdminId(authentication),
+                request == null ? new NoShowChargeRequest() : request));
     }
 
     @PutMapping("/{id}/cancel")

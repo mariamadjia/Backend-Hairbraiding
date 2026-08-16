@@ -6,6 +6,7 @@ import com.stripe.model.PaymentMethod;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCaptureParams;
 import com.stripe.param.PaymentIntentCreateParams;
+import com.stripe.param.CustomerCreateParams;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.backendbraiding.dto.PaymentCaptureRequest;
@@ -83,17 +84,16 @@ public class PaymentService {
             }
             long depositAmountCents = calculateDepositAmountCents(appointment.getPrice(), quotedDepositCents);
 
+            String stripeCustomerId = ensureStripeCustomer(appointment);
+
             PaymentIntent paymentIntent = PaymentIntent.create(PaymentIntentCreateParams.builder()
                     .setAmount(depositAmountCents)
                     .setCurrency("usd")
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
-                    // Let Stripe use the payment methods enabled in the Dashboard and
-                    // automatically hide methods that are not eligible for this customer,
-                    // amount, currency, or manual-capture booking flow.
-                    .setAutomaticPaymentMethods(
-                            PaymentIntentCreateParams.AutomaticPaymentMethods.builder()
-                                    .setEnabled(true)
-                                    .build())
+                    .setCustomer(stripeCustomerId)
+                    .setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION)
+                    // A reusable card is required for the explicitly accepted no-show policy.
+                    .addPaymentMethodType("card")
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
                     .setIdempotencyKey(replacedIntentId == null
@@ -160,11 +160,29 @@ public class PaymentService {
             if (method.getCard() != null) {
                 appointment.setPaymentMethodBrand(method.getCard().getBrand());
                 appointment.setPaymentMethodLast4(method.getCard().getLast4());
+                appointment.getCustomer().setStripePaymentMethodId(method.getId());
             }
         } catch (StripeException exception) {
             log.warn("Payment {} completed but payment-method details could not be loaded: {}",
                     intent.getId(), exception.getMessage());
         }
+    }
+
+    private String ensureStripeCustomer(Appointment appointment) throws StripeException {
+        org.example.backendbraiding.model.Customer customer = appointment.getCustomer();
+        if (customer.getStripeCustomerId() != null && !customer.getStripeCustomerId().isBlank()) {
+            return customer.getStripeCustomerId();
+        }
+        com.stripe.model.Customer stripeCustomer = com.stripe.model.Customer.create(CustomerCreateParams.builder()
+                .setEmail(customer.getEmail())
+                .setName(customer.getFirstName() + " " + customer.getLastName())
+                .setPhone(customer.getPhoneNumber())
+                .putMetadata("localCustomerId", customer.getId().toString())
+                .build(), RequestOptions.builder()
+                .setIdempotencyKey("booking-stripe-customer-v1-" + customer.getId())
+                .build());
+        customer.setStripeCustomerId(stripeCustomer.getId());
+        return stripeCustomer.getId();
     }
 
     private long calculateDepositAmountCents(String appointmentPrice, long configuredDepositCents) {

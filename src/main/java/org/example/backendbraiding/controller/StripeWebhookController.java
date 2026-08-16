@@ -13,6 +13,7 @@ import org.example.backendbraiding.repository.AppointmentRepository;
 import org.example.backendbraiding.repository.AppointmentSettingsRepository;
 import org.example.backendbraiding.service.PaymentService;
 import org.example.backendbraiding.service.StripeWebhookEventService;
+import org.example.backendbraiding.service.NoShowService;
 import org.example.backendbraiding.dto.PaymentCaptureRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,7 @@ public class StripeWebhookController {
     private final AppointmentSettingsRepository settingsRepository;
     private final PaymentService paymentService;
     private final StripeWebhookEventService webhookEventService;
+    private final NoShowService noShowService;
 
     @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
@@ -71,8 +73,12 @@ public class StripeWebhookController {
             switch (event.getType()) {
                 case "payment_intent.succeeded",
                      "payment_intent.payment_failed",
-                     "payment_intent.canceled" ->
-                        paymentService.synchronizePaymentIntent(requirePaymentIntentId(event));
+                     "payment_intent.canceled" -> {
+                        String paymentIntentId = requirePaymentIntentId(event);
+                        if (!noShowService.synchronize(paymentIntentId)) {
+                            paymentService.synchronizePaymentIntent(paymentIntentId);
+                        }
+                    }
                 case "payment_intent.amount_capturable_updated" ->
                         handlePaymentIntentAmountCapturableUpdated(requirePaymentIntentId(event));
                 default -> log.info("Unhandled event type: {}", event.getType());

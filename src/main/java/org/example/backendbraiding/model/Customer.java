@@ -31,6 +31,18 @@ public class Customer {
     @Column(nullable = false)
     private String phoneNumber;
 
+    @Column(name = "stripe_customer_id")
+    private String stripeCustomerId;
+
+    @Column(name = "stripe_payment_method_id")
+    private String stripePaymentMethodId;
+
+    @Column(name = "off_session_consent_at")
+    private LocalDateTime offSessionConsentAt;
+
+    @Column(name = "off_session_consent_policy_version", length = 50)
+    private String offSessionConsentPolicyVersion;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

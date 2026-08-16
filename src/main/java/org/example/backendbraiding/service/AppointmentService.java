@@ -54,9 +54,12 @@ public class AppointmentService {
     private final AppointmentEventService appointmentEventService;
     private final NotificationOutboxService notificationOutboxService;
     private final AppointmentNotificationTemplates notificationTemplates;
+    private final NoShowService noShowService;
+    private final NoShowFeeRepository noShowFeeRepository;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
     private static final String DEPOSIT_POLICY_VERSION = "non-refundable-v1";
+    private static final String OFF_SESSION_POLICY_VERSION = "no-show-60-percent-v1";
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -93,6 +96,9 @@ public class AppointmentService {
         customer.setLastName(requestDTO.getLastName());
         customer.setPhoneNumber(requestDTO.getPhoneNumber().trim());
         customer = customerRepository.save(customer);
+        if (noShowFeeRepository.hasUnresolvedBalance(customer.getId())) {
+            throw new IllegalStateException("A previous no-show balance must be resolved before booking another appointment");
+        }
 
         Optional<Appointment> existing = appointmentRepository
                 .findFirstByCustomerIdAndAppointmentDateTimeOrderByIdDesc(
@@ -142,6 +148,11 @@ public class AppointmentService {
         appointment.setDepositAmount(quote.depositCents());
         appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
         appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
+        appointment.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
+        appointment.setOffSessionConsentAt(LocalDateTime.now());
+        customer.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
+        customer.setOffSessionConsentAt(LocalDateTime.now());
+        customerRepository.save(customer);
         appointment.setDurationMinutes(durationMinutes);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
@@ -356,6 +367,16 @@ public class AppointmentService {
                     Appointment.PaymentStatus.CAPTURE_FAILED,
                     Appointment.PaymentStatus.CANCELLATION_FAILED,
                     Appointment.PaymentStatus.FAILED);
+            var noShowIssueQuery = criteriaQuery.subquery(Long.class);
+            var noShowFee = noShowIssueQuery.from(NoShowFee.class);
+            noShowIssueQuery.select(noShowFee.get("id")).where(
+                    cb.equal(noShowFee.get("appointment"), root),
+                    noShowFee.get("paymentStatus").in(
+                            NoShowFee.PaymentStatus.UNPAID,
+                            NoShowFee.PaymentStatus.PROCESSING,
+                            NoShowFee.PaymentStatus.FAILED),
+                    cb.notEqual(noShowFee.get("feeDecision"), NoShowFee.FeeDecision.WAIVED));
+            Predicate noShowPaymentIssue = cb.exists(noShowIssueQuery);
             Predicate workflow = switch (view) {
                 case "UPCOMING" -> cb.or(
                         captureProcessing,
@@ -364,9 +385,10 @@ public class AppointmentService {
                         root.get("status").in(
                                 Appointment.AppointmentStatus.DENIED,
                                 Appointment.AppointmentStatus.CANCELLED,
-                                Appointment.AppointmentStatus.COMPLETED),
+                                Appointment.AppointmentStatus.COMPLETED,
+                                Appointment.AppointmentStatus.NO_SHOW),
                         cb.and(approved, cb.lessThan(root.get("appointmentDateTime"), now)));
-                case "NEEDS_ACTION" -> cb.or(pending, paymentIssue);
+                case "NEEDS_ACTION" -> cb.or(pending, paymentIssue, noShowPaymentIssue);
                 default -> throw new IllegalArgumentException(
                         "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, HISTORY");
             };
@@ -385,11 +407,12 @@ public class AppointmentService {
                                 Appointment.PaymentStatus.PENDING,
                                 Appointment.PaymentStatus.CANCELLED));
                 case "CAPTURE_PROCESSING" -> captureProcessing;
-                case "PAYMENT_ISSUE" -> paymentIssue;
+                case "PAYMENT_ISSUE" -> cb.or(paymentIssue, noShowPaymentIssue);
                 case "APPROVED" -> approved;
                 case "COMPLETED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.COMPLETED);
                 case "DENIED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.DENIED);
                 case "CANCELLED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.CANCELLED);
+                case "NO_SHOW" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.NO_SHOW);
                 case "PAST" -> cb.lessThan(root.get("appointmentDateTime"), now);
                 default -> throw new IllegalArgumentException("Invalid appointment workflow detail");
             };
@@ -520,7 +543,7 @@ public class AppointmentService {
             return appointmentRepository.findByStatus(appointmentStatus, pageable)
                 .map(this::mapToResponseDTO);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid appointment status: " + status + ". Valid values are: PENDING, APPROVED, DENIED, CANCELLED, COMPLETED");
+            throw new IllegalArgumentException("Invalid appointment status: " + status + ". Valid values are: PENDING, APPROVED, DENIED, CANCELLED, COMPLETED, NO_SHOW");
         }
     }
 
@@ -604,6 +627,7 @@ public class AppointmentService {
                         item.getAddOn() == null ? null : item.getAddOn().getId(), item.getAddOnName(),
                         item.getPricingMode(), item.getAdvertisedPriceCents(), item.getChargedPriceCents(),
                         "STARTING_AT".equals(item.getPricingMode()))).toList());
+        dto.setNoShowFee(noShowService.preview(appointment));
 
         return dto;
     }
