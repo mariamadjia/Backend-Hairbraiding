@@ -46,6 +46,11 @@ public class AppointmentResponseDTO {
     private String paymentToken;
     private String notificationStatus;
     private LocalDateTime notificationLastAttemptAt;
+    private Boolean cancelledByCustomer;
+    private String customerCancellationReason;
+    private Integer selfServiceChangeCount;
+    private LocalDateTime lastSelfServiceChangeAt;
+    private LocalDateTime rescheduledFromDateTime;
     private List<QuotedAddOnDTO> addOns;
     private NoShowFeeDTO noShowFee;
 

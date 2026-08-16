@@ -149,6 +149,9 @@ public class Appointment {
     @Column(name = "cancelled_by_customer", nullable = false)
     private Boolean cancelledByCustomer = false;
 
+    @Column(name = "customer_cancellation_reason", length = 500)
+    private String customerCancellationReason;
+
     @Column(name = "no_show_marked_at")
     private LocalDateTime noShowMarkedAt;
 

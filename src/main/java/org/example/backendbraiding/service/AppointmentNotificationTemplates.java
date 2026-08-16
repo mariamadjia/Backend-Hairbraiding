@@ -101,6 +101,16 @@ public class AppointmentNotificationTemplates {
                         + " CT. Your one self-service change has been used. Questions? " + phone);
     }
 
+    public Notification adminCustomerRescheduled(Appointment appointment) {
+        String body = "A customer rescheduled an appointment.\n\nCustomer: " + customerName(appointment)
+                + "\nNew appointment: " + dateTime(appointment) + " CT"
+                + "\nService: " + serviceName(appointment)
+                + "\nPrevious appointment: " + (appointment.getRescheduledFromDateTime() == null
+                ? "Not available" : DATE_TIME.format(appointment.getRescheduledFromDateTime()) + " CT")
+                + "\n\nOpen Appointment Management to review the activity.";
+        return new Notification("Customer rescheduled appointment — " + shortDate(appointment), body, "");
+    }
+
     public Notification customerCancelled(Appointment appointment) {
         String body = brandedEmail(
                 "Your appointment has been cancelled",
@@ -116,6 +126,17 @@ public class AppointmentNotificationTemplates {
         return new Notification("Your appointment has been cancelled", body,
                 "Hi " + firstName(appointment) + ", your appointment for " + dateTime(appointment)
                         + " CT has been cancelled. " + shortPaymentOutcome(appointment));
+    }
+
+    public Notification adminCustomerCancelled(Appointment appointment) {
+        String body = "A customer cancelled an appointment.\n\nCustomer: " + customerName(appointment)
+                + "\nAppointment: " + dateTime(appointment) + " CT"
+                + "\nService: " + serviceName(appointment)
+                + "\nReason: " + (appointment.getCustomerCancellationReason() == null
+                || appointment.getCustomerCancellationReason().isBlank() ? "No reason provided"
+                : appointment.getCustomerCancellationReason())
+                + "\n\nThe appointment time has been released.";
+        return new Notification("Customer cancelled appointment — " + shortDate(appointment), body, "");
     }
 
     private String brandedEmail(String heading, String intro, String secondary, Appointment appointment,
@@ -413,6 +434,13 @@ public class AppointmentNotificationTemplates {
     private String firstName(Appointment appointment) {
         String name = appointment.getCustomer().getFirstName();
         return name == null || name.isBlank() ? "there" : name.trim();
+    }
+
+    private String customerName(Appointment appointment) {
+        String first = nullToEmpty(appointment.getCustomer().getFirstName()).trim();
+        String last = nullToEmpty(appointment.getCustomer().getLastName()).trim();
+        String full = (first + " " + last).trim();
+        return full.isBlank() ? "Customer" : full;
     }
 
     private String serviceName(Appointment appointment) {

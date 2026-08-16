@@ -627,6 +627,11 @@ public class AppointmentService {
         dto.setDepositPolicyAcceptedAt(appointment.getDepositPolicyAcceptedAt());
         dto.setNotificationStatus(appointment.getNotificationStatus());
         dto.setNotificationLastAttemptAt(appointment.getNotificationLastAttemptAt());
+        dto.setCancelledByCustomer(appointment.getCancelledByCustomer());
+        dto.setCustomerCancellationReason(appointment.getCustomerCancellationReason());
+        dto.setSelfServiceChangeCount(appointment.getSelfServiceChangeCount());
+        dto.setLastSelfServiceChangeAt(appointment.getLastSelfServiceChangeAt());
+        dto.setRescheduledFromDateTime(appointment.getRescheduledFromDateTime());
         dto.setAddOns(appointment.getAddOns().stream().map(item ->
                 new org.example.backendbraiding.dto.QuotedAddOnDTO(
                         item.getAddOn() == null ? null : item.getAddOn().getId(), item.getAddOnName(),

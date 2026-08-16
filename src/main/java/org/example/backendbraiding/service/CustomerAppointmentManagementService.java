@@ -77,7 +77,8 @@ public class CustomerAppointmentManagementService {
         Appointment saved = appointmentRepository.save(appointment);
         appointmentEventService.record(saved, "CUSTOMER_RESCHEDULED", null,
                 "Rescheduled from " + oldTime + " to " + requested);
-        enqueueBoth(saved, notificationTemplates.customerRescheduled(saved));
+        enqueueBoth(saved, notificationTemplates.customerRescheduled(saved),
+                notificationTemplates.adminCustomerRescheduled(saved));
         return map(saved);
     }
 
@@ -88,16 +89,18 @@ public class CustomerAppointmentManagementService {
         if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED
                 && Boolean.TRUE.equals(appointment.getCancelledByCustomer())) return map(appointment);
         requireChangeAllowed(appointment);
-        String reason = request == null || request.getReason() == null || request.getReason().isBlank()
-                ? "Cancelled by customer" : "Cancelled by customer: " + request.getReason().trim();
+        String customerReason = request == null || request.getReason() == null || request.getReason().isBlank()
+                ? null : request.getReason().trim();
+        String reason = customerReason == null ? "Cancelled by customer" : "Cancelled by customer: " + customerReason;
         appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
         appointment.setCancelledByCustomer(true);
+        appointment.setCustomerCancellationReason(customerReason);
         appointment.setSelfServiceChangeCount(safeCount(appointment) + 1);
         appointment.setLastSelfServiceChangeAt(salonNow());
-        appointment.setAdminNotes(reason);
         Appointment saved = appointmentRepository.save(appointment);
         appointmentEventService.record(saved, "CUSTOMER_CANCELLED", null, reason);
-        enqueueBoth(saved, notificationTemplates.customerCancelled(saved));
+        enqueueBoth(saved, notificationTemplates.customerCancelled(saved),
+                notificationTemplates.adminCustomerCancelled(saved));
         return map(saved);
     }
 
@@ -141,8 +144,10 @@ public class CustomerAppointmentManagementService {
                 .setParameter(1, dateTime.toString()).getSingleResult();
     }
 
-    private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
-        notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
+    private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification,
+                             AppointmentNotificationTemplates.Notification adminNotification) {
+        notificationOutboxService.enqueueCustomerAndAdmins(appointment, notification.subject(), notification.emailBody(),
+                notification.smsBody(), adminNotification.subject(), adminNotification.emailBody());
     }
 
     private List<AvailableSlotDTO> rescheduleSlots(Appointment appointment, java.time.LocalDate date) {

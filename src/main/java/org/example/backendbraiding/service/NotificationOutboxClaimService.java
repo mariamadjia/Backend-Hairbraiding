@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -65,16 +64,16 @@ public class NotificationOutboxClaimService {
     @Transactional
     public boolean retryLatestFailed(Long appointmentId) {
         List<NotificationOutbox> all = repository.findByAppointmentIdOrderByCreatedAtDesc(appointmentId);
+        String latestEvent = all.stream().map(NotificationOutbox::getEventKey).filter(Objects::nonNull).findFirst().orElse(null);
+        if (latestEvent == null) return false;
         boolean reset = false;
-        for (NotificationOutbox.Channel channel : NotificationOutbox.Channel.values()) {
-            NotificationOutbox latest = all.stream().filter(item -> item.getChannel() == channel)
-                    .max(Comparator.comparing(NotificationOutbox::getCreatedAt)).orElse(null);
-            if (latest != null && latest.getStatus() == NotificationOutbox.Status.FAILED) {
-                latest.setStatus(NotificationOutbox.Status.PENDING);
-                latest.setAttempts(0);
-                latest.setNextAttemptAt(LocalDateTime.now());
-                latest.setLastError(null);
-                repository.save(latest);
+        for (NotificationOutbox item : all) {
+            if (latestEvent.equals(item.getEventKey()) && item.getStatus() == NotificationOutbox.Status.FAILED) {
+                item.setStatus(NotificationOutbox.Status.PENDING);
+                item.setAttempts(0);
+                item.setNextAttemptAt(LocalDateTime.now());
+                item.setLastError(null);
+                repository.save(item);
                 reset = true;
             }
         }
