@@ -117,6 +117,6 @@ public class SubcategoryService {
         for (int index = 0; index < subcategoryIds.size(); index++) {
             byId.get(subcategoryIds.get(index)).setDisplayOrder(index);
         }
-        subcategoryRepository.saveAll(subcategories);
+        subcategoryRepository.saveAllAndFlush(subcategories);
     }
 }

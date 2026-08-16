@@ -8,6 +8,7 @@ public class SubcategoryGalleryDTO {
     private Long id;
     private String name;
     private String slug;
+    private Integer displayOrder;
     private String image;
     private List<String> images;
     private List<String> thumbnailImages;

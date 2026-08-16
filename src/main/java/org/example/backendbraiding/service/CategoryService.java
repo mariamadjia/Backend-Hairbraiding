@@ -243,11 +243,16 @@ public class CategoryService {
             dto.setFlippingImages(cat.getFlippingImages());
             dto.setDisplayOrder(cat.getDisplayOrder());
 
-            List<SubcategoryGalleryDTO> subDtos = cat.getSubcategories().stream().map(sub -> {
+            List<SubcategoryGalleryDTO> subDtos = cat.getSubcategories().stream()
+                    .sorted(java.util.Comparator.comparing(
+                            Subcategory::getDisplayOrder,
+                            java.util.Comparator.nullsLast(Integer::compareTo)))
+                    .map(sub -> {
                 SubcategoryGalleryDTO subDto = new SubcategoryGalleryDTO();
                 subDto.setId(sub.getId());
                 subDto.setName(sub.getName());
                 subDto.setSlug(sub.getSlug());
+                subDto.setDisplayOrder(sub.getDisplayOrder());
                 subDto.setImage(sub.getImage());
                 
                 List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(sub.getId(), List.of());
