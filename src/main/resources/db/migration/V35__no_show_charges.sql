@@ -17,7 +17,7 @@ ALTER TABLE appointments
     ADD COLUMN IF NOT EXISTS rescheduled_from_datetime TIMESTAMP,
     ADD COLUMN IF NOT EXISTS cancelled_by_customer BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS no_show_marked_at TIMESTAMP,
-    ADD COLUMN IF NOT EXISTS no_show_marked_by BIGINT REFERENCES admins(id);
+    ADD COLUMN IF NOT EXISTS no_show_marked_by BIGINT REFERENCES admin(id);
 
 CREATE TABLE IF NOT EXISTS appointment_no_show_fees (
     id BIGSERIAL PRIMARY KEY,
