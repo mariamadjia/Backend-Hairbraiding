@@ -35,6 +35,7 @@ public class PaymentService {
     private final NotificationOutboxService notificationOutboxService;
     private final AppointmentEventService appointmentEventService;
     private final AppointmentNotificationTemplates notificationTemplates;
+    private final AppointmentManagementTokenService managementTokenService;
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -147,7 +148,8 @@ public class PaymentService {
         appointmentRepository.save(appointment);
         if (notifyApproval) {
             appointmentEventService.record(appointment, "APPROVED", appointment.getApprovedBy(), null);
-            AppointmentNotificationTemplates.Notification notification = notificationTemplates.approved(appointment);
+            String managementUrl = managementTokenService.issue(appointment);
+            AppointmentNotificationTemplates.Notification notification = notificationTemplates.approved(appointment, managementUrl);
             notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
             notificationOutboxService.enqueueSms(appointment, notification.smsBody());
         }

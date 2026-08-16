@@ -56,6 +56,7 @@ public class AppointmentService {
     private final AppointmentNotificationTemplates notificationTemplates;
     private final NoShowService noShowService;
     private final NoShowFeeRepository noShowFeeRepository;
+    private final AppointmentManagementTokenService managementTokenService;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
     private static final String DEPOSIT_POLICY_VERSION = "non-refundable-v1";
@@ -506,7 +507,7 @@ public class AppointmentService {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
         if (appointment.getStatus() == Appointment.AppointmentStatus.APPROVED) {
-            enqueueBoth(appointment, notificationTemplates.approved(appointment));
+            enqueueBoth(appointment, notificationTemplates.approved(appointment, managementTokenService.issue(appointment)));
         } else if (appointment.getStatus() == Appointment.AppointmentStatus.DENIED) {
             enqueueBoth(appointment, notificationTemplates.denied(appointment));
         } else if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {

@@ -63,6 +63,10 @@ public class AppointmentNotificationTemplates {
     }
 
     public Notification approved(Appointment appointment) {
+        return approved(appointment, frontendUrl + "/booking");
+    }
+
+    public Notification approved(Appointment appointment, String managementUrl) {
         String body = brandedEmail(
                 "Your appointment is confirmed",
                 "We’re excited to see you! Your appointment has been confirmed. Here are the details:",
@@ -73,11 +77,32 @@ public class AppointmentNotificationTemplates {
                 "Please arrive on time.",
                 "Missed appointments will incur a 60% service fee.",
                 "Manage Appointment",
-                frontendUrl + "/booking");
+                managementUrl);
         return new Notification("Your appointment is confirmed — " + shortDate(appointment), body,
                 "Hi " + firstName(appointment) + ", your " + salonName + " appointment is confirmed for "
                         + dateTime(appointment) + " CT. Deposit charged: " + money(capturedAmount(appointment))
                         + ". Questions? " + phone);
+    }
+
+    public Notification customerRescheduled(Appointment appointment) {
+        String body = greeting(appointment)
+                + "Your one-time appointment change is confirmed. Your new appointment is "
+                + dateTime(appointment) + " CT.\n\n"
+                + "Your deposit remains applied to this appointment and is non-refundable. "
+                + "Your self-service change has now been used.\n\n" + footer();
+        return new Notification("Your appointment has been rescheduled", body,
+                "Hi " + firstName(appointment) + ", your appointment is now " + dateTime(appointment)
+                        + " CT. Your one self-service change has been used. Questions? " + phone);
+    }
+
+    public Notification customerCancelled(Appointment appointment) {
+        String body = greeting(appointment)
+                + "Your appointment for " + dateTime(appointment) + " CT has been cancelled as requested.\n\n"
+                + "Your captured deposit remains non-refundable under the policy accepted when booking.\n\n"
+                + "This cancellation is final.\n\n" + footer();
+        return new Notification("Your appointment has been cancelled", body,
+                "Hi " + firstName(appointment) + ", your appointment for " + dateTime(appointment)
+                        + " CT has been cancelled. The deposit remains non-refundable.");
     }
 
     private String brandedEmail(String heading, String intro, String secondary, Appointment appointment,
