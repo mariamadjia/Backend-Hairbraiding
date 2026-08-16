@@ -43,8 +43,7 @@ public class CustomerAppointmentManagementService {
         Rules rules = rules(appointment);
         if (!rules.canChange()) throw new IllegalStateException(rules.lockReason());
         if (appointment.getService() == null) throw new IllegalStateException("This appointment cannot be rescheduled online");
-        return availabilityService.getAvailableSlots(date, SALON_ZONE.getId(), appointment.getService().getId(), null)
-                .stream().filter(slot -> Boolean.TRUE.equals(slot.getIsAvailable())).toList();
+        return rescheduleSlots(appointment, date);
     }
 
     @Transactional
@@ -59,9 +58,7 @@ public class CustomerAppointmentManagementService {
             throw new IllegalArgumentException("Choose a different appointment time");
         }
         lockSlot(requested);
-        List<AvailableSlotDTO> slots = availabilityService.getAvailableSlots(
-                requested.toLocalDate(), SALON_ZONE.getId(),
-                appointment.getService() == null ? null : appointment.getService().getId(), null);
+        List<AvailableSlotDTO> slots = rescheduleSlots(appointment, requested.toLocalDate());
         boolean available = slots.stream().anyMatch(slot -> requested.equals(slot.getStartTime())
                 && Boolean.TRUE.equals(slot.getIsAvailable()));
         if (!available) throw new IllegalStateException("That appointment time is no longer available");
@@ -146,6 +143,28 @@ public class CustomerAppointmentManagementService {
 
     private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {
         notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
+    }
+
+    private List<AvailableSlotDTO> rescheduleSlots(Appointment appointment, java.time.LocalDate date) {
+        int duration = appointmentDurationMinutes(appointment);
+        return availabilityService.getAvailableSlots(date, SALON_ZONE.getId(),
+                        appointment.getService() == null ? null : appointment.getService().getId(),
+                        null, appointment.getId(), duration)
+                .stream()
+                .filter(slot -> Boolean.TRUE.equals(slot.getIsAvailable()))
+                .filter(slot -> !appointment.getAppointmentDateTime().equals(slot.getStartTime()))
+                .toList();
+    }
+
+    private int appointmentDurationMinutes(Appointment appointment) {
+        if (appointment.getDurationMinutes() != null && appointment.getDurationMinutes() >= 15) {
+            return appointment.getDurationMinutes();
+        }
+        if (appointment.getAppointmentEndDateTime() != null) {
+            return Math.max(15, (int) Duration.between(appointment.getAppointmentDateTime(),
+                    appointment.getAppointmentEndDateTime()).toMinutes());
+        }
+        return 60;
     }
 
     private int safeCount(Appointment appointment) {

@@ -293,8 +293,15 @@ public class AvailabilityService {
     
     // Available Slots Calculation
     public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone, Long serviceId, Long lengthOptionId) {
+        return getAvailableSlots(date, timezone, serviceId, lengthOptionId, null, null);
+    }
+
+    public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone, Long serviceId,
+                                                    Long lengthOptionId, Long excludedAppointmentId,
+                                                    Integer durationOverrideMinutes) {
         List<AvailableSlotDTO> slots = new ArrayList<>();
-        int serviceMinutes = resolveServiceDuration(serviceId, lengthOptionId);
+        int serviceMinutes = durationOverrideMinutes != null && durationOverrideMinutes >= 15
+                ? durationOverrideMinutes : resolveServiceDuration(serviceId, lengthOptionId);
         
         // Get business hours for this day
         BusinessHoursDTO businessHours = getBusinessHoursByDay(date.getDayOfWeek());
@@ -334,6 +341,9 @@ public class AvailabilityService {
         List<BlockedTimeSlot> recurringBlocks = blockedTimeSlotRepository.findByIsRecurringTrue();
         List<Appointment> activeAppointments = appointmentRepository
                 .findActiveStartsBetween(queryStart.minusDays(1), queryEnd, now);
+        if (excludedAppointmentId != null) {
+            activeAppointments.removeIf(appointment -> excludedAppointmentId.equals(appointment.getId()));
+        }
         List<TimeSlot> configuredSlots = timeSlotRepository
                 .findByDayOfWeekOrderBySlotOrderAsc(date.getDayOfWeek().name());
         if (!configuredSlots.isEmpty()) {
