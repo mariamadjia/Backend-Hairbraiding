@@ -110,11 +110,7 @@ public class ServiceItemService {
         service.setKnotlessPriceAdjustment(service.getFoundationChoicesEnabled()
                 && "ADJUSTMENT".equals(service.getKnotlessPricingMode())
                 ? clean(request.getKnotlessPriceAdjustment()) : "0");
-        // Deposit overrides are managed by the pricing endpoint. Preserve an
-        // existing override when older service editors omit this optional field.
-        if (request.getDepositOverrideCents() != null) {
-            service.setDepositOverrideCents(request.getDepositOverrideCents());
-        }
+        service.setDepositOverrideCents(request.getDepositOverrideCents());
         service.setImages(cleanList(request.getImages()));
         service.setSizePhotos(cleanList(request.getSizePhotos()));
         service.setAvailableSizes(uniqueList(request.getAvailableSizes(), "Available sizes"));

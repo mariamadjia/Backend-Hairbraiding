@@ -191,6 +191,7 @@ public class CategoryService {
         dto.setFoundationChoicesEnabled(item.getFoundationChoicesEnabled());
         dto.setKnotlessPriceAdjustment(item.getKnotlessPriceAdjustment());
         dto.setKnotlessPricingMode(item.getKnotlessPricingMode());
+        dto.setDepositOverrideCents(item.getDepositOverrideCents());
         dto.setAvailableSizes(item.getAvailableSizes());
         dto.setHairTextures(item.getHairTextures());
 

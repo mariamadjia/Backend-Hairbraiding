@@ -21,6 +21,7 @@ public class AdminServiceItemDTO {
     private Boolean foundationChoicesEnabled;
     private String knotlessPriceAdjustment;
     private String knotlessPricingMode;
+    private Long depositOverrideCents;
     private List<String> availableSizes;
     private List<String> hairTextures;
     private List<LengthOptionDTO> lengthOptions;
