@@ -19,6 +19,7 @@ public class ImageResponse {
     private Integer displayOrder;
     private Boolean isFeatured;
     private Boolean isHero;
+    private String focalPosition;
     private List<String> tags;
     private Long categoryId;
     private String categoryName;

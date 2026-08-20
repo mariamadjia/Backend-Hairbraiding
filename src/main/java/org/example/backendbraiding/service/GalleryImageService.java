@@ -224,6 +224,13 @@ public class GalleryImageService {
         if (request.getTags() != null) image.setTags(request.getTags());
         if (request.getIsFeatured() != null) image.setIsFeatured(request.getIsFeatured());
         if (request.getIsHero() != null) image.setIsHero(request.getIsHero());
+        if (request.getFocalPosition() != null) {
+            String focalPosition = request.getFocalPosition().trim().toLowerCase(java.util.Locale.ROOT);
+            if (!List.of("top", "center", "bottom").contains(focalPosition)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Focal position must be top, center, or bottom.");
+            }
+            image.setFocalPosition(focalPosition);
+        }
         if (request.getDisplayOrder() != null) image.setDisplayOrder(request.getDisplayOrder());
 
         if (request.getCategoryId() != null) {
@@ -527,6 +534,7 @@ public class GalleryImageService {
         response.setDisplayOrder(image.getDisplayOrder());
         response.setIsFeatured(image.getIsFeatured());
         response.setIsHero(image.getIsHero());
+        response.setFocalPosition(image.getFocalPosition());
         response.setTags(image.getTags());
         response.setCreatedAt(image.getCreatedAt());
         response.setUpdatedAt(image.getUpdatedAt());

@@ -14,5 +14,6 @@ public class ImageUpdateRequest {
     private Long serviceItemId;
     private Boolean isFeatured;
     private Boolean isHero;
+    private String focalPosition;
     private Integer displayOrder;
 }

@@ -54,6 +54,9 @@ public class GalleryImage {
     @Column(name = "is_hero")
     private Boolean isHero = false;
 
+    @Column(name = "focal_position", nullable = false)
+    private String focalPosition = "center";
+
     @ElementCollection
     @CollectionTable(name = "gallery_image_tags", joinColumns = @JoinColumn(name = "image_id"))
     @Column(name = "tag")
