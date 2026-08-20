@@ -14,6 +14,7 @@ public class AdminCategoryDTO {
     private String image;
     private Integer displayOrder;
     private List<String> flippingImages;
+    private List<ImageResponse> galleryImages;
     private List<AdminSubcategoryDTO> subcategories;
     private List<AdminServiceItemDTO> items;
     private Long directServiceCount;

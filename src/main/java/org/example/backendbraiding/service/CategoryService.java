@@ -627,14 +627,19 @@ public class CategoryService {
                         .collect(Collectors.groupingBy(img -> img.getSubcategory().getId()));
             }
 
-            return mapToAdminCategoryShellDTO(category, galleryImagesBySubcategory);
+            List<GalleryImage> categoryGalleryImages = galleryImageRepository
+                    .findByCategoryIdOrderByDisplayOrderAsc(category.getId());
+
+            return mapToAdminCategoryShellDTO(category, galleryImagesBySubcategory, categoryGalleryImages);
         } catch (Exception e) {
             log.error("Error fetching category by slug for admin: {}", slug, e);
             throw new RuntimeException("Failed to fetch category: " + e.getMessage(), e);
         }
     }
 
-    private AdminCategoryDTO mapToAdminCategoryShellDTO(Category category, Map<Long, List<GalleryImage>> galleryImagesBySubcategory) {
+    private AdminCategoryDTO mapToAdminCategoryShellDTO(Category category,
+                                                         Map<Long, List<GalleryImage>> galleryImagesBySubcategory,
+                                                         List<GalleryImage> categoryGalleryImages) {
         AdminCategoryDTO dto = new AdminCategoryDTO();
         dto.setId(category.getId());
         dto.setName(category.getName());
@@ -645,6 +650,18 @@ public class CategoryService {
         dto.setImage(category.getImage());
         dto.setDisplayOrder(category.getDisplayOrder());
         dto.setFlippingImages(category.getFlippingImages() != null ? category.getFlippingImages() : new ArrayList<>());
+        dto.setGalleryImages(categoryGalleryImages.stream().map(img -> {
+            ImageResponse response = new ImageResponse();
+            response.setId(img.getId());
+            response.setImageUrl(img.getImageUrl());
+            response.setThumbnailUrl(img.getThumbnailUrl());
+            response.setTitle(img.getTitle());
+            response.setAltText(img.getAltText());
+            response.setDisplayOrder(img.getDisplayOrder());
+            response.setCategoryId(category.getId());
+            response.setCategoryName(category.getName());
+            return response;
+        }).collect(Collectors.toList()));
 
         List<AdminSubcategoryDTO> subDtos = new ArrayList<>();
         if (category.getSubcategories() != null) {
