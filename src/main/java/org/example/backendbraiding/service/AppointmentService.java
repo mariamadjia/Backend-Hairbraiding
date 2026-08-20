@@ -380,6 +380,8 @@ public class AppointmentService {
                     Appointment.PaymentStatus.CAPTURE_FAILED,
                     Appointment.PaymentStatus.CANCELLATION_FAILED,
                     Appointment.PaymentStatus.FAILED);
+            Predicate notificationIssue = cb.like(
+                    cb.lower(cb.coalesce(root.get("notificationStatus"), "")), "%failed%");
             var noShowIssueQuery = criteriaQuery.subquery(Long.class);
             var noShowFee = noShowIssueQuery.from(NoShowFee.class);
             noShowIssueQuery.select(noShowFee.get("id")).where(
@@ -401,7 +403,7 @@ public class AppointmentService {
                                 Appointment.AppointmentStatus.COMPLETED,
                                 Appointment.AppointmentStatus.NO_SHOW),
                         cb.and(approved, cb.lessThan(root.get("appointmentDateTime"), now)));
-                case "NEEDS_ACTION" -> cb.or(pending, paymentIssue, noShowPaymentIssue);
+                case "NEEDS_ACTION" -> cb.or(pending, paymentIssue, noShowPaymentIssue, notificationIssue);
                 default -> throw new IllegalArgumentException(
                         "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, HISTORY");
             };
@@ -420,7 +422,7 @@ public class AppointmentService {
                                 Appointment.PaymentStatus.PENDING,
                                 Appointment.PaymentStatus.CANCELLED));
                 case "CAPTURE_PROCESSING" -> captureProcessing;
-                case "PAYMENT_ISSUE" -> cb.or(paymentIssue, noShowPaymentIssue);
+                case "PAYMENT_ISSUE" -> cb.or(paymentIssue, noShowPaymentIssue, notificationIssue);
                 case "APPROVED" -> approved;
                 case "COMPLETED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.COMPLETED);
                 case "DENIED" -> cb.equal(root.get("status"), Appointment.AppointmentStatus.DENIED);
