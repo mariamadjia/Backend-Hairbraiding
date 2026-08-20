@@ -233,9 +233,14 @@ public class AppointmentController {
     }
 
     private Long extractAdminId(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
+            throw new org.springframework.security.access.AccessDeniedException("Administrator authentication is required");
+        }
         String email = authentication.getName();
-        Admin admin = adminRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("Admin not found"));
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
+                .filter(candidate -> "ACTIVE".equalsIgnoreCase(candidate.getStatus()))
+                .orElseThrow(() -> new org.springframework.security.access.AccessDeniedException(
+                        "The authenticated administrator account is unavailable"));
         return admin.getId();
     }
 
