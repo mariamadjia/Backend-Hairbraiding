@@ -34,6 +34,9 @@ public class ServiceItem {
 
     private String price;
 
+    @Column(name = "pricing_mode", nullable = false, length = 16)
+    private String pricingMode = "FIXED";
+
     @Column(columnDefinition = "TEXT")
     private String description;
 

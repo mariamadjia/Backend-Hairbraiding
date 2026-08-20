@@ -179,6 +179,7 @@ public class CategoryService {
         dto.setVersion(item.getVersion());
         dto.setName(item.getName());
         dto.setPrice(item.getPrice());
+        dto.setPricingMode(item.getPricingMode());
         dto.setDescription(item.getDescription());
         dto.setNotes(item.getNotes());
         dto.setDurationMinutes(item.getDurationMinutes());
@@ -436,6 +437,7 @@ public class CategoryService {
                 ServiceItem serviceItem = new ServiceItem();
                 serviceItem.setName(serviceInput.getName().trim());
                 serviceItem.setPrice("");
+                serviceItem.setPricingMode(serviceInput.getLengths().isEmpty() ? "FIXED" : "BY_LENGTH");
                 serviceItem.setDescription("");
                 serviceItem.setDisplayOrder(serviceIndex);
                 serviceItem.setSubcategory(subcategory);

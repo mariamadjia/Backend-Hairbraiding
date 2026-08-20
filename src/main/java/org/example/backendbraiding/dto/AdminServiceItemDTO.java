@@ -9,6 +9,7 @@ public class AdminServiceItemDTO {
     private Long version;
     private String name;
     private String price;
+    private String pricingMode;
     private String description;
     private String notes;
     private Integer durationMinutes;

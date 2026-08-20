@@ -71,7 +71,7 @@ public class BookingQuoteService {
     }
 
     private LengthOption resolveOption(ServiceItem service, Long lengthOptionId) {
-        if (service.getLengthOptions().isEmpty()) {
+        if ("FIXED".equals(service.getPricingMode())) {
             if (lengthOptionId != null) throw new IllegalArgumentException("This service does not use a length option");
             return null;
         }

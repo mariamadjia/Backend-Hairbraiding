@@ -229,6 +229,7 @@ public class BookingController {
         bookingItem.put("sizeGuideKey", item.getSizeGuideKey());
         bookingItem.put("displayOrder", item.getDisplayOrder());
         bookingItem.put("price", item.getPrice());
+        bookingItem.put("pricingMode", item.getPricingMode());
         bookingItem.put("description", item.getDescription());
         bookingItem.put("notes", item.getNotes());
         bookingItem.put("image", item.getImage());
@@ -258,8 +259,10 @@ public class BookingController {
     private boolean isBookable(ServiceItem item) {
         if (!item.isActive()) return false;
         List<LengthOption> options = item.getLengthOptions() == null ? List.of() : item.getLengthOptions();
-        if (!options.isEmpty()) return options.stream().anyMatch(option -> hasValidPrice(item, option));
-        return org.example.backendbraiding.service.MoneySupport.positiveCents(item.getPrice()).isPresent();
+        if ("BY_LENGTH".equals(item.getPricingMode())) {
+            return !options.isEmpty() && options.stream().anyMatch(option -> hasValidPrice(item, option));
+        }
+        return options.isEmpty() && org.example.backendbraiding.service.MoneySupport.positiveCents(item.getPrice()).isPresent();
     }
 
     private boolean hasValidPrice(ServiceItem item, LengthOption option) {

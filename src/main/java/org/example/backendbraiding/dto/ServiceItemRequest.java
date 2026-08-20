@@ -21,6 +21,8 @@ public class ServiceItemRequest {
 
     @Pattern(regexp = PRICE_PATTERN, message = "Price must be a non-negative amount with at most two decimals")
     private String price = "";
+    @Pattern(regexp = "FIXED|BY_LENGTH", message = "Pricing mode must be FIXED or BY_LENGTH")
+    private String pricingMode;
     @Size(max = 5000) private String description = "";
     @Size(max = 1000) private String notes = "";
     @Min(value = 15, message = "Service duration must be at least 15 minutes")

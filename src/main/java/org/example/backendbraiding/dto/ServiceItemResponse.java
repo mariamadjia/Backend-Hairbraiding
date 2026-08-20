@@ -12,6 +12,7 @@ public class ServiceItemResponse {
     private String name;
     private String sizeGuideKey;
     private String price;
+    private String pricingMode;
     private String description;
     private String notes;
     private Integer durationMinutes;
@@ -49,6 +50,7 @@ public class ServiceItemResponse {
         response.setName(service.getName());
         response.setSizeGuideKey(service.getSizeGuideKey());
         response.setPrice(service.getPrice());
+        response.setPricingMode(service.getPricingMode());
         response.setDescription(service.getDescription());
         response.setNotes(service.getNotes());
         response.setDurationMinutes(service.getDurationMinutes());

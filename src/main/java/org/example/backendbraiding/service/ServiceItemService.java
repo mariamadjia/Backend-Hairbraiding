@@ -91,6 +91,12 @@ public class ServiceItemService {
             }
         }
         service.setPrice(clean(request.getPrice()));
+        String pricingMode = clean(request.getPricingMode());
+        if (pricingMode.isBlank()) {
+            pricingMode = request.getLengthOptions() != null && !request.getLengthOptions().isEmpty()
+                    ? "BY_LENGTH" : "FIXED";
+        }
+        service.setPricingMode("BY_LENGTH".equalsIgnoreCase(pricingMode) ? "BY_LENGTH" : "FIXED");
         service.setDescription(clean(request.getDescription()));
         service.setNotes(clean(request.getNotes()));
         service.setDurationMinutes(request.getDurationMinutes() == null ? 60 : request.getDurationMinutes());
@@ -120,9 +126,15 @@ public class ServiceItemService {
         service.setSubcategory(relationship.subcategory());
         requireUniqueActiveName(service);
         mergeLengthOptions(service, request.getLengthOptions());
-        if (service.getLengthOptions().isEmpty()) {
+        if ("FIXED".equals(service.getPricingMode())) {
+            if (!service.getLengthOptions().isEmpty()) {
+                throw new IllegalArgumentException("Fixed-price services cannot have length options");
+            }
             MoneySupport.requirePositiveCents(service.getPrice(), "Base price");
         } else {
+            if (service.getLengthOptions().isEmpty()) {
+                throw new IllegalArgumentException("Price-by-length services require at least one length option");
+            }
             for (LengthOption option : service.getLengthOptions()) {
                 MoneySupport.requirePositiveCents(option.getPrice(), option.getName() + " price");
                 if (service.getFoundationChoicesEnabled() && "SEPARATE".equals(service.getKnotlessPricingMode())) {
