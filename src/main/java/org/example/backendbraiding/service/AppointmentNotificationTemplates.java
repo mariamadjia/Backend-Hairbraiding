@@ -287,8 +287,13 @@ public class AppointmentNotificationTemplates {
 
     public Notification noShowPaid(Appointment appointment, long servicePriceCents, long totalFeeCents,
                                    long depositCreditCents, long additionalChargeCents) {
+        return noShowPaid(appointment, servicePriceCents, totalFeeCents, depositCreditCents, additionalChargeCents, false);
+    }
+
+    public Notification noShowPaid(Appointment appointment, long servicePriceCents, long totalFeeCents,
+                                   long depositCreditCents, long additionalChargeCents, boolean adjusted) {
         String breakdown = "Scheduled service price: " + money(servicePriceCents)
-                + ". Total 60% no-show fee: " + money(totalFeeCents)
+                + (adjusted ? ". Adjusted no-show fee: " : ". Total 60% no-show fee: ") + money(totalFeeCents)
                 + ". Deposit applied: " + money(depositCreditCents)
                 + ". Saved-card charge: " + money(additionalChargeCents) + ".";
         String body = brandedEmail(
@@ -307,8 +312,13 @@ public class AppointmentNotificationTemplates {
 
     public Notification noShowFailed(Appointment appointment, long servicePriceCents, long totalFeeCents,
                                      long depositCreditCents, long additionalChargeCents) {
+        return noShowFailed(appointment, servicePriceCents, totalFeeCents, depositCreditCents, additionalChargeCents, false);
+    }
+
+    public Notification noShowFailed(Appointment appointment, long servicePriceCents, long totalFeeCents,
+                                     long depositCreditCents, long additionalChargeCents, boolean adjusted) {
         String breakdown = "Scheduled service price: " + money(servicePriceCents)
-                + ". Total 60% no-show fee: " + money(totalFeeCents)
+                + (adjusted ? ". Adjusted no-show fee: " : ". Total 60% no-show fee: ") + money(totalFeeCents)
                 + ". Deposit applied: " + money(depositCreditCents)
                 + ". Remaining balance: " + money(additionalChargeCents) + ".";
         String body = brandedEmail(
@@ -323,6 +333,21 @@ public class AppointmentNotificationTemplates {
                 null,
                 null);
         return new Notification("Action required: your " + salonName + " no-show balance", body, "");
+    }
+
+    public Notification noShowWaived(Appointment appointment) {
+        String body = brandedEmail(
+                "No-show fee waived",
+                "Your appointment was marked as a no-show, but the additional no-show fee was waived by the salon.",
+                null,
+                appointment,
+                "Fee waived",
+                "No additional no-show payment is due.",
+                "There is no outstanding no-show balance on your account.",
+                null,
+                null,
+                null);
+        return new Notification("Your " + salonName + " no-show fee was waived", body, "");
     }
 
     private String greeting(Appointment appointment) {

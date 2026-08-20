@@ -24,4 +24,10 @@ public class NoShowFeeDTO {
     private LocalDateTime automaticChargeDeadlineAt;
     private boolean overdueConfirmationRequired;
     private boolean automaticChargeAllowed;
+    private boolean bookingRestricted;
+    private LocalDateTime consentRecordedAt;
+    private Integer chargeAttemptCount;
+    private LocalDateTime chargeAttemptedAt;
+    private LocalDateTime paidAt;
+    private String adminNote;
 }

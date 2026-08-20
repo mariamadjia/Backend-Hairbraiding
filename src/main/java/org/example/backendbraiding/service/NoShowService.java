@@ -46,9 +46,13 @@ public class NoShowService {
                 || fee.getPaymentStatus() == NoShowFee.PaymentStatus.PROCESSING) {
             return toDto(fee);
         }
+        if (fee.getFeeDecision() == NoShowFee.FeeDecision.WAIVED) {
+            return toDto(transactionTemplate.execute(status -> markWaived(fee.getId())));
+        }
         if (fee.getAmountToChargeCents() == 0) {
             return toDto(transactionTemplate.execute(status -> markPaidWithoutCharge(fee.getId())));
         }
+        validateChargeWindow(fee, request);
         return charge(fee);
     }
 
@@ -64,27 +68,34 @@ public class NoShowService {
         LocalDateTime eligibleAt = appointment.getAppointmentDateTime().plusMinutes(GRACE_MINUTES);
         LocalDateTime normalDeadline = appointment.getAppointmentDateTime().plusHours(NORMAL_WINDOW_HOURS);
         LocalDateTime hardDeadline = appointment.getAppointmentDateTime().plusDays(AUTOMATIC_WINDOW_DAYS);
+        NoShowFee.FeeDecision decision = parseDecision(request.getFeeDecision());
         if (now.isBefore(eligibleAt)) {
             throw new IllegalStateException("No-show charging becomes available after the 30-minute grace period");
         }
-        if (now.isAfter(hardDeadline)) {
+        if (decision != NoShowFee.FeeDecision.WAIVED && now.isAfter(hardDeadline)) {
             throw new IllegalStateException("The seven-day automatic no-show charge window has expired");
         }
-        if (now.isAfter(normalDeadline) && !request.isConfirmOverdue()) {
+        if (decision != NoShowFee.FeeDecision.WAIVED && now.isAfter(normalDeadline) && !request.isConfirmOverdue()) {
             throw new IllegalStateException("This charge is outside the normal 24-hour period and requires overdue confirmation");
         }
-        if (appointment.getCustomer().getStripeCustomerId() == null
+        if (decision != NoShowFee.FeeDecision.WAIVED && (appointment.getCustomer().getStripeCustomerId() == null
                 || appointment.getCustomer().getStripePaymentMethodId() == null
-                || appointment.getOffSessionConsentAt() == null) {
+                || appointment.getOffSessionConsentAt() == null)) {
             throw new IllegalStateException("This appointment does not have a saved card with off-session consent");
         }
 
         long servicePrice = MoneySupport.requirePositiveCents(appointment.getPrice(), "Scheduled service price");
-        long totalFee = BigDecimal.valueOf(servicePrice)
+        long policyFee = BigDecimal.valueOf(servicePrice)
                 .multiply(BigDecimal.valueOf(FEE_RATE_PERCENT))
                 .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP).longValueExact();
-        long depositCredit = Math.min(totalFee, Math.max(0, appointment.getAmountCaptured() == null
-                ? 0 : appointment.getAmountCaptured()));
+        long capturedDeposit = Math.max(0, appointment.getAmountCaptured() == null
+                ? 0 : appointment.getAmountCaptured());
+        long totalFee = switch (decision) {
+            case ACTIVE -> policyFee;
+            case WAIVED -> 0;
+            case ADJUSTED -> validateAdjustedFee(request.getAdjustedTotalFeeCents(), capturedDeposit, servicePrice);
+        };
+        long depositCredit = Math.min(totalFee, capturedDeposit);
 
         NoShowFee fee = new NoShowFee();
         fee.setAppointment(appointment);
@@ -93,6 +104,7 @@ public class NoShowService {
         fee.setTotalFeeCents(totalFee);
         fee.setDepositCreditCents(depositCredit);
         fee.setAmountToChargeCents(Math.max(0, totalFee - depositCredit));
+        fee.setFeeDecision(decision);
         fee.setMarkedAt(now);
         fee.setAdminNote(clean(request.getAdminNote()));
         fee.setPaymentStatus(NoShowFee.PaymentStatus.UNPAID);
@@ -105,8 +117,35 @@ public class NoShowService {
         appointment.setNoShowMarkedBy(admin);
         appointmentRepository.save(appointment);
         appointmentEventService.record(appointment, "MARKED_NO_SHOW", admin,
-                "60% fee; deposit credited; remaining charge " + fee.getAmountToChargeCents() + " cents");
+                decision.name() + " no-show fee; deposit credited; remaining charge "
+                        + fee.getAmountToChargeCents() + " cents");
         return fee;
+    }
+
+    public NoShowFeeDTO retryCharge(Long appointmentId, NoShowChargeRequest request) {
+        NoShowFee fee = noShowFeeRepository.findByAppointmentId(appointmentId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("No-show fee not found"));
+        if (fee.getFeeDecision() == NoShowFee.FeeDecision.WAIVED) {
+            throw new IllegalStateException("A waived no-show fee cannot be charged");
+        }
+        if (fee.getPaymentStatus() == NoShowFee.PaymentStatus.PAID) return toDto(fee);
+        if (fee.getPaymentStatus() == NoShowFee.PaymentStatus.PROCESSING) {
+            throw new IllegalStateException("The no-show charge is already processing");
+        }
+        validateChargeWindow(fee, request);
+        return charge(fee);
+    }
+
+    private void validateChargeWindow(NoShowFee fee, NoShowChargeRequest request) {
+        LocalDateTime now = salonNow();
+        LocalDateTime normalDeadline = fee.getAppointment().getAppointmentDateTime().plusHours(NORMAL_WINDOW_HOURS);
+        LocalDateTime hardDeadline = fee.getAppointment().getAppointmentDateTime().plusDays(AUTOMATIC_WINDOW_DAYS);
+        if (now.isAfter(hardDeadline)) {
+            throw new IllegalStateException("The seven-day automatic no-show charge window has expired");
+        }
+        if (now.isAfter(normalDeadline) && (request == null || !request.isConfirmOverdue())) {
+            throw new IllegalStateException("This charge is outside the normal 24-hour period and requires overdue confirmation");
+        }
     }
 
     private NoShowFeeDTO charge(NoShowFee fee) {
@@ -207,17 +246,29 @@ public class NoShowService {
         return saved;
     }
 
+    private NoShowFee markWaived(Long feeId) {
+        NoShowFee fee = noShowFeeRepository.findById(feeId).orElseThrow();
+        fee.setPaymentStatus(NoShowFee.PaymentStatus.PAID);
+        fee.setPaidAt(salonNow());
+        NoShowFee saved = noShowFeeRepository.save(fee);
+        AppointmentNotificationTemplates.Notification notification = notificationTemplates.noShowWaived(saved.getAppointment());
+        notificationOutboxService.enqueueEmail(saved.getAppointment(), notification.subject(), notification.emailBody());
+        return saved;
+    }
+
     private void enqueueResult(NoShowFee fee) {
         Appointment appointment = fee.getAppointment();
         if (fee.getPaymentStatus() == NoShowFee.PaymentStatus.PAID) {
             AppointmentNotificationTemplates.Notification notification = notificationTemplates.noShowPaid(
                     appointment, fee.getScheduledServicePriceCents(), fee.getTotalFeeCents(),
-                    fee.getDepositCreditCents(), fee.getAmountToChargeCents());
+                    fee.getDepositCreditCents(), fee.getAmountToChargeCents(),
+                    fee.getFeeDecision() == NoShowFee.FeeDecision.ADJUSTED);
             notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
         } else if (fee.getPaymentStatus() == NoShowFee.PaymentStatus.FAILED) {
             AppointmentNotificationTemplates.Notification notification = notificationTemplates.noShowFailed(
                     appointment, fee.getScheduledServicePriceCents(), fee.getTotalFeeCents(),
-                    fee.getDepositCreditCents(), fee.getAmountToChargeCents());
+                    fee.getDepositCreditCents(), fee.getAmountToChargeCents(),
+                    fee.getFeeDecision() == NoShowFee.FeeDecision.ADJUSTED);
             notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
         }
     }
@@ -232,7 +283,11 @@ public class NoShowService {
                 fee.getFeeDecision().name(), fee.getPaymentStatus().name(), appointment.getPaymentMethodBrand(),
                 appointment.getPaymentMethodLast4(), fee.getFailureMessage(),
                 appointment.getAppointmentDateTime().plusMinutes(GRACE_MINUTES), normalDeadline, hardDeadline,
-                now.isAfter(normalDeadline) && !now.isAfter(hardDeadline), !now.isAfter(hardDeadline));
+                now.isAfter(normalDeadline) && !now.isAfter(hardDeadline), !now.isAfter(hardDeadline),
+                fee.getFeeDecision() != NoShowFee.FeeDecision.WAIVED
+                        && fee.getPaymentStatus() != NoShowFee.PaymentStatus.PAID,
+                appointment.getOffSessionConsentAt(), fee.getChargeAttemptCount(), fee.getChargeAttemptedAt(),
+                fee.getPaidAt(), fee.getAdminNote());
     }
 
     public NoShowFeeDTO preview(Appointment appointment) {
@@ -256,8 +311,29 @@ public class NoShowService {
                     appointment.getPaymentMethodBrand(), appointment.getPaymentMethodLast4(),
                     savedCard ? null : "No reusable saved card with off-session consent", eligible,
                     normalDeadline, hardDeadline, now.isAfter(normalDeadline) && !now.isAfter(hardDeadline),
-                    statusAllows && savedCard && !now.isBefore(eligible) && !now.isAfter(hardDeadline));
+                    statusAllows && savedCard && !now.isBefore(eligible) && !now.isAfter(hardDeadline),
+                    false, appointment.getOffSessionConsentAt(), 0, null, null, null);
         });
+    }
+
+    private NoShowFee.FeeDecision parseDecision(String value) {
+        try {
+            return value == null ? NoShowFee.FeeDecision.ACTIVE
+                    : NoShowFee.FeeDecision.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Fee decision must be ACTIVE, ADJUSTED, or WAIVED");
+        }
+    }
+
+    private long validateAdjustedFee(Long adjustedFee, long capturedDeposit, long servicePrice) {
+        if (adjustedFee == null) throw new IllegalArgumentException("Enter the adjusted total no-show fee");
+        if (adjustedFee < capturedDeposit) {
+            throw new IllegalArgumentException("Adjusted fee cannot be less than the deposit already collected");
+        }
+        if (adjustedFee > servicePrice) {
+            throw new IllegalArgumentException("Adjusted fee cannot exceed the scheduled service price");
+        }
+        return adjustedFee;
     }
 
     private LocalDateTime salonNow() { return LocalDateTime.now(SALON_ZONE); }

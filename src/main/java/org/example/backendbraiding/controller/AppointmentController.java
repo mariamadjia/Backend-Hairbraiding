@@ -190,6 +190,14 @@ public class AppointmentController {
                 request == null ? new NoShowChargeRequest() : request));
     }
 
+    @PostMapping("/{id}/no-show/retry")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<NoShowFeeDTO> retryNoShowCharge(@PathVariable Long id,
+            @Valid @RequestBody(required = false) NoShowChargeRequest request) {
+        return ResponseEntity.ok(noShowService.retryCharge(id,
+                request == null ? new NoShowChargeRequest() : request));
+    }
+
     @PutMapping("/{id}/cancel")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AppointmentResponseDTO> cancelAppointment(
