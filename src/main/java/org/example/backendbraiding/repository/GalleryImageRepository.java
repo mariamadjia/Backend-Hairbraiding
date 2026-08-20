@@ -22,7 +22,7 @@ public interface GalleryImageRepository extends JpaRepository<GalleryImage, Long
 
     List<GalleryImage> findByServiceItemIdOrderByDisplayOrderAsc(Long serviceItemId);
     List<GalleryImage> findByIsFeaturedTrueOrderByDisplayOrderAsc();
-    List<GalleryImage> findByIsHeroTrueOrderByDisplayOrderAsc();
+    List<GalleryImage> findByIsHeroTrueOrderByDisplayOrderAscIdAsc();
     long countByIsHeroTrue();
 
     @Query("SELECT COALESCE(MAX(g.displayOrder), 0) FROM GalleryImage g")

@@ -101,7 +101,7 @@ public class GalleryImageService {
     }
 
     public List<ImageResponse> getHeroImages() {
-        return imageRepository.findByIsHeroTrueOrderByDisplayOrderAsc()
+        return imageRepository.findByIsHeroTrueOrderByDisplayOrderAscIdAsc()
                 .stream()
                 .map(this::convertToResponse)
                 .collect(Collectors.toList());
