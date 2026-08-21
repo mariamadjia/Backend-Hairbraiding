@@ -144,6 +144,7 @@ class AppointmentNotificationTemplatesTests {
         style.setName("Knotless Box Braids");
         ServiceItem size = new ServiceItem();
         size.setName("XSmall");
+        size.setPricingMode("BY_LENGTH");
         size.setSubcategory(style);
         appointment.setService(size);
 
@@ -152,6 +153,23 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(body.contains("Knotless Box Braids"));
         assertTrue(body.contains("XSmall"));
         assertFalse(body.contains(">XSmall</td><td"));
+    }
+
+    @Test
+    void fixedPriceServiceDoesNotDuplicateLegacySizeAsASecondServiceRow() {
+        Appointment appointment = appointment(Appointment.PaymentStatus.CAPTURED);
+        appointment.setSelectedSize("Miracle Weaves");
+        ServiceItem service = new ServiceItem();
+        service.setName("Miracle Weaves");
+        service.setPricingMode("FIXED");
+        appointment.setService(service);
+
+        var notification = templates.approved(appointment);
+
+        assertTrue(notification.emailBody().contains(">Service:</td><td"));
+        assertFalse(notification.emailBody().contains(">Size:</td><td"));
+        assertTrue(notification.emailBody().indexOf(">Service:</td><td")
+                == notification.emailBody().lastIndexOf(">Service:</td><td"));
     }
 
     private Appointment appointment(Appointment.PaymentStatus paymentStatus) {

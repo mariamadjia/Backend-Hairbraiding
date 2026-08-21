@@ -30,7 +30,6 @@ public class AppointmentRequestDTO {
     private String phoneNumber;
 
     @NotNull(message = "Appointment date and time is required")
-    @Future(message = "Appointment must be in the future")
     private LocalDateTime appointmentDateTime;
 
     @NotNull(message = "Service is required")

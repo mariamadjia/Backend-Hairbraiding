@@ -61,6 +61,7 @@ public class AppointmentService {
     private final NotificationOutboxClaimService notificationOutboxClaimService;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
+    private static final ZoneId SALON_ZONE = ZoneId.of("America/Chicago");
     private static final String DEPOSIT_POLICY_VERSION = "non-refundable-v1";
     private static final String OFF_SESSION_POLICY_VERSION = "no-show-60-percent-v1";
 
@@ -144,7 +145,7 @@ public class AppointmentService {
                 .plusMinutes(durationMinutes + bufferMinutes(settings)));
         appointment.setNotes(requestDTO.getNotes());
         appointment.setSelectedService(displayServiceName(service));
-        appointment.setSelectedSize(service.getName());
+        appointment.setSelectedSize(isFixedServiceWithoutOptions(service) ? null : service.getName());
         appointment.setSelectedLength(lengthOption != null ? lengthOption.getName() : requestDTO.getSelectedLength());
         appointment.setSelectedFoundation(foundation);
         appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
@@ -188,6 +189,11 @@ public class AppointmentService {
             return service.getSubcategory().getName().trim();
         }
         return service.getName();
+    }
+
+    private static boolean isFixedServiceWithoutOptions(ServiceItem service) {
+        return "FIXED".equalsIgnoreCase(service.getPricingMode())
+                && (service.getLengthOptions() == null || service.getLengthOptions().isEmpty());
     }
 
     private static String normalizePhone(String phone) {
@@ -678,11 +684,7 @@ public class AppointmentService {
         settings.setRequireApproval(dto.getRequireApproval());
         settings.setAllowSameDayBooking(dto.getAllowSameDayBooking());
         settings.setBufferTimeBetweenAppointments(dto.getBufferTimeBetweenAppointments());
-        try {
-            settings.setTimezone(ZoneId.of(dto.getTimezone().trim()).getId());
-        } catch (Exception exception) {
-            throw new IllegalArgumentException("Timezone must be a valid IANA timezone, such as America/Chicago");
-        }
+        settings.setTimezone(SALON_ZONE.getId());
         settings.setUpdatedAt(LocalDateTime.now());
         settings.setUpdatedBy(admin);
         
@@ -808,10 +810,24 @@ public class AppointmentService {
         }
 
         LocalDateTime salonNow = ZonedDateTime.now(salonZone(settings)).toLocalDateTime();
-        long appointmentCount = appointmentRepository.countOverlapping(
-                appointmentDateTime, appointmentDateTime.plusMinutes(occupiedMinutes), salonNow);
-        if (appointmentCount >= capacity) {
-            throw new IllegalStateException("This time slot is fully booked");
+        LocalDateTime appointmentEnd = appointmentDateTime.plusMinutes(occupiedMinutes);
+        if (configuredSlots.isEmpty()) {
+            long appointmentCount = appointmentRepository.countOverlapping(
+                    appointmentDateTime, appointmentEnd, salonNow);
+            if (appointmentCount >= capacity) {
+                throw new IllegalStateException("This time slot is fully booked");
+            }
+        } else {
+            for (TimeSlot configured : configuredSlots) {
+                LocalDateTime intervalStart = LocalDateTime.of(appointmentDateTime.toLocalDate(), configured.getStartTime());
+                LocalDateTime intervalEnd = LocalDateTime.of(appointmentDateTime.toLocalDate(), configured.getEndTime());
+                if (!intervalStart.isBefore(appointmentEnd) || !intervalEnd.isAfter(appointmentDateTime)) continue;
+                int intervalCapacity = configured.getCapacity() == null || configured.getCapacity() < 1
+                        ? 1 : configured.getCapacity();
+                if (appointmentRepository.countOverlapping(intervalStart, intervalEnd, salonNow) >= intervalCapacity) {
+                    throw new IllegalStateException("This time slot is fully booked");
+                }
+            }
         }
     }
 
@@ -829,14 +845,7 @@ public class AppointmentService {
     }
 
     private ZoneId salonZone(AppointmentSettings settings) {
-        try {
-            String configured = settings.getTimezone();
-            return configured == null || configured.isBlank()
-                    ? ZoneId.of("America/Chicago")
-                    : ZoneId.of(configured);
-        } catch (Exception ignored) {
-            return ZoneId.of("America/Chicago");
-        }
+        return SALON_ZONE;
     }
 
     private int slotIntervalMinutes(AppointmentSettings settings) {

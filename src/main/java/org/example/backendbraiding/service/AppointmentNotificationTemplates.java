@@ -191,7 +191,7 @@ public class AppointmentNotificationTemplates {
         StringBuilder rows = new StringBuilder();
         detailRow(rows, "Date and time", dateTime(appointment) + " CT");
         detailRow(rows, "Service", serviceName(appointment));
-        detailRow(rows, "Size", appointment.getSelectedSize());
+        if (hasSizeSelection(appointment)) detailRow(rows, "Size", appointment.getSelectedSize());
         detailRow(rows, "Length", appointment.getSelectedLength());
         detailRow(rows, "Foundation", friendlyFoundation(appointment.getSelectedFoundation()));
         detailRow(rows, "Texture", appointment.getSelectedTexture());
@@ -358,7 +358,7 @@ public class AppointmentNotificationTemplates {
         StringBuilder value = new StringBuilder("APPOINTMENT DETAILS\n")
                 .append("Date and time: ").append(dateTime(appointment)).append(" CT\n")
                 .append("Service: ").append(serviceName(appointment)).append("\n");
-        append(value, "Size", appointment.getSelectedSize());
+        if (hasSizeSelection(appointment)) append(value, "Size", appointment.getSelectedSize());
         append(value, "Length", appointment.getSelectedLength());
         append(value, "Foundation", friendlyFoundation(appointment.getSelectedFoundation()));
         append(value, "Texture", appointment.getSelectedTexture());
@@ -372,6 +372,15 @@ public class AppointmentNotificationTemplates {
 
     private void append(StringBuilder value, String label, String field) {
         if (field != null && !field.isBlank()) value.append(label).append(": ").append(field).append("\n");
+    }
+
+    private boolean hasSizeSelection(Appointment appointment) {
+        return appointment.getSelectedSize() != null
+                && !appointment.getSelectedSize().isBlank()
+                && !(appointment.getService() != null
+                && "FIXED".equalsIgnoreCase(appointment.getService().getPricingMode())
+                && (appointment.getService().getLengthOptions() == null
+                || appointment.getService().getLengthOptions().isEmpty()));
     }
 
     private String footer() {

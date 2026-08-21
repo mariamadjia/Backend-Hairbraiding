@@ -29,6 +29,8 @@ import org.example.backendbraiding.util.BookingRules;
 @Slf4j
 public class AvailabilityService {
 
+    private static final ZoneId SALON_ZONE = ZoneId.of("America/Chicago");
+
     private final BusinessHoursRepository businessHoursRepository;
     private final BlockedTimeSlotRepository blockedTimeSlotRepository;
     private final AppointmentSettingsRepository settingsRepository;
@@ -356,7 +358,7 @@ public class AvailabilityService {
                 if (AppointmentManagementRules.slotFitsWindow(windowStart, occupiedMinutes, windowEnd)) {
                     slots.add(checkSlotAvailability(windowStart, zoneId, slotCapacity(configured),
                             occupiedMinutes, blockedSlots, recurringBlocks, activeAppointments,
-                            slotIntervalMinutes(settings) + bufferMinutes(settings)));
+                            slotIntervalMinutes(settings) + bufferMinutes(settings), configuredSlots));
                 }
             }
             return slots;
@@ -378,7 +380,7 @@ public class AvailabilityService {
         while (AppointmentManagementRules.slotFitsWindow(slotStart, occupiedMinutes, slotEnd)) {
             slots.add(checkSlotAvailability(slotStart, zoneId, maximumCapacity(settings),
                     occupiedMinutes, blockedSlots, recurringBlocks, activeAppointments,
-                    slotIntervalMinutes(settings) + bufferMinutes(settings)));
+                    slotIntervalMinutes(settings) + bufferMinutes(settings), List.of()));
             slotStart = slotStart.plusMinutes(startGapMinutes);
         }
         
@@ -390,7 +392,8 @@ public class AvailabilityService {
                                                     List<BlockedTimeSlot> blockedSlots,
                                                     List<BlockedTimeSlot> recurringBlocks,
                                                     List<Appointment> activeAppointments,
-                                                    int legacyOccupiedMinutes) {
+                                                    int legacyOccupiedMinutes,
+                                                    List<TimeSlot> configuredSlots) {
         AvailableSlotDTO slot = new AvailableSlotDTO();
         slot.setStartTime(start);
         LocalDateTime end = start.plusMinutes(occupiedMinutes);
@@ -429,14 +432,21 @@ public class AvailabilityService {
         }
         
         // Check existing appointments (true interval overlap, excluding expired unpaid reservations)
-        long appointmentCount = activeAppointments.stream().filter(appointment -> {
-            LocalDateTime appointmentStart = appointment.getAppointmentDateTime();
-            LocalDateTime appointmentEnd = appointment.getAppointmentEndDateTime() != null
-                    ? appointment.getAppointmentEndDateTime()
-                    : appointmentStart.plusMinutes(legacyOccupiedMinutes);
-            return appointmentStart.isBefore(end) && appointmentEnd.isAfter(start);
-        }).count();
-        int availableSpots = capacity - (int) appointmentCount;
+        int availableSpots = configuredSlots.isEmpty()
+                ? capacity - overlappingAppointments(activeAppointments, start, end, legacyOccupiedMinutes)
+                : configuredSlots.stream()
+                    .filter(configured -> {
+                        LocalDateTime intervalStart = LocalDateTime.of(start.toLocalDate(), configured.getStartTime());
+                        LocalDateTime intervalEnd = LocalDateTime.of(start.toLocalDate(), configured.getEndTime());
+                        return intervalStart.isBefore(end) && intervalEnd.isAfter(start);
+                    })
+                    .mapToInt(configured -> {
+                        LocalDateTime intervalStart = LocalDateTime.of(start.toLocalDate(), configured.getStartTime());
+                        LocalDateTime intervalEnd = LocalDateTime.of(start.toLocalDate(), configured.getEndTime());
+                        return slotCapacity(configured) - overlappingAppointments(
+                                activeAppointments, intervalStart, intervalEnd, legacyOccupiedMinutes);
+                    })
+                    .min().orElse(0);
         
         slot.setIsAvailable(availableSpots > 0);
         slot.setAvailableSpots(Math.max(0, availableSpots));
@@ -445,6 +455,17 @@ public class AvailabilityService {
         }
         
         return slot;
+    }
+
+    private int overlappingAppointments(List<Appointment> appointments, LocalDateTime start,
+                                        LocalDateTime end, int legacyOccupiedMinutes) {
+        return (int) appointments.stream().filter(appointment -> {
+            LocalDateTime appointmentStart = appointment.getAppointmentDateTime();
+            LocalDateTime appointmentEnd = appointment.getAppointmentEndDateTime() != null
+                    ? appointment.getAppointmentEndDateTime()
+                    : appointmentStart.plusMinutes(legacyOccupiedMinutes);
+            return appointmentStart.isBefore(end) && appointmentEnd.isAfter(start);
+        }).count();
     }
     
     public List<BlockedTimeSlot> getAllRecurringBlocks() {
@@ -494,14 +515,7 @@ public class AvailabilityService {
     }
 
     private ZoneId salonZone(AppointmentSettings settings) {
-        try {
-            String configured = settings.getTimezone();
-            return configured == null || configured.isBlank()
-                    ? ZoneId.of("America/Chicago")
-                    : ZoneId.of(configured);
-        } catch (Exception ignored) {
-            return ZoneId.of("America/Chicago");
-        }
+        return SALON_ZONE;
     }
 
     private int bufferMinutes(AppointmentSettings settings) {

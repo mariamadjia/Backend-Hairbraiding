@@ -57,7 +57,7 @@ public class CustomerAppointmentManagementService {
         if (requested.equals(appointment.getAppointmentDateTime())) {
             throw new IllegalArgumentException("Choose a different appointment time");
         }
-        lockSlot(requested);
+        lockSalonDate(requested);
         List<AvailableSlotDTO> slots = rescheduleSlots(appointment, requested.toLocalDate());
         boolean available = slots.stream().anyMatch(slot -> requested.equals(slot.getStartTime())
                 && Boolean.TRUE.equals(slot.getIsAvailable()));
@@ -139,9 +139,11 @@ public class CustomerAppointmentManagementService {
                 rules.lockReason());
     }
 
-    private void lockSlot(LocalDateTime dateTime) {
+    private void lockSalonDate(LocalDateTime dateTime) {
+        // Use the same date-wide advisory lock as new bookings. Exact-start locks
+        // do not serialize long services whose occupied ranges overlap.
         entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))")
-                .setParameter(1, dateTime.toString()).getSingleResult();
+                .setParameter(1, "appointment-date:" + dateTime.toLocalDate()).getSingleResult();
     }
 
     private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification,
