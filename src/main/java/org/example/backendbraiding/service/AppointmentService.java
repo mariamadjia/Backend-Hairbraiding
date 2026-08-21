@@ -390,6 +390,10 @@ public class AppointmentService {
             Predicate pending = cb.equal(root.get("status"), Appointment.AppointmentStatus.PENDING);
             Predicate approved = cb.equal(root.get("status"), Appointment.AppointmentStatus.APPROVED);
             Predicate captureProcessing = cb.and(pending, cb.isNotNull(root.get("approvedAt")));
+            Predicate paidPending = cb.and(
+                    pending,
+                    cb.equal(root.get("paymentStatus"), Appointment.PaymentStatus.AUTHORIZED));
+            Predicate actionablePending = cb.or(paidPending, captureProcessing);
             Predicate paymentIssue = root.get("paymentStatus").in(
                     Appointment.PaymentStatus.CAPTURE_FAILED,
                     Appointment.PaymentStatus.CANCELLATION_FAILED,
@@ -417,7 +421,7 @@ public class AppointmentService {
                                 Appointment.AppointmentStatus.COMPLETED,
                                 Appointment.AppointmentStatus.NO_SHOW),
                         cb.and(approved, cb.lessThan(root.get("appointmentDateTime"), now)));
-                case "NEEDS_ACTION" -> cb.or(pending, paymentIssue, noShowPaymentIssue, notificationIssue);
+                case "NEEDS_ACTION" -> cb.or(actionablePending, paymentIssue, noShowPaymentIssue, notificationIssue);
                 default -> throw new IllegalArgumentException(
                         "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, HISTORY");
             };
