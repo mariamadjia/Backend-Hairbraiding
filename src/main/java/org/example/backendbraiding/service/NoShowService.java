@@ -2,6 +2,7 @@ package org.example.backendbraiding.service;
 
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.PaymentMethod;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.PaymentIntentCreateParams;
 import lombok.RequiredArgsConstructor;
@@ -153,14 +154,22 @@ public class NoShowService {
         if (attempt == null) throw new IllegalStateException("Could not begin no-show charge attempt");
         Appointment appointment = attempt.getAppointment();
         try {
+            String savedPaymentMethodId = appointment.getCustomer().getStripePaymentMethodId();
+            if (savedPaymentMethodId == null || savedPaymentMethodId.isBlank()) {
+                throw new IllegalStateException("The customer does not have a reusable payment method on file");
+            }
+            PaymentMethod savedPaymentMethod = PaymentMethod.retrieve(savedPaymentMethodId);
+            if (!"card".equals(savedPaymentMethod.getType()) && !"paypal".equals(savedPaymentMethod.getType())) {
+                throw new IllegalStateException("The saved payment method cannot be used for a no-show charge");
+            }
             PaymentIntent intent = PaymentIntent.create(PaymentIntentCreateParams.builder()
                     .setAmount(attempt.getAmountToChargeCents())
                     .setCurrency("usd")
                     .setCustomer(appointment.getCustomer().getStripeCustomerId())
-                    .setPaymentMethod(appointment.getCustomer().getStripePaymentMethodId())
+                    .setPaymentMethod(savedPaymentMethodId)
                     .setOffSession(true)
                     .setConfirm(true)
-                    .addPaymentMethodType("card")
+                    .addPaymentMethodType(savedPaymentMethod.getType())
                     .putAllMetadata(Map.of(
                             "appointmentId", appointment.getId().toString(),
                             "paymentPurpose", "no_show_fee",
@@ -170,7 +179,7 @@ public class NoShowService {
                     .build());
             NoShowFee saved = transactionTemplate.execute(status -> applyIntent(attempt.getId(), intent));
             return toDto(saved);
-        } catch (StripeException exception) {
+        } catch (StripeException | IllegalStateException exception) {
             NoShowFee saved = transactionTemplate.execute(status -> markFailed(attempt.getId(), exception.getMessage()));
             return toDto(saved);
         }
