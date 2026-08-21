@@ -128,9 +128,17 @@ public class PaymentService {
         boolean requiresAdminApproval = appointmentSettingsRepository.findFirstByOrderByIdDesc()
                 .map(settings -> settings.getRequireApproval())
                 .orElse(true);
-        if (firstAuthorization && requiresAdminApproval) {
-            AppointmentNotificationTemplates.Notification notification = notificationTemplates.pending(appointment);
-            notificationOutboxService.enqueueEmail(appointment, notification.subject(), notification.emailBody());
+        if (firstAuthorization) {
+            AppointmentNotificationTemplates.Notification salonNotification = notificationTemplates.adminNewBooking(appointment);
+            if (requiresAdminApproval) {
+                AppointmentNotificationTemplates.Notification customerNotification = notificationTemplates.pending(appointment);
+                notificationOutboxService.enqueueCustomerAndSalon(appointment,
+                        customerNotification.subject(), customerNotification.emailBody(),
+                        salonNotification.subject(), salonNotification.emailBody());
+            } else {
+                notificationOutboxService.enqueueSalonEmail(appointment,
+                        salonNotification.subject(), salonNotification.emailBody());
+            }
         }
     }
 

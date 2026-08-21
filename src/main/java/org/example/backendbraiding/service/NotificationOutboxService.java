@@ -7,6 +7,7 @@ import org.example.backendbraiding.repository.AppointmentRepository;
 import org.example.backendbraiding.repository.AdminRepository;
 import org.example.backendbraiding.repository.NotificationOutboxRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.util.UUID;
 
@@ -16,6 +17,9 @@ public class NotificationOutboxService {
     private final NotificationOutboxRepository repository;
     private final AppointmentRepository appointmentRepository;
     private final AdminRepository adminRepository;
+
+    @Value("${salon.email:adjiashairbraiding@gmail.com}")
+    private String salonEmail;
 
     public void enqueueEmail(Appointment appointment, String subject, String body) {
         String eventKey = UUID.randomUUID().toString();
@@ -37,6 +41,26 @@ public class NotificationOutboxService {
             enqueue(appointment, NotificationOutbox.Channel.SMS, appointment.getCustomer().getPhoneNumber(), null, smsBody,
                     eventKey, eventKey + ":CUSTOMER_SMS");
         }
+    }
+
+    public void enqueueCustomerAndSalon(Appointment appointment, String customerSubject, String customerBody,
+                                        String salonSubject, String salonBody) {
+        String eventKey = UUID.randomUUID().toString();
+        enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), customerSubject,
+                customerBody, eventKey, eventKey + ":CUSTOMER_EMAIL");
+        if (salonEmail != null && !salonEmail.isBlank()
+                && !salonEmail.equalsIgnoreCase(appointment.getCustomer().getEmail())) {
+            enqueue(appointment, NotificationOutbox.Channel.EMAIL, salonEmail.trim(), salonSubject, salonBody,
+                    eventKey, eventKey + ":SALON_EMAIL");
+        }
+    }
+
+    public void enqueueSalonEmail(Appointment appointment, String subject, String body) {
+        if (salonEmail == null || salonEmail.isBlank()
+                || salonEmail.equalsIgnoreCase(appointment.getCustomer().getEmail())) return;
+        String eventKey = UUID.randomUUID().toString();
+        enqueue(appointment, NotificationOutbox.Channel.EMAIL, salonEmail.trim(), subject, body,
+                eventKey, eventKey + ":SALON_EMAIL");
     }
 
     public void enqueueCustomerAndAdmins(Appointment appointment, String customerSubject, String customerEmailBody,

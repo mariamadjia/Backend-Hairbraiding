@@ -57,6 +57,20 @@ class AppointmentNotificationTemplatesTests {
     }
 
     @Test
+    void salonNewBookingMessageContainsCustomerAndAppointmentDetails() {
+        Appointment appointment = appointment(Appointment.PaymentStatus.AUTHORIZED);
+        appointment.setAmountAuthorized(5000L);
+
+        var notification = templates.adminNewBooking(appointment);
+
+        assertTrue(notification.subject().contains("New booking request"));
+        assertTrue(notification.emailBody().contains("Gloria Djonret"));
+        assertTrue(notification.emailBody().contains("customer@example.com"));
+        assertTrue(notification.emailBody().contains("Knotless Box Braids"));
+        assertTrue(notification.emailBody().contains("Deposit authorized: $50.00"));
+    }
+
+    @Test
     void repairsMojibakeInConfiguredSundayHours() {
         AppointmentNotificationTemplates withCorruptedHours = new AppointmentNotificationTemplates(
                 "AH Braiding Salon", "(210) 812-8121", "adjiashairbraiding@gmail.com",

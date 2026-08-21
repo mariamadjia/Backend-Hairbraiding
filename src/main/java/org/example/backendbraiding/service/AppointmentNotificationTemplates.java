@@ -62,6 +62,16 @@ public class AppointmentNotificationTemplates {
         return new Notification("Appointment request received — awaiting confirmation", body, "");
     }
 
+    public Notification adminNewBooking(Appointment appointment) {
+        StringBuilder body = new StringBuilder("A new appointment request has been submitted.\n\n")
+                .append("Customer: ").append(customerName(appointment)).append("\n")
+                .append("Email: ").append(appointment.getCustomer().getEmail()).append("\n")
+                .append("Phone: ").append(appointment.getCustomer().getPhoneNumber()).append("\n\n")
+                .append(summary(appointment, "Deposit authorized"))
+                .append("Open Appointment Management to approve or deny this request.");
+        return new Notification("New booking request — " + customerName(appointment), body.toString(), "");
+    }
+
     public Notification approved(Appointment appointment) {
         return approved(appointment, frontendUrl + "/booking");
     }
