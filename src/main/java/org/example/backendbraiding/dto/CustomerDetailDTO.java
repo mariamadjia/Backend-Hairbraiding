@@ -27,11 +27,16 @@ public record CustomerDetailDTO(
     public record AppointmentSummaryDTO(
         Long id,
         String serviceName,
+        String selectedSize,
+        String selectedLength,
         LocalDateTime appointmentDateTime,
         LocalDateTime appointmentEndDateTime,
         Integer durationMinutes,
         String status,
         String paymentStatus,
-        BigDecimal amountPaid
+        BigDecimal amountPaid,
+        String paymentOutcome,
+        Boolean cancelledByCustomer,
+        String cancellationReason
     ) {}
 }

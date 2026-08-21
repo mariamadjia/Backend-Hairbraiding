@@ -33,7 +33,38 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long>,
     @EntityGraph(attributePaths = {"customer", "service", "service.subcategory", "approvedBy"})
     Page<Appointment> findAll(Specification<Appointment> specification, Pageable pageable);
     
+    @EntityGraph(attributePaths = {"service", "service.subcategory"})
     List<Appointment> findByCustomerId(Long customerId);
+
+    @EntityGraph(attributePaths = {"service", "service.subcategory"})
+    Page<Appointment> findByCustomerId(Long customerId, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"service", "service.subcategory"})
+    Page<Appointment> findByCustomerIdAndStatus(Long customerId, Appointment.AppointmentStatus status, Pageable pageable);
+
+    interface CustomerStatsView {
+        LocalDateTime getFirstVisit();
+        LocalDateTime getLastVisit();
+        LocalDateTime getNextAppointment();
+        Integer getTotalAppointments();
+        Integer getCompletedVisits();
+        Integer getUpcomingAppointments();
+        Long getCapturedCount();
+        Long getCapturedCents();
+    }
+
+    @Query(value = """
+        SELECT min(appointment_date_time) FILTER (WHERE status = 'COMPLETED') AS firstVisit,
+               max(appointment_date_time) FILTER (WHERE status = 'COMPLETED' AND appointment_date_time <= (CURRENT_TIMESTAMP AT TIME ZONE 'America/Chicago')) AS lastVisit,
+               min(appointment_date_time) FILTER (WHERE status IN ('PENDING','APPROVED') AND appointment_date_time > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Chicago')) AS nextAppointment,
+               count(*)::integer AS totalAppointments,
+               count(*) FILTER (WHERE status = 'COMPLETED')::integer AS completedVisits,
+               count(*) FILTER (WHERE status IN ('PENDING','APPROVED') AND appointment_date_time > (CURRENT_TIMESTAMP AT TIME ZONE 'America/Chicago'))::integer AS upcomingAppointments,
+               count(*) FILTER (WHERE payment_status = 'CAPTURED')::bigint AS capturedCount,
+               coalesce(sum(CASE WHEN payment_status = 'CAPTURED' THEN coalesce(amount_captured, deposit_amount, 0) ELSE 0 END), 0)::bigint AS capturedCents
+        FROM appointments WHERE customer_id = :customerId
+        """, nativeQuery = true)
+    CustomerStatsView getCustomerStats(@Param("customerId") Long customerId);
 
     Optional<Appointment> findFirstByCustomerIdAndAppointmentDateTimeOrderByIdDesc(
             Long customerId, LocalDateTime appointmentDateTime);

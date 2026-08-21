@@ -10,10 +10,12 @@ final class CustomerAnalytics {
     private CustomerAnalytics() {}
 
     static BigDecimal capturedAmount(Appointment appointment) {
-        if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED || appointment.getDepositAmount() == null) {
+        if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
             return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(appointment.getDepositAmount(), 2);
+        Long captured = appointment.getAmountCaptured() != null
+                ? appointment.getAmountCaptured() : appointment.getDepositAmount();
+        return captured == null ? BigDecimal.ZERO : BigDecimal.valueOf(captured, 2);
     }
 
     static BigDecimal capturedTotal(List<Appointment> appointments) {
@@ -21,8 +23,7 @@ final class CustomerAnalytics {
     }
 
     static boolean isVisit(Appointment appointment) {
-        return appointment.getStatus() == Appointment.AppointmentStatus.APPROVED
-                || appointment.getStatus() == Appointment.AppointmentStatus.COMPLETED;
+        return appointment.getStatus() == Appointment.AppointmentStatus.COMPLETED;
     }
 
     static boolean isUpcoming(Appointment appointment, LocalDateTime now) {
@@ -32,12 +33,20 @@ final class CustomerAnalytics {
     }
 
     static String serviceName(Appointment appointment) {
-        if (appointment.getSelectedService() != null && !appointment.getSelectedService().isBlank()) {
+        if (appointment.getSelectedService() != null && !appointment.getSelectedService().isBlank()
+                && !appointment.getSelectedService().equalsIgnoreCase(nullToEmpty(appointment.getSelectedSize()))) {
             return appointment.getSelectedService();
+        }
+        if (appointment.getService() != null && appointment.getService().getSubcategory() != null
+                && appointment.getService().getSubcategory().getName() != null
+                && !appointment.getService().getSubcategory().getName().isBlank()) {
+            return appointment.getService().getSubcategory().getName().trim();
         }
         if (appointment.getService() != null && appointment.getService().getName() != null) {
             return appointment.getService().getName();
         }
         return "Unknown service";
     }
+
+    private static String nullToEmpty(String value) { return value == null ? "" : value; }
 }

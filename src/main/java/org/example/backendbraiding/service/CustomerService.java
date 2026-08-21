@@ -37,22 +37,13 @@ public class CustomerService {
         String needle = normalizeSearch(query);
         String safeSegment = normalizeOption(segment, "ALL");
 
-        List<Customer> customers = customerRepository.findAll();
-        List<Long> customerIds = customers.stream().map(Customer::getId).toList();
-        List<Appointment> appointments = customerIds.isEmpty() ? List.of() : appointmentRepository.findByCustomerIdIn(customerIds);
-        Map<Long, List<Appointment>> byCustomer = appointments.stream()
-                .collect(Collectors.groupingBy(item -> item.getCustomer().getId()));
-
-        List<CustomerSummaryDTO> summaries = customers.stream()
-                .filter(customer -> matches(customer, needle))
-                .map(customer -> mapToSummaryDTO(customer, byCustomer.getOrDefault(customer.getId(), List.of())))
-                .filter(summary -> matchesSegment(summary, byCustomer.getOrDefault(summary.id(), List.of()), safeSegment))
-                .sorted(summaryComparator(sort))
-                .toList();
-
-        int from = Math.min(safePage * safeSize, summaries.size());
-        int to = Math.min(from + safeSize, summaries.size());
-        return new PageImpl<>(summaries.subList(from, to), PageRequest.of(safePage, safeSize), summaries.size());
+        String safeSort = normalizeOption(sort, "NAME_ASC");
+        Page<CustomerRepository.CustomerSummaryView> result = customerRepository.findCustomerSummaries(
+                needle, digits(needle), safeSegment, safeSort, PageRequest.of(safePage, safeSize));
+        return result.map(item -> new CustomerSummaryDTO(item.getId(), item.getFirstName(), item.getLastName(),
+                item.getEmail(), item.getPhoneNumber(), item.getLastAppointmentDate(), item.getNextAppointmentDate(),
+                item.getTotalAppointments(), item.getCompletedVisits(),
+                BigDecimal.valueOf(item.getCapturedCents() == null ? 0 : item.getCapturedCents(), 2)));
     }
 
     public CustomerDetailDTO getCustomerDetails(Long id, int appointmentPage, int appointmentSize, String appointmentStatus) {
@@ -61,8 +52,20 @@ public class CustomerService {
         int safePage = Math.max(0, appointmentPage);
         int safeSize = Math.max(1, Math.min(appointmentSize, 50));
         String safeStatus = normalizeOption(appointmentStatus, "ALL");
-        List<Appointment> allAppointments = appointmentRepository.findByCustomerId(id);
-        return mapToDetailDTO(customer, allAppointments, safePage, safeSize, safeStatus);
+        org.springframework.data.domain.Pageable pageable = PageRequest.of(safePage, safeSize,
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "appointmentDateTime"));
+        Page<Appointment> history;
+        if ("ALL".equals(safeStatus)) {
+            history = appointmentRepository.findByCustomerId(id, pageable);
+        } else {
+            try {
+                history = appointmentRepository.findByCustomerIdAndStatus(id,
+                        Appointment.AppointmentStatus.valueOf(safeStatus), pageable);
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException("Unsupported appointment status filter");
+            }
+        }
+        return mapToDetailDTO(customer, appointmentRepository.getCustomerStats(id), history);
     }
 
     private CustomerSummaryDTO mapToSummaryDTO(Customer customer, List<Appointment> appointments) {
@@ -79,44 +82,40 @@ public class CustomerService {
                 appointments.size(), completedVisits, CustomerAnalytics.capturedTotal(appointments));
     }
 
-    private CustomerDetailDTO mapToDetailDTO(Customer customer, List<Appointment> appointments,
-                                              int page, int size, String status) {
-        LocalDateTime now = LocalDateTime.now();
-        List<Appointment> visits = appointments.stream().filter(CustomerAnalytics::isVisit).toList();
-        LocalDateTime firstVisit = visits.stream().map(Appointment::getAppointmentDateTime).min(Comparator.naturalOrder()).orElse(null);
-        LocalDateTime lastVisit = visits.stream().filter(item -> !item.getAppointmentDateTime().isAfter(now))
-                .map(Appointment::getAppointmentDateTime).max(Comparator.naturalOrder()).orElse(null);
-        LocalDateTime nextAppointment = appointments.stream().filter(item -> CustomerAnalytics.isUpcoming(item, now))
-                .map(Appointment::getAppointmentDateTime).min(Comparator.naturalOrder()).orElse(null);
-        int completedVisits = (int) appointments.stream().filter(item -> item.getStatus() == Appointment.AppointmentStatus.COMPLETED).count();
-        int upcoming = (int) appointments.stream().filter(item -> CustomerAnalytics.isUpcoming(item, now)).count();
-        BigDecimal totalSpent = CustomerAnalytics.capturedTotal(appointments);
-        long capturedCount = appointments.stream().filter(item -> item.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED).count();
+    private CustomerDetailDTO mapToDetailDTO(Customer customer, AppointmentRepository.CustomerStatsView stats,
+                                              Page<Appointment> historyPage) {
+        long capturedCount = stats.getCapturedCount() == null ? 0 : stats.getCapturedCount();
+        BigDecimal totalSpent = BigDecimal.valueOf(stats.getCapturedCents() == null ? 0 : stats.getCapturedCents(), 2);
         BigDecimal averagePaid = capturedCount == 0 ? BigDecimal.ZERO
                 : totalSpent.divide(BigDecimal.valueOf(capturedCount), 2, RoundingMode.HALF_UP);
-
-        List<Appointment> filtered = appointments.stream()
-                .filter(item -> "ALL".equals(status) || item.getStatus().name().equals(status))
-                .sorted(Comparator.comparing(Appointment::getAppointmentDateTime).reversed())
-                .toList();
-        int from = Math.min(page * size, filtered.size());
-        int to = Math.min(from + size, filtered.size());
-        List<CustomerDetailDTO.AppointmentSummaryDTO> history = filtered.subList(from, to).stream()
+        List<CustomerDetailDTO.AppointmentSummaryDTO> history = historyPage.getContent().stream()
                 .map(this::appointmentSummary).toList();
-        int totalPages = filtered.isEmpty() ? 0 : (int) Math.ceil((double) filtered.size() / size);
 
         return new CustomerDetailDTO(customer.getId(), customer.getFirstName(), customer.getLastName(),
-                customer.getEmail(), customer.getPhoneNumber(), firstVisit, lastVisit, nextAppointment,
-                appointments.size(), completedVisits, upcoming, totalSpent, averagePaid, history,
-                page, totalPages, filtered.size(), null);
+                customer.getEmail(), customer.getPhoneNumber(), stats.getFirstVisit(), stats.getLastVisit(), stats.getNextAppointment(),
+                stats.getTotalAppointments(), stats.getCompletedVisits(), stats.getUpcomingAppointments(), totalSpent, averagePaid, history,
+                historyPage.getNumber(), historyPage.getTotalPages(), historyPage.getTotalElements(), null);
     }
 
     private CustomerDetailDTO.AppointmentSummaryDTO appointmentSummary(Appointment appointment) {
         return new CustomerDetailDTO.AppointmentSummaryDTO(appointment.getId(), CustomerAnalytics.serviceName(appointment),
+                appointment.getSelectedSize(), appointment.getSelectedLength(),
                 appointment.getAppointmentDateTime(), appointment.getAppointmentEndDateTime(),
                 appointment.getDurationMinutes(), appointment.getStatus().name(),
                 appointment.getPaymentStatus() == null ? null : appointment.getPaymentStatus().name(),
-                CustomerAnalytics.capturedAmount(appointment));
+                CustomerAnalytics.capturedAmount(appointment), paymentOutcome(appointment),
+                appointment.getCancelledByCustomer(), appointment.getCustomerCancellationReason());
+    }
+
+    private String paymentOutcome(Appointment appointment) {
+        if (appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED) return "DEPOSIT_RETAINED";
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.CANCELLATION_FAILED) return "RELEASE_FAILED";
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.CANCELLED) return "AUTHORIZATION_RELEASED";
+        }
+        if (appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED) return "DEPOSIT_CAPTURED";
+        if (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) return "AUTHORIZED_NOT_CHARGED";
+        return appointment.getPaymentStatus() == null ? "UNKNOWN" : appointment.getPaymentStatus().name();
     }
 
     private boolean matchesSegment(CustomerSummaryDTO summary, List<Appointment> appointments, String segment) {

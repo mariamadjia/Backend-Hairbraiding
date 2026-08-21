@@ -10,7 +10,9 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "customers")
+@Table(name = "customers", indexes = {
+    @Index(name = "idx_customers_phone_normalized", columnList = "phone_normalized")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -30,6 +32,9 @@ public class Customer {
 
     @Column(nullable = false)
     private String phoneNumber;
+
+    @Column(name = "phone_normalized", length = 20)
+    private String phoneNormalized;
 
     @Column(name = "stripe_customer_id")
     private String stripeCustomerId;

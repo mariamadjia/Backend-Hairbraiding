@@ -98,6 +98,7 @@ public class AppointmentService {
         customer.setFirstName(requestDTO.getFirstName());
         customer.setLastName(requestDTO.getLastName());
         customer.setPhoneNumber(requestDTO.getPhoneNumber().trim());
+        customer.setPhoneNormalized(normalizePhone(requestDTO.getPhoneNumber()));
         customer = customerRepository.save(customer);
         if (noShowFeeRepository.hasUnresolvedBalance(customer.getId())) {
             throw new IllegalStateException("A previous no-show balance must be resolved before booking another appointment");
@@ -187,6 +188,13 @@ public class AppointmentService {
             return service.getSubcategory().getName().trim();
         }
         return service.getName();
+    }
+
+    private static String normalizePhone(String phone) {
+        String digits = phone == null ? "" : phone.replaceAll("\\D", "");
+        if (digits.length() == 10) return "+1" + digits;
+        if (digits.length() == 11 && digits.startsWith("1")) return "+" + digits;
+        return digits.isBlank() ? null : "+" + digits;
     }
 
     /**
