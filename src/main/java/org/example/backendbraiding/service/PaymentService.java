@@ -94,9 +94,8 @@ public class PaymentService {
                     .setCaptureMethod(PaymentIntentCreateParams.CaptureMethod.MANUAL)
                     .setCustomer(stripeCustomerId)
                     .setSetupFutureUsage(PaymentIntentCreateParams.SetupFutureUsage.OFF_SESSION)
-                    // Both methods support authorization now and reuse under the accepted no-show policy.
+                    // A reusable card is required for the explicitly accepted no-show policy.
                     .addPaymentMethodType("card")
-                    .addPaymentMethodType("paypal")
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
                     .setIdempotencyKey(replacedIntentId == null
@@ -171,9 +170,6 @@ public class PaymentService {
             if (method.getCard() != null) {
                 appointment.setPaymentMethodBrand(method.getCard().getBrand());
                 appointment.setPaymentMethodLast4(method.getCard().getLast4());
-            } else if ("paypal".equals(method.getType())) {
-                appointment.setPaymentMethodBrand("PayPal");
-                appointment.setPaymentMethodLast4(null);
             } else {
                 log.warn("Payment {} used unsupported reusable payment method type {}",
                         intent.getId(), method.getType());
