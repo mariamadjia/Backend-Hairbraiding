@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.repository.AppointmentRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -13,13 +14,13 @@ public class AppointmentNotificationDispatchService {
     private final NotificationOutboxService outboxService;
     private final AppointmentNotificationTemplates templates;
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void denied(Long appointmentId) { enqueue(appointmentId, Kind.DENIED); }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void cancelled(Long appointmentId) { enqueue(appointmentId, Kind.CANCELLED); }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void expired(Long appointmentId) { enqueue(appointmentId, Kind.EXPIRED); }
 
     private void enqueue(Long appointmentId, Kind kind) {

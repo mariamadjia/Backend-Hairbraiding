@@ -16,6 +16,7 @@ import org.example.backendbraiding.model.Appointment;
 import org.example.backendbraiding.repository.AppointmentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
@@ -229,7 +230,7 @@ public class PaymentService {
                 .build();
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse capturePayment(PaymentCaptureRequest request) {
         try {
@@ -271,7 +272,7 @@ public class PaymentService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse cancelPayment(String paymentIntentId) {
         try {
@@ -370,7 +371,7 @@ public class PaymentService {
         }
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public void markCaptureFailed(String paymentIntentId, String reason) {
         appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
@@ -381,7 +382,7 @@ public class PaymentService {
         });
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public void markCancellationFailed(String paymentIntentId, String reason) {
         appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
