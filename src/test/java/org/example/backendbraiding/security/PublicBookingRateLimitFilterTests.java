@@ -28,6 +28,24 @@ class PublicBookingRateLimitFilterTests {
         MockHttpServletResponse secondResponse = new MockHttpServletResponse();
         filter.doFilter(second, secondResponse, chain);
         assertEquals(429, secondResponse.getStatus());
-        assertTrue(secondResponse.getContentAsString().contains("Too many booking requests"));
+        assertTrue(secondResponse.getContentAsString().contains("Too many requests"));
+    }
+
+    @Test
+    void limitsPublicChatWritesByClientAndEndpoint() throws Exception {
+        PublicBookingRateLimitFilter filter = new PublicBookingRateLimitFilter();
+        ReflectionTestUtils.setField(filter, "requestsPerMinute", 1);
+        FilterChain chain = (request, response) -> { };
+
+        MockHttpServletRequest first = new MockHttpServletRequest("POST", "/api/chat/send");
+        first.setRemoteAddr("203.0.113.11");
+        filter.doFilter(first, new MockHttpServletResponse(), chain);
+
+        MockHttpServletRequest second = new MockHttpServletRequest("POST", "/api/chat/send");
+        second.setRemoteAddr("203.0.113.11");
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(second, secondResponse, chain);
+
+        assertEquals(429, secondResponse.getStatus());
     }
 }

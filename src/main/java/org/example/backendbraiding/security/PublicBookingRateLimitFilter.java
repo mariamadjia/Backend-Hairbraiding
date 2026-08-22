@@ -29,7 +29,8 @@ public class PublicBookingRateLimitFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         boolean appointmentWrite = "POST".equals(method) && "/api/appointments".equals(path);
         boolean paymentWrite = "POST".equals(method) && "/api/payments/create-intent".equals(path);
-        return !(appointmentWrite || paymentWrite);
+        boolean chatWrite = "POST".equals(method) && "/api/chat/send".equals(path);
+        return !(appointmentWrite || paymentWrite || chatWrite);
     }
 
     @Override
@@ -42,7 +43,7 @@ public class PublicBookingRateLimitFilter extends OncePerRequestFilter {
         if (count > requestsPerMinute) {
             response.setStatus(429);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.getWriter().write("{\"error\":\"Too many booking requests. Please wait a minute and try again.\"}");
+            response.getWriter().write("{\"error\":\"Too many requests. Please wait a minute and try again.\"}");
             return;
         }
         chain.doFilter(request, response);

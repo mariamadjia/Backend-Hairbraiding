@@ -7,15 +7,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -28,9 +27,13 @@ public class ChatController {
         this.chatMessageService = chatMessageService;
     }
     
-    private static final String UPLOAD_DIR = System.getenv("UPLOAD_DIR") != null 
-        ? System.getenv("UPLOAD_DIR") + "/chat-photos/" 
-        : "uploads/chat-photos/";
+    private static final long MAX_PHOTO_BYTES = 10L * 1024L * 1024L;
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
+    private static final Path UPLOAD_DIR = Paths.get(
+            System.getenv("UPLOAD_DIR") != null ? System.getenv("UPLOAD_DIR") : "public",
+            "uploads",
+            "chat-photos"
+    ).normalize();
     
     // GET - Get all chat messages
     @GetMapping("/messages")
@@ -63,8 +66,18 @@ public class ChatController {
             @RequestParam("message") String message,
             @RequestParam(value = "photo", required = false) MultipartFile photo
     ) {
+        String validationError = validateMessage(customerName, customerEmail, customerPhone, message, photo);
+        if (validationError != null) {
+            return ResponseEntity.badRequest().body(Map.of("error", validationError));
+        }
+
         try {
-            ChatMessage chatMessage = new ChatMessage(customerName, customerEmail, customerPhone, message);
+            ChatMessage chatMessage = new ChatMessage(
+                    customerName.trim(),
+                    customerEmail.trim(),
+                    customerPhone.trim(),
+                    message.trim()
+            );
             
             // Handle photo upload if provided
             if (photo != null && !photo.isEmpty()) {
@@ -98,22 +111,47 @@ public class ChatController {
     
     // Helper method to save photo
     private String savePhoto(MultipartFile file) throws IOException {
-        // Create upload directory if it doesn't exist
-        File uploadDir = new File(UPLOAD_DIR);
-        if (!uploadDir.exists()) {
-            uploadDir.mkdirs();
+        Files.createDirectories(UPLOAD_DIR);
+        String extension = extensionFor(file.getContentType());
+        String filename = UUID.randomUUID() + extension;
+        Path filePath = UPLOAD_DIR.resolve(filename).normalize();
+        if (!filePath.startsWith(UPLOAD_DIR)) {
+            throw new IOException("Invalid upload path");
         }
-        
-        // Generate unique filename
-        String originalFilename = file.getOriginalFilename();
-        String extension = originalFilename != null ? originalFilename.substring(originalFilename.lastIndexOf(".")) : "";
-        String filename = UUID.randomUUID().toString() + extension;
-        
-        // Save file
-        Path filePath = Paths.get(UPLOAD_DIR + filename);
-        Files.write(filePath, file.getBytes());
-        
-        // Return URL
+        file.transferTo(filePath);
         return "/uploads/chat-photos/" + filename;
+    }
+
+    private String validateMessage(String name, String email, String phone, String message, MultipartFile photo) {
+        if (isBlank(name) || isBlank(email) || isBlank(phone) || isBlank(message)) {
+            return "Name, email, phone, and message are required";
+        }
+        if (name.trim().length() > 100) return "Name must be 100 characters or fewer";
+        if (email.trim().length() > 100 || !EMAIL_PATTERN.matcher(email.trim()).matches()) {
+            return "Enter a valid email address";
+        }
+        if (phone.trim().length() > 20) return "Phone number must be 20 characters or fewer";
+        if (message.trim().length() > 5000) return "Message must be 5000 characters or fewer";
+        if (photo != null && !photo.isEmpty()) {
+            if (photo.getSize() > MAX_PHOTO_BYTES) return "Photo must be 10MB or smaller";
+            if (extensionFor(photo.getContentType()) == null) return "Photo must be a JPG, PNG, WebP, GIF, or HEIC image";
+        }
+        return null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private String extensionFor(String contentType) {
+        if (contentType == null) return null;
+        return switch (contentType.toLowerCase()) {
+            case "image/jpeg" -> ".jpg";
+            case "image/png" -> ".png";
+            case "image/webp" -> ".webp";
+            case "image/gif" -> ".gif";
+            case "image/heic", "image/heif" -> ".heic";
+            default -> null;
+        };
     }
 }
