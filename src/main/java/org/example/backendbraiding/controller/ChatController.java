@@ -2,6 +2,7 @@ package org.example.backendbraiding.controller;
 
 import org.example.backendbraiding.model.ChatMessage;
 import org.example.backendbraiding.service.ChatMessageService;
+import org.example.backendbraiding.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,10 +22,12 @@ import java.util.regex.Pattern;
 public class ChatController {
     
     private final ChatMessageService chatMessageService;
+    private final EmailService emailService;
     
     @Autowired
-    public ChatController(ChatMessageService chatMessageService) {
+    public ChatController(ChatMessageService chatMessageService, EmailService emailService) {
         this.chatMessageService = chatMessageService;
+        this.emailService = emailService;
     }
     
     private static final long MAX_PHOTO_BYTES = 10L * 1024L * 1024L;
@@ -78,14 +81,30 @@ public class ChatController {
                     customerPhone.trim(),
                     message.trim()
             );
+            byte[] photoBytes = null;
             
             // Handle photo upload if provided
             if (photo != null && !photo.isEmpty()) {
+                photoBytes = photo.getBytes();
                 String imageUrl = savePhoto(photo);
                 chatMessage.setImageUrl(imageUrl);
             }
             
             ChatMessage savedMessage = chatMessageService.saveMessage(chatMessage);
+            boolean emailSent = emailService.sendChatNotification(
+                    chatMessage.getCustomerName(),
+                    chatMessage.getCustomerEmail(),
+                    chatMessage.getCustomerPhone(),
+                    chatMessage.getMessage(),
+                    photoBytes,
+                    photo != null ? photo.getOriginalFilename() : null,
+                    photo != null ? photo.getContentType() : null
+            );
+            if (!emailSent) {
+                return ResponseEntity.status(502).body(Map.of(
+                        "error", "Your message was saved, but the email notification could not be delivered. Please call or text us."
+                ));
+            }
             return ResponseEntity.ok(savedMessage);
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to upload photo"));

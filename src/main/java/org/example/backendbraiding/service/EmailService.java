@@ -6,6 +6,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import jakarta.annotation.PostConstruct;
 
 import jakarta.mail.internet.MimeMessage;
@@ -81,6 +82,36 @@ public class EmailService {
         } catch (Exception e) {
             // Booking state must never roll back because a notification provider is unavailable.
             log.error("Failed to send appointment email to {}: {}", toEmail, e.getMessage());
+            return false;
+        }
+    }
+
+    public boolean sendChatNotification(String customerName, String customerEmail, String customerPhone,
+                                        String customerMessage, byte[] photoBytes, String photoFilename,
+                                        String photoContentType) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            boolean hasPhoto = photoBytes != null && photoBytes.length > 0;
+            MimeMessageHelper helper = new MimeMessageHelper(message, hasPhoto, "UTF-8");
+            helper.setTo(salonEmail);
+            helper.setFrom(mailUsername == null || mailUsername.isBlank() ? salonEmail : mailUsername, salonName);
+            helper.setReplyTo(customerEmail);
+            helper.setSubject("New website message from " + customerName);
+            helper.setText("New message submitted through the AH Braiding website chat.\n\n" +
+                    "Name: " + customerName + "\n" +
+                    "Email: " + customerEmail + "\n" +
+                    "Phone: " + customerPhone + "\n\n" +
+                    "Message:\n" + customerMessage);
+            if (hasPhoto) {
+                String filename = photoFilename == null || photoFilename.isBlank() ? "style-photo" : photoFilename;
+                helper.addAttachment(filename, new ByteArrayResource(photoBytes),
+                        photoContentType == null ? "application/octet-stream" : photoContentType);
+            }
+            mailSender.send(message);
+            log.info("Chat notification email sent to: {}", salonEmail);
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to send chat notification email to {}: {}", salonEmail, e.getMessage());
             return false;
         }
     }
