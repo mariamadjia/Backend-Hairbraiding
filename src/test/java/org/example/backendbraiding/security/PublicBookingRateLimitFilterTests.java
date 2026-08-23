@@ -48,4 +48,25 @@ class PublicBookingRateLimitFilterTests {
 
         assertEquals(429, secondResponse.getStatus());
     }
+
+    @Test
+    void limitsAuthenticationWritesUsingStricterLimit() throws Exception {
+        PublicBookingRateLimitFilter filter = new PublicBookingRateLimitFilter();
+        ReflectionTestUtils.setField(filter, "requestsPerMinute", 20);
+        ReflectionTestUtils.setField(filter, "authRequestsPerMinute", 1);
+        FilterChain chain = (request, response) -> { };
+
+        MockHttpServletRequest first = new MockHttpServletRequest("POST", "/api/auth/login");
+        first.setRemoteAddr("203.0.113.12");
+        MockHttpServletResponse firstResponse = new MockHttpServletResponse();
+        filter.doFilter(first, firstResponse, chain);
+        assertEquals("1", firstResponse.getHeader("X-RateLimit-Limit"));
+
+        MockHttpServletRequest second = new MockHttpServletRequest("POST", "/api/auth/login");
+        second.setRemoteAddr("203.0.113.12");
+        MockHttpServletResponse secondResponse = new MockHttpServletResponse();
+        filter.doFilter(second, secondResponse, chain);
+
+        assertEquals(429, secondResponse.getStatus());
+    }
 }

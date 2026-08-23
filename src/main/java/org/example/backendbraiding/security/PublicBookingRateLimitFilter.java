@@ -23,6 +23,9 @@ public class PublicBookingRateLimitFilter extends OncePerRequestFilter {
     @Value("${booking.rate-limit.requests-per-minute:20}")
     private int requestsPerMinute;
 
+    @Value("${auth.rate-limit.requests-per-minute:8}")
+    private int authRequestsPerMinute;
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
@@ -30,17 +33,22 @@ public class PublicBookingRateLimitFilter extends OncePerRequestFilter {
         boolean appointmentWrite = "POST".equals(method) && "/api/appointments".equals(path);
         boolean paymentWrite = "POST".equals(method) && "/api/payments/create-intent".equals(path);
         boolean chatWrite = "POST".equals(method) && "/api/chat/send".equals(path);
-        return !(appointmentWrite || paymentWrite || chatWrite);
+        boolean authWrite = "POST".equals(method) && ("/api/auth/login".equals(path)
+                || "/api/auth/google".equals(path)
+                || "/api/auth/forgot-password".equals(path));
+        return !(appointmentWrite || paymentWrite || chatWrite || authWrite);
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        boolean authenticationRequest = request.getRequestURI().startsWith("/api/auth/");
+        int limit = authenticationRequest ? authRequestsPerMinute : requestsPerMinute;
         String key = clientAddress(request) + ":" + request.getRequestURI();
         int count = counters.asMap().computeIfAbsent(key, ignored -> new AtomicInteger()).incrementAndGet();
-        response.setHeader("X-RateLimit-Limit", String.valueOf(requestsPerMinute));
-        response.setHeader("X-RateLimit-Remaining", String.valueOf(Math.max(0, requestsPerMinute - count)));
-        if (count > requestsPerMinute) {
+        response.setHeader("X-RateLimit-Limit", String.valueOf(limit));
+        response.setHeader("X-RateLimit-Remaining", String.valueOf(Math.max(0, limit - count)));
+        if (count > limit) {
             response.setStatus(429);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.getWriter().write("{\"error\":\"Too many requests. Please wait a minute and try again.\"}");

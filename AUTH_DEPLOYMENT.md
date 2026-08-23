@@ -12,8 +12,9 @@ an `HttpOnly` cookie; browser JavaScript does not store the credential.
 - `AUTH_COOKIE_SAME_SITE=Lax`
 - `AUTH_COOKIE_NAME=ah_admin_session`
 - `AUTH_REMEMBER_DURATION_SECONDS=604800`
-- `CORS_ALLOWED_ORIGINS`: the exact production frontend origin
-- `FRONTEND_URL=https://hair-braiding-coral.vercel.app`: trusted base URL used in invitation and reset links
+- `CORS_ALLOWED_ORIGINS=https://ahbraiding.com,https://www.ahbraiding.com,https://hair-braiding-coral.vercel.app`
+- `FRONTEND_URL=https://ahbraiding.com`: trusted base URL used in invitation and reset links
+- `AUTH_RATE_LIMIT_PER_MINUTE=8`: per-IP limit for login, Google login, and password-reset requests
 - `EMAIL_USERNAME`: Gmail account that sends administrator security emails
 - `EMAIL_PASSWORD`: a Google App Password, never the Gmail account password
 
@@ -31,7 +32,9 @@ same-origin `/backend-api` proxy so the secure session works reliably.
 
 Create an OAuth 2.0 Web application and add these Authorized JavaScript origins:
 
-- the production frontend origin
+- `https://ahbraiding.com`
+- `https://www.ahbraiding.com`
+- the Vercel fallback origin
 - `http://localhost:3000` for local testing
 
 Google login is allowlisted through the existing `admin` table. The verified

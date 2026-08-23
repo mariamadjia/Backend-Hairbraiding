@@ -54,14 +54,15 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(HttpServletResponse response) {
+    public ResponseEntity<?> logout(Authentication authentication, HttpServletResponse response) {
+        authService.revokeSessions(authentication.getName());
         authCookieService.clear(response);
         return ResponseEntity.ok(Map.of("message", "Signed out"));
     }
 
     @PostMapping("/setup")
     public ResponseEntity<?> setupAdmin(@RequestHeader(value = "X-Setup-Secret", required = false) String providedSecret,
-                                        @RequestBody AdminSetupRequest request) {
+                                        @Valid @RequestBody AdminSetupRequest request) {
         if (setupSecret.isBlank() || !setupSecret.equals(providedSecret)) {
             return ResponseEntity.status(404).build();
         }
@@ -69,15 +70,18 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
-        return ResponseEntity.ok(authService.changePassword(request));
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest request,
+                                            HttpServletResponse response) {
+        Map<String, String> result = authService.changePassword(request);
+        authCookieService.clear(response);
+        return ResponseEntity.ok(result);
     }
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         return ResponseEntity.ok(authService.forgotPassword(request));
     }
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         return ResponseEntity.ok(authService.resetPassword(request));
     }
 

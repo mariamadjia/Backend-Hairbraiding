@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.Collections;
+import java.util.Locale;
 
 @Service
 public class AuthService {
@@ -47,7 +49,8 @@ public class AuthService {
     }
 
     public Map<String, Object> login(LoginRequest request) {
-        Admin admin = adminRepository.findByEmail(request.getEmail())
+        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
         if (!"ACTIVE".equals(admin.getStatus()) || !Boolean.TRUE.equals(admin.getPasswordConfigured()) ||
@@ -155,23 +158,33 @@ public class AuthService {
         return Map.of("message", "Admin account created successfully");
     }
 
+    @Transactional
     public Map<String, String> changePassword(ChangePasswordRequest request) {
         // Get current authenticated admin email from SecurityContext
         org.springframework.security.core.Authentication authentication = 
             org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         String email = authentication.getName();
 
-        Admin admin = adminRepository.findByEmail(email)
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
 
         if (!passwordEncoder.matches(request.getOldPassword(), admin.getPassword())) {
-            throw new RuntimeException("Old password is incorrect");
+            throw new IllegalArgumentException("Old password is incorrect");
         }
 
         admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        admin.setSessionVersion(admin.getSessionVersion() + 1);
         adminRepository.save(admin);
 
-        return Map.of("message", "Password changed successfully");
+        return Map.of("message", "Password changed successfully. Please sign in again.");
+    }
+
+    @Transactional
+    public void revokeSessions(String email) {
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new IllegalArgumentException("Admin account is not available"));
+        admin.setSessionVersion(admin.getSessionVersion() + 1);
+        adminRepository.save(admin);
     }
 
     public Map<String, String> forgotPassword(ForgotPasswordRequest request) {

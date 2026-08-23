@@ -2,6 +2,7 @@ package org.example.backendbraiding.config;
 
 import org.example.backendbraiding.security.JwtAuthenticationFilter;
 import org.example.backendbraiding.security.PublicBookingRateLimitFilter;
+import org.example.backendbraiding.security.TrustedOriginFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,11 +22,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final PublicBookingRateLimitFilter publicBookingRateLimitFilter;
+    private final TrustedOriginFilter trustedOriginFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
-                          PublicBookingRateLimitFilter publicBookingRateLimitFilter) {
+                          PublicBookingRateLimitFilter publicBookingRateLimitFilter,
+                          TrustedOriginFilter trustedOriginFilter) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.publicBookingRateLimitFilter = publicBookingRateLimitFilter;
+        this.trustedOriginFilter = trustedOriginFilter;
     }
 
     @Bean
@@ -118,6 +122,7 @@ public class SecurityConfig {
             // Register the JWT filter's order first. Spring Security 7 requires a custom
             // filter to have a known order before another filter can be positioned around it.
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(trustedOriginFilter, JwtAuthenticationFilter.class)
             .addFilterBefore(publicBookingRateLimitFilter, JwtAuthenticationFilter.class);
 
         return http.build();
