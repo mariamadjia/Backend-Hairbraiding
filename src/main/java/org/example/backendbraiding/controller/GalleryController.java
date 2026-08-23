@@ -134,7 +134,7 @@ public class GalleryController {
         return ResponseEntity.ok(galleryImageService.registerImageUrl(imageUrl, title, categoryId, subcategoryId));
     }
 
-    @CrossOrigin(origins = {"https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
+    @CrossOrigin(origins = {"https://ahbraiding.com", "https://www.ahbraiding.com", "https://hair-braiding-coral.vercel.app", "http://localhost:3000", "http://localhost:3001"})
     @GetMapping("/image/{filename:.+}")
     public ResponseEntity<Resource> serveImage(@PathVariable String filename) {
         try {
