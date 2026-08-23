@@ -14,6 +14,7 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /**
  * Rejects browser-originated cross-site mutations. API clients without browser
@@ -25,9 +26,12 @@ public class TrustedOriginFilter extends OncePerRequestFilter {
     private final Pattern[] allowedOrigins;
 
     public TrustedOriginFilter(@Value("${cors.allowed-origin-patterns}") String[] allowedOriginPatterns) {
-        this.allowedOrigins = Arrays.stream(allowedOriginPatterns)
+        this.allowedOrigins = Stream.concat(
+                        Arrays.stream(allowedOriginPatterns),
+                        Stream.of("https://ahbraiding.com", "https://www.ahbraiding.com"))
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
+                .distinct()
                 .map(TrustedOriginFilter::originPattern)
                 .toArray(Pattern[]::new);
     }

@@ -12,11 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TrustedOriginFilterTests {
     private final TrustedOriginFilter filter = new TrustedOriginFilter(new String[]{
-            "http://localhost:*", "https://ahbraiding.com", "https://www.ahbraiding.com"
+            "http://localhost:*", "https://hair-braiding-coral.vercel.app"
     });
 
     @Test
-    void allowsTrustedProductionOrigin() throws Exception {
+    void alwaysAllowsCanonicalProductionOriginEvenWhenEnvironmentOmitsIt() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
         request.addHeader("Origin", "https://ahbraiding.com");
         MockHttpServletResponse response = new MockHttpServletResponse();

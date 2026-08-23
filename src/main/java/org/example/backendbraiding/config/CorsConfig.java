@@ -5,6 +5,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import java.util.Arrays;
+import java.util.stream.Stream;
+
 @Configuration
 public class CorsConfig implements WebMvcConfigurer {
     
@@ -14,11 +17,21 @@ public class CorsConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns(allowedOriginPatterns)
+                .allowedOriginPatterns(effectiveAllowedOriginPatterns())
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
                 .allowedHeaders("*")
                 .exposedHeaders("Authorization", "Content-Type")
                 .allowCredentials(true)
                 .maxAge(3600);
+    }
+
+    private String[] effectiveAllowedOriginPatterns() {
+        return Stream.concat(
+                        Arrays.stream(allowedOriginPatterns),
+                        Stream.of("https://ahbraiding.com", "https://www.ahbraiding.com"))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .toArray(String[]::new);
     }
 }
