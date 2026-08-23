@@ -82,18 +82,18 @@ public class BookingController {
             bookingCategory.put("name", category.getName());
             bookingCategory.put("slug", category.getSlug());
             bookingCategory.put("summary", category.getSummary());
-            bookingCategory.put("items", (category.getItems() == null ? List.<ServiceItem>of() : category.getItems()).stream()
-                    .filter(this::isBookable).map(this::mapBookingItem).toList());
+            bookingCategory.put("items", directBookingItems(category));
 
             List<Map<String, Object>> bookingSubcategories = new ArrayList<>();
 
             // Process subcategories
-            for (Subcategory subcategory : category.getSubcategories()) {
+            for (Subcategory subcategory : sortedSubcategories(category.getSubcategories())) {
                 Map<String, Object> bookingSubcategory = new HashMap<>();
                 bookingSubcategory.put("id", subcategory.getId());
                 bookingSubcategory.put("name", subcategory.getName());
                 bookingSubcategory.put("slug", subcategory.getSlug());
                 bookingSubcategory.put("summary", subcategory.getSummary());
+                bookingSubcategory.put("displayOrder", subcategory.getDisplayOrder());
 
                 List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(subcategory.getId(), List.of());
                 List<String> subcategoryImages = galleryImages.stream()
@@ -107,7 +107,7 @@ public class BookingController {
                 List<Map<String, Object>> bookingItems = new ArrayList<>();
 
                 // Process service items
-                for (ServiceItem item : subcategory.getItems().stream().filter(this::isBookable).toList()) {
+                for (ServiceItem item : sortedBookingItems(subcategory.getItems())) {
                     bookingItems.add(mapBookingItem(item));
                 }
 
@@ -139,7 +139,7 @@ public class BookingController {
         return ResponseEntity.ok(mapBookingCategory(category));
     }
 
-    private Map<String, Object> mapBookingCategory(Category category) {
+    Map<String, Object> mapBookingCategory(Category category) {
         Map<String, Object> bookingCategory = new LinkedHashMap<>();
 
         bookingCategory.put("name", category.getName());
@@ -147,14 +147,11 @@ public class BookingController {
         bookingCategory.put("slug", category.getSlug());
         bookingCategory.put("summary", category.getSummary());
         bookingCategory.put("image", category.getImage());
-        bookingCategory.put("items", (category.getItems() == null ? List.<ServiceItem>of() : category.getItems()).stream()
-                .filter(this::isBookable).map(this::mapBookingItem).toList());
+        bookingCategory.put("items", directBookingItems(category));
 
         List<Map<String, Object>> bookingSubcategories = new ArrayList<>();
 
-        List<Subcategory> subcategories = category.getSubcategories() != null
-                ? category.getSubcategories()
-                : List.of();
+        List<Subcategory> subcategories = sortedSubcategories(category.getSubcategories());
 
         // Batch fetch gallery images for all subcategories in this category
         List<Long> subcategoryIds = subcategories.stream()
@@ -177,6 +174,7 @@ public class BookingController {
             bookingSubcategory.put("id", subcategory.getId());
             bookingSubcategory.put("slug", subcategory.getSlug());
             bookingSubcategory.put("summary", subcategory.getSummary());
+            bookingSubcategory.put("displayOrder", subcategory.getDisplayOrder());
 
             List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(subcategory.getId(), List.of());
             List<String> subcategoryImages = galleryImages.stream()
@@ -193,7 +191,7 @@ public class BookingController {
                     ? subcategory.getItems()
                     : List.of();
 
-            for (ServiceItem item : items.stream().filter(this::isBookable).toList()) {
+            for (ServiceItem item : sortedBookingItems(items)) {
                 bookingItems.add(mapBookingItem(item));
             }
 
@@ -204,6 +202,36 @@ public class BookingController {
         bookingCategory.put("subcategories", bookingSubcategories);
 
         return bookingCategory;
+    }
+
+    private List<Map<String, Object>> directBookingItems(Category category) {
+        return sortedBookingItems(category.getItems()).stream()
+                .filter(item -> item.getSubcategory() == null)
+                .map(this::mapBookingItem)
+                .toList();
+    }
+
+    private List<Subcategory> sortedSubcategories(List<Subcategory> subcategories) {
+        if (subcategories == null) return List.of();
+        return subcategories.stream()
+                .sorted(Comparator
+                        .comparingInt((Subcategory item) -> orderValue(item.getDisplayOrder()))
+                        .thenComparing(Subcategory::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private List<ServiceItem> sortedBookingItems(List<ServiceItem> items) {
+        if (items == null) return List.of();
+        return items.stream()
+                .filter(this::isBookable)
+                .sorted(Comparator
+                        .comparingInt((ServiceItem item) -> orderValue(item.getDisplayOrder()))
+                        .thenComparing(ServiceItem::getId, Comparator.nullsLast(Comparator.naturalOrder())))
+                .toList();
+    }
+
+    private static int orderValue(Integer value) {
+        return value == null ? Integer.MAX_VALUE : value;
     }
 
     private List<Map<String, Object>> mapGalleryImages(List<GalleryImage> images) {

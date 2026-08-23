@@ -52,6 +52,7 @@ public class Category {
     private List<Subcategory> subcategories = new ArrayList<>();
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("displayOrder ASC, id ASC")
     @JsonIgnore
     @BatchSize(size = 50)
     private List<ServiceItem> items = new ArrayList<>();
