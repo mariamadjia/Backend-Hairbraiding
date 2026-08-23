@@ -1,5 +1,7 @@
 package org.example.backendbraiding.security;
 
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -7,6 +9,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import org.springframework.util.StringUtils;
 
 @Service
 public class AuthCookieService {
@@ -31,6 +34,17 @@ public class AuthCookieService {
 
     public String cookieName() {
         return cookieName;
+    }
+
+    public String readToken(HttpServletRequest request) {
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if (cookieName.equals(cookie.getName())) return cookie.getValue();
+            }
+        }
+        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+        return StringUtils.hasText(authorization) && authorization.startsWith("Bearer ")
+                ? authorization.substring(7) : null;
     }
 
     public void issue(HttpServletResponse response, String token, boolean rememberDevice) {

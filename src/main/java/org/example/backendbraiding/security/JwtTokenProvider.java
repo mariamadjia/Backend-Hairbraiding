@@ -33,6 +33,11 @@ public class JwtTokenProvider {
     }
 
     public String generateToken(String email, String role, int sessionVersion, long expirationMillis) {
+        return generateToken(email, role, sessionVersion, expirationMillis, false);
+    }
+
+    public String generateToken(String email, String role, int sessionVersion, long expirationMillis,
+                                boolean rememberDevice) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expirationMillis);
         
@@ -40,6 +45,7 @@ public class JwtTokenProvider {
                 .setSubject(email)
                 .claim("role", role)
                 .claim("sessionVersion", sessionVersion)
+                .claim("rememberDevice", rememberDevice)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -91,6 +97,15 @@ public class JwtTokenProvider {
         Claims claims = Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
                 .parseClaimsJws(token).getBody();
         return claims.get("sessionVersion", Integer.class);
+    }
+
+    public boolean isRememberDeviceToken(String token) {
+        Claims claims = Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
+                .parseClaimsJws(token).getBody();
+        Boolean remembered = claims.get("rememberDevice", Boolean.class);
+        if (remembered != null) return remembered;
+        // Preserve remember-me behavior for tokens issued before the claim existed.
+        return claims.getExpiration().getTime() - claims.getIssuedAt().getTime() > 60 * 60 * 1000L;
     }
 
 }

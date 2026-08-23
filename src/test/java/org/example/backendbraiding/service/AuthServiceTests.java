@@ -16,6 +16,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -24,16 +25,17 @@ import static org.mockito.Mockito.when;
 class AuthServiceTests {
     private AdminRepository admins;
     private PasswordEncoder passwords;
+    private JwtTokenProvider tokens;
     private AuthService service;
 
     @BeforeEach
     void setUp() {
         admins = mock(AdminRepository.class);
         passwords = mock(PasswordEncoder.class);
-        JwtTokenProvider tokens = mock(JwtTokenProvider.class);
+        tokens = mock(JwtTokenProvider.class);
         service = new AuthService(admins, passwords, tokens, mock(EmailService.class),
                 "google-client", 604800, mock(AdministratorService.class));
-        when(tokens.generateToken(eq("Admin@Example.com"), eq("ROLE_ADMIN"), eq(0), anyLong()))
+        when(tokens.generateToken(eq("Admin@Example.com"), eq("ROLE_ADMIN"), eq(0), anyLong(), anyBoolean()))
                 .thenReturn("jwt");
     }
 
@@ -73,6 +75,19 @@ class AuthServiceTests {
         assertEquals(1, admin.getSessionVersion());
         assertEquals("new-hash", admin.getPassword());
         verify(admins).save(admin);
+    }
+
+    @Test
+    void activeSessionRenewalPreservesRememberDeviceChoice() {
+        Admin admin = activeAdmin();
+        when(admins.findByEmailIgnoreCase("Admin@Example.com")).thenReturn(Optional.of(admin));
+        when(tokens.isRememberDeviceToken("current-jwt")).thenReturn(true);
+
+        AuthService.SessionRefresh refreshed = service.refreshSession("Admin@Example.com", "current-jwt");
+
+        assertEquals(true, refreshed.rememberDevice());
+        assertEquals("jwt", refreshed.token());
+        verify(tokens).generateToken("Admin@Example.com", "ROLE_ADMIN", 0, 604800000L, true);
     }
 
     private Admin activeAdmin() {

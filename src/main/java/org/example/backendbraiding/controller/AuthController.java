@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.example.backendbraiding.security.AuthCookieService;
 import org.springframework.security.core.Authentication;
@@ -45,12 +46,19 @@ public class AuthController {
     }
 
     @GetMapping("/session")
-    public ResponseEntity<?> session(Authentication authentication) {
+    public ResponseEntity<?> session(Authentication authentication, HttpServletRequest request,
+                                     HttpServletResponse response) {
         if (authentication == null || !authentication.isAuthenticated() ||
                 "anonymousUser".equals(authentication.getPrincipal())) {
             return ResponseEntity.status(401).body(Map.of("authenticated", false));
         }
-        return ResponseEntity.ok(authService.currentAdmin(authentication.getName()));
+        String currentToken = authCookieService.readToken(request);
+        if (currentToken == null || currentToken.isBlank()) {
+            return ResponseEntity.status(401).body(Map.of("authenticated", false));
+        }
+        AuthService.SessionRefresh refreshed = authService.refreshSession(authentication.getName(), currentToken);
+        authCookieService.issue(response, refreshed.token(), refreshed.rememberDevice());
+        return ResponseEntity.ok(Map.of("authenticated", true, "admin", refreshed.admin()));
     }
 
     @PostMapping("/logout")

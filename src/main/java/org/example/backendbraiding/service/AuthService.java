@@ -111,8 +111,19 @@ public class AuthService {
 
     private String createToken(Admin admin, boolean rememberDevice) {
         long expiration = rememberDevice ? rememberDurationSeconds * 1000L : 30 * 60 * 1000L;
-        return jwtTokenProvider.generateToken(admin.getEmail(), admin.getRole(), admin.getSessionVersion(), expiration);
+        return jwtTokenProvider.generateToken(admin.getEmail(), admin.getRole(), admin.getSessionVersion(), expiration,
+                rememberDevice);
     }
+
+    public SessionRefresh refreshSession(String email, String currentToken) {
+        Admin admin = adminRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new IllegalArgumentException("Admin account is not available"));
+        if (!"ACTIVE".equals(admin.getStatus())) throw new IllegalArgumentException("Admin account is not active");
+        boolean rememberDevice = jwtTokenProvider.isRememberDeviceToken(currentToken);
+        return new SessionRefresh(createToken(admin, rememberDevice), rememberDevice, adminView(admin));
+    }
+
+    public record SessionRefresh(String token, boolean rememberDevice, Map<String, Object> admin) {}
 
     private Map<String, Object> loginResponse(Admin admin, String token) {
 
