@@ -165,6 +165,27 @@ public class Appointment {
     @Column(name = "notification_last_attempt_at")
     private LocalDateTime notificationLastAttemptAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "booking_source", nullable = false, length = 20)
+    private BookingSource bookingSource = BookingSource.CUSTOMER;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_admin_id")
+    private Admin createdByAdmin;
+
+    @Column(name = "deposit_required", nullable = false)
+    private Boolean depositRequired = true;
+
+    @Column(name = "deposit_link_expires_at")
+    private LocalDateTime depositLinkExpiresAt;
+
+    @Column(name = "deposit_waived_at")
+    private LocalDateTime depositWaivedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deposit_waived_by_admin_id")
+    private Admin depositWaivedByAdmin;
+
     @OneToMany(mappedBy = "appointment", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("displayOrder ASC, id ASC")
     private List<AppointmentAddOn> addOns = new ArrayList<>();
@@ -180,6 +201,7 @@ public class Appointment {
 
     public enum PaymentStatus {
         PENDING,
+        NOT_REQUIRED,
         AUTHORIZED,
         CAPTURED,
         CAPTURE_FAILED,
@@ -187,4 +209,6 @@ public class Appointment {
         CANCELLED,
         FAILED
     }
+
+    public enum BookingSource { CUSTOMER, OWNER }
 }

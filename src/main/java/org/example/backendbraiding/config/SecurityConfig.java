@@ -49,6 +49,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout", "/api/auth/change-password").authenticated()
                 .requestMatchers("/api/webhooks/**").permitAll()
                 .requestMatchers("/api/public/appointments/manage/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/public/deposits/**").permitAll()
                 .requestMatchers("/api/payments/**").permitAll()
                 .requestMatchers("/Gallery/**", "/gallery/**").permitAll()
                 .requestMatchers("/uploads/**").permitAll()

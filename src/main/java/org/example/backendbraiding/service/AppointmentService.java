@@ -68,6 +68,16 @@ public class AppointmentService {
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public AppointmentResponseDTO createAppointment(AppointmentRequestDTO requestDTO) {
+        return createAppointmentInternal(requestDTO, false);
+    }
+
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public AppointmentResponseDTO createOwnerAppointmentBase(AppointmentRequestDTO requestDTO) {
+        return createAppointmentInternal(requestDTO, true);
+    }
+
+    private AppointmentResponseDTO createAppointmentInternal(AppointmentRequestDTO requestDTO, boolean ownerCreated) {
         AppointmentSettings settings = settingsRepository.findLatestForUpdate()
             .orElseGet(this::createDefaultSettings);
 
@@ -115,6 +125,9 @@ public class AppointmentService {
                     && (existingAppointment.getPaymentPendingExpiresAt() == null
                     || existingAppointment.getPaymentPendingExpiresAt().isAfter(LocalDateTime.now()));
             if (reservationIsActive) {
+                if (ownerCreated) {
+                    throw new IllegalStateException("This customer already has a pending appointment at this date and time");
+                }
                 AppointmentResponseDTO response = mapToResponseDTO(existingAppointment);
                 response.setPaymentToken(bookingPaymentTokenService.createToken(existingAppointment.getId()));
                 return response;
@@ -151,13 +164,15 @@ public class AppointmentService {
         appointment.setSelectedTexture(resolveTexture(service, requestDTO.getSelectedTexture()));
         appointment.setPrice(MoneySupport.fromCents(quote.priceCents()));
         appointment.setDepositAmount(quote.depositCents());
-        appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
-        appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
-        appointment.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
-        appointment.setOffSessionConsentAt(LocalDateTime.now());
-        customer.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
-        customer.setOffSessionConsentAt(LocalDateTime.now());
-        customerRepository.save(customer);
+        if (!ownerCreated) {
+            appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
+            appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
+            appointment.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
+            appointment.setOffSessionConsentAt(LocalDateTime.now());
+            customer.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
+            customer.setOffSessionConsentAt(LocalDateTime.now());
+            customerRepository.save(customer);
+        }
         appointment.setDurationMinutes(durationMinutes);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
@@ -394,6 +409,11 @@ public class AppointmentService {
                     pending,
                     cb.equal(root.get("paymentStatus"), Appointment.PaymentStatus.AUTHORIZED));
             Predicate actionablePending = cb.or(paidPending, captureProcessing);
+            Predicate ownerAwaitingDeposit = cb.and(
+                    pending,
+                    cb.equal(root.get("bookingSource"), Appointment.BookingSource.OWNER),
+                    cb.isTrue(root.get("depositRequired")),
+                    cb.equal(root.get("paymentStatus"), Appointment.PaymentStatus.PENDING));
             Predicate paymentIssue = root.get("paymentStatus").in(
                     Appointment.PaymentStatus.CAPTURE_FAILED,
                     Appointment.PaymentStatus.CANCELLATION_FAILED,
@@ -421,7 +441,8 @@ public class AppointmentService {
                                 Appointment.AppointmentStatus.COMPLETED,
                                 Appointment.AppointmentStatus.NO_SHOW),
                         cb.and(approved, cb.lessThan(root.get("appointmentDateTime"), now)));
-                case "NEEDS_ACTION" -> cb.or(actionablePending, paymentIssue, noShowPaymentIssue, notificationIssue);
+                case "NEEDS_ACTION" -> cb.or(actionablePending, ownerAwaitingDeposit,
+                        paymentIssue, noShowPaymentIssue, notificationIssue);
                 default -> throw new IllegalArgumentException(
                         "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, HISTORY");
             };
@@ -517,7 +538,9 @@ public class AppointmentService {
 
         String cancellationPaymentIntentId = saved.getPaymentIntentId();
         boolean releaseCancellationAuthorization = cancellationPaymentIntentId != null
-                && saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED;
+                && (saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
+                || (saved.getBookingSource() == Appointment.BookingSource.OWNER
+                && saved.getPaymentStatus() == Appointment.PaymentStatus.PENDING));
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
@@ -647,6 +670,14 @@ public class AppointmentService {
         dto.setDepositPolicyAcceptedAt(appointment.getDepositPolicyAcceptedAt());
         dto.setNotificationStatus(appointment.getNotificationStatus());
         dto.setNotificationLastAttemptAt(appointment.getNotificationLastAttemptAt());
+        dto.setBookingSource(appointment.getBookingSource() == null ? "CUSTOMER" : appointment.getBookingSource().name());
+        if (appointment.getCreatedByAdmin() != null) {
+            dto.setCreatedByAdminName(appointment.getCreatedByAdmin().getFirstName() + " "
+                    + appointment.getCreatedByAdmin().getLastName());
+        }
+        dto.setDepositRequired(appointment.getDepositRequired());
+        dto.setDepositLinkExpiresAt(appointment.getDepositLinkExpiresAt());
+        dto.setDepositWaivedAt(appointment.getDepositWaivedAt());
         dto.setCancelledByCustomer(appointment.getCancelledByCustomer());
         dto.setCustomerCancellationReason(appointment.getCustomerCancellationReason());
         dto.setSelfServiceChangeCount(appointment.getSelfServiceChangeCount());

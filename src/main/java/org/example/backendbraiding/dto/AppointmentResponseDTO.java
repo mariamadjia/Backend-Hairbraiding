@@ -46,6 +46,11 @@ public class AppointmentResponseDTO {
     private String paymentToken;
     private String notificationStatus;
     private LocalDateTime notificationLastAttemptAt;
+    private String bookingSource;
+    private String createdByAdminName;
+    private Boolean depositRequired;
+    private LocalDateTime depositLinkExpiresAt;
+    private LocalDateTime depositWaivedAt;
     private Boolean cancelledByCustomer;
     private String customerCancellationReason;
     private Integer selfServiceChangeCount;

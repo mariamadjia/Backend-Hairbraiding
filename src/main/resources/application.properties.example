@@ -77,3 +77,5 @@ vonage.phone.number=${VONAGE_PHONE_NUMBER}
 
 # Public booking abuse protection (per instance/IP/endpoint)
 booking.rate-limit.requests-per-minute=20
+# Owner-created appointments keep their selected time while the customer pays.
+owner-booking.deposit-link-ttl=PT24H

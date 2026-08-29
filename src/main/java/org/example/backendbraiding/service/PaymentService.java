@@ -38,6 +38,7 @@ public class PaymentService {
     private final AppointmentNotificationTemplates notificationTemplates;
     private final AppointmentManagementTokenService managementTokenService;
     private final AppointmentNotificationDispatchService notificationDispatchService;
+    private final OwnerDepositTokenService ownerDepositTokenService;
 
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
@@ -116,6 +117,95 @@ public class PaymentService {
         }
     }
 
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public PaymentIntentResponse createOwnerDepositIntent(Long appointmentId) {
+        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
+        if (appointment.getBookingSource() != Appointment.BookingSource.OWNER
+                || !Boolean.TRUE.equals(appointment.getDepositRequired())) {
+            throw new IllegalStateException("This appointment does not require an owner-sent deposit");
+        }
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
+            throw new IllegalStateException("Only an awaiting-deposit appointment can create a payment");
+        }
+        if (appointment.getDepositLinkExpiresAt() == null
+                || !appointment.getDepositLinkExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new IllegalStateException("The deposit link has expired");
+        }
+        try {
+            if (appointment.getPaymentIntentId() != null) {
+                PaymentIntent existing = PaymentIntent.retrieve(appointment.getPaymentIntentId());
+                if (PaymentLifecycleRules.isReusableForConfirmation(existing.getStatus())) {
+                    return paymentIntentResponse(existing, appointmentId, "Deposit payment is ready.");
+                }
+                if ("succeeded".equals(existing.getStatus())) {
+                    recordCapture(appointment, existing);
+                    return paymentIntentResponse(existing, appointmentId, "Deposit is already paid.");
+                }
+            }
+            long amount = calculateDepositAmountCents(appointment.getPrice(), appointment.getDepositAmount());
+            Map<String, String> metadata = new HashMap<>();
+            metadata.put("appointmentId", appointmentId.toString());
+            metadata.put("bookingSource", "OWNER");
+            PaymentIntent intent = PaymentIntent.create(PaymentIntentCreateParams.builder()
+                    .setAmount(amount)
+                    .setCurrency("usd")
+                    .setCustomer(ensureStripeCustomer(appointment))
+                    .addPaymentMethodType("card")
+                    .putAllMetadata(metadata)
+                    .build(), RequestOptions.builder()
+                    .setIdempotencyKey("owner-deposit-payment-v1-" + appointmentId)
+                    .build());
+            appointment.setPaymentIntentId(intent.getId());
+            appointment.setDepositAmount(amount);
+            appointment.setPaymentStatus(Appointment.PaymentStatus.PENDING);
+            appointmentRepository.save(appointment);
+            return paymentIntentResponse(intent, appointmentId, "Deposit payment is ready.");
+        } catch (StripeException exception) {
+            throw new org.example.backendbraiding.exception.PaymentProcessingException(
+                    "Payment provider could not create the deposit payment");
+        }
+    }
+
+    @Transactional
+    public PaymentIntentResponse getOwnerDepositIntent(Long appointmentId, String token) {
+        if (!ownerDepositTokenService.isValid(token, appointmentId)) {
+            throw new IllegalArgumentException("Invalid or expired deposit link");
+        }
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
+        if (appointment.getBookingSource() != Appointment.BookingSource.OWNER
+                || !Boolean.TRUE.equals(appointment.getDepositRequired())) {
+            throw new IllegalStateException("This appointment does not require a deposit");
+        }
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING
+                && appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
+            throw new IllegalStateException("This appointment is no longer awaiting payment");
+        }
+        if (appointment.getPaymentIntentId() == null) {
+            throw new IllegalStateException("Deposit payment has not been initialized");
+        }
+        if (appointment.getDepositLinkExpiresAt() != null
+                && !appointment.getDepositLinkExpiresAt().isAfter(LocalDateTime.now())
+                && appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
+            throw new IllegalStateException("The deposit link has expired");
+        }
+        try {
+            PaymentIntent intent = PaymentIntent.retrieve(appointment.getPaymentIntentId());
+            if ("succeeded".equals(intent.getStatus())
+                    && appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
+                recordCapture(appointment, intent);
+            }
+            return paymentIntentResponse(intent, appointmentId,
+                    appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED
+                            ? "Deposit is already paid." : "Deposit payment is ready.");
+        } catch (StripeException exception) {
+            throw new org.example.backendbraiding.exception.PaymentProcessingException(
+                    "Payment status could not be loaded");
+        }
+    }
+
     private void recordAuthorization(Appointment appointment, PaymentIntent intent) {
         boolean firstAuthorization = appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED;
         appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
@@ -150,16 +240,23 @@ public class PaymentService {
         appointment.setPaymentCapturedAt(LocalDateTime.now());
         appointment.setPaymentAuthorizationExpiresAt(null);
         recordPaymentMethod(appointment, intent);
+        boolean ownerDeposit = appointment.getBookingSource() == Appointment.BookingSource.OWNER;
         boolean notifyApproval = appointment.getStatus() == Appointment.AppointmentStatus.PENDING
-                && appointment.getApprovedAt() != null;
+                && (appointment.getApprovedAt() != null || ownerDeposit);
         if (notifyApproval) {
             appointment.setStatus(Appointment.AppointmentStatus.APPROVED);
+            if (ownerDeposit && appointment.getApprovedAt() == null) {
+                appointment.setApprovedBy(appointment.getCreatedByAdmin());
+                appointment.setApprovedAt(LocalDateTime.now());
+            }
         }
         appointmentRepository.save(appointment);
         if (notifyApproval) {
             appointmentEventService.record(appointment, "APPROVED", appointment.getApprovedBy(), null);
             String managementUrl = managementTokenService.issue(appointment);
-            AppointmentNotificationTemplates.Notification notification = notificationTemplates.approved(appointment, managementUrl);
+            AppointmentNotificationTemplates.Notification notification = ownerDeposit
+                    ? notificationTemplates.ownerDepositPaid(appointment, managementUrl)
+                    : notificationTemplates.approved(appointment, managementUrl);
             notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
         }
     }
@@ -176,7 +273,9 @@ public class PaymentService {
                         intent.getId(), method.getType());
                 return;
             }
-            appointment.getCustomer().setStripePaymentMethodId(method.getId());
+            if (appointment.getBookingSource() != Appointment.BookingSource.OWNER) {
+                appointment.getCustomer().setStripePaymentMethodId(method.getId());
+            }
         } catch (StripeException exception) {
             log.warn("Payment {} completed but payment-method details could not be loaded: {}",
                     intent.getId(), exception.getMessage());

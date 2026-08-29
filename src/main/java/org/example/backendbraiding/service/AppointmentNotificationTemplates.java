@@ -62,6 +62,58 @@ public class AppointmentNotificationTemplates {
         return new Notification("Appointment request received — awaiting confirmation", body, "");
     }
 
+    public Notification ownerDepositRequested(Appointment appointment, String paymentUrl) {
+        String body = brandedEmail(
+                "Pay your deposit to confirm",
+                "An appointment has been created for you by " + salonName + ".",
+                "Pay the deposit using the secure link below to confirm your appointment.",
+                appointment,
+                "Deposit due",
+                "Your appointment is not confirmed until the deposit is paid.",
+                "The selected time is held until the payment link expires.",
+                null,
+                "Pay Deposit",
+                paymentUrl);
+        return new Notification("Pay your deposit to confirm your appointment", body,
+                "Hi " + firstName(appointment) + ", " + salonName + " created an appointment for "
+                        + dateTime(appointment) + " CT. Pay your deposit to confirm: " + paymentUrl);
+    }
+
+    public Notification ownerConfirmedWithoutDeposit(Appointment appointment, String managementUrl) {
+        String body = brandedEmail(
+                "Your appointment is confirmed",
+                "An appointment has been created and confirmed for you by " + salonName + ".",
+                null,
+                appointment,
+                "Deposit",
+                "No deposit is required for this appointment.",
+                "Please arrive on time.",
+                null,
+                "Manage Appointment",
+                managementUrl);
+        return new Notification("Your appointment is confirmed — " + shortDate(appointment), body,
+                "Hi " + firstName(appointment) + ", your " + salonName + " appointment is confirmed for "
+                        + dateTime(appointment) + " CT. Manage it here: " + managementUrl);
+    }
+
+    public Notification ownerDepositPaid(Appointment appointment, String managementUrl) {
+        String body = brandedEmail(
+                "Your appointment is confirmed",
+                "Your deposit has been paid and your appointment is now confirmed.",
+                null,
+                appointment,
+                "Deposit paid",
+                "Your deposit has been applied to the appointment balance.",
+                "Please arrive on time.",
+                null,
+                "Manage Appointment",
+                managementUrl);
+        return new Notification("Your appointment is confirmed — " + shortDate(appointment), body,
+                "Hi " + firstName(appointment) + ", your deposit was paid and your " + salonName
+                        + " appointment is confirmed for " + dateTime(appointment)
+                        + " CT. Manage it here: " + managementUrl);
+    }
+
     public Notification adminNewBooking(Appointment appointment) {
         StringBuilder body = new StringBuilder("A new appointment request has been submitted.\n\n")
                 .append("Customer: ").append(customerName(appointment)).append("\n")
