@@ -350,7 +350,9 @@ public class AppointmentService {
         
         String denialPaymentIntentId = appointment.getPaymentIntentId();
         boolean releaseDenialAuthorization = denialPaymentIntentId != null
-                && appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED;
+                && (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
+                || (appointment.getBookingSource() == Appointment.BookingSource.OWNER
+                && appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING));
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {

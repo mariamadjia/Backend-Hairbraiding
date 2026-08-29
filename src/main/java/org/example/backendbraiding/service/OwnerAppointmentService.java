@@ -61,6 +61,7 @@ public class OwnerAppointmentService {
 
         if (Boolean.TRUE.equals(request.getDepositRequired())) {
             OwnerDepositTokenService.IssuedToken issued = tokenService.issue(appointment.getId());
+            appointment.setOwnerDepositTokenHash(tokenService.hash(issued.value()));
             LocalDateTime expiresAt = LocalDateTime.ofInstant(issued.expiresAt(), SALON_ZONE);
             appointment.setDepositLinkExpiresAt(expiresAt);
             appointment.setPaymentPendingExpiresAt(expiresAt);
@@ -127,6 +128,7 @@ public class OwnerAppointmentService {
                 .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
         requireAwaitingOwnerDeposit(appointment);
         OwnerDepositTokenService.IssuedToken issued = tokenService.issue(appointmentId);
+        appointment.setOwnerDepositTokenHash(tokenService.hash(issued.value()));
         LocalDateTime expiresAt = LocalDateTime.ofInstant(issued.expiresAt(), SALON_ZONE);
         appointment.setDepositLinkExpiresAt(expiresAt);
         appointment.setPaymentPendingExpiresAt(expiresAt);
@@ -136,33 +138,6 @@ public class OwnerAppointmentService {
         outboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
         eventService.record(appointment, "DEPOSIT_LINK_RESENT", admin, null);
         return response(appointment, url);
-    }
-
-    @Transactional
-    public OwnerAppointmentResponse waive(Long appointmentId, Long adminId) {
-        Admin admin = adminRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Administrator not found"));
-        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
-                .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
-        requireAwaitingOwnerDeposit(appointment);
-        if (appointment.getPaymentIntentId() != null) paymentService.cancelPayment(appointment.getPaymentIntentId());
-        appointment.setDepositRequired(false);
-        appointment.setDepositAmount(0L);
-        appointment.setPaymentStatus(Appointment.PaymentStatus.NOT_REQUIRED);
-        appointment.setPaymentPendingExpiresAt(null);
-        appointment.setDepositLinkExpiresAt(null);
-        appointment.setDepositWaivedAt(LocalDateTime.now());
-        appointment.setDepositWaivedByAdmin(admin);
-        appointment.setStatus(Appointment.AppointmentStatus.APPROVED);
-        appointment.setApprovedBy(admin);
-        appointment.setApprovedAt(LocalDateTime.now());
-        appointmentRepository.save(appointment);
-        String managementUrl = managementTokenService.issue(appointment);
-        AppointmentNotificationTemplates.Notification notification =
-                templates.ownerConfirmedWithoutDeposit(appointment, managementUrl);
-        outboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
-        eventService.record(appointment, "DEPOSIT_WAIVED", admin, null);
-        return response(appointment, null);
     }
 
     private void requireAwaitingOwnerDeposit(Appointment appointment) {

@@ -30,11 +30,6 @@ public class OwnerAppointmentController {
         return service.resend(id, adminId(authentication));
     }
 
-    @PostMapping("/api/admin/appointments/{id}/deposit/waive")
-    public OwnerAppointmentResponse waive(@PathVariable Long id, Authentication authentication) {
-        return service.waive(id, adminId(authentication));
-    }
-
     @GetMapping("/api/public/deposits/{id}")
     public OwnerDepositPageDTO depositPage(@PathVariable Long id, @RequestParam String token) {
         return service.depositPage(id, token);

@@ -179,6 +179,9 @@ public class Appointment {
     @Column(name = "deposit_link_expires_at")
     private LocalDateTime depositLinkExpiresAt;
 
+    @Column(name = "owner_deposit_token_hash", length = 64)
+    private String ownerDepositTokenHash;
+
     @Column(name = "deposit_waived_at")
     private LocalDateTime depositWaivedAt;
 

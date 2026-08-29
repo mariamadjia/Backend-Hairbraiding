@@ -148,10 +148,11 @@ public class PaymentService {
             Map<String, String> metadata = new HashMap<>();
             metadata.put("appointmentId", appointmentId.toString());
             metadata.put("bookingSource", "OWNER");
-            PaymentIntent intent = PaymentIntent.create(PaymentIntentCreateParams.builder()
+                PaymentIntent intent = PaymentIntent.create(PaymentIntentCreateParams.builder()
                     .setAmount(amount)
                     .setCurrency("usd")
                     .setCustomer(ensureStripeCustomer(appointment))
+                    .setReceiptEmail(appointment.getCustomer().getEmail())
                     .addPaymentMethodType("card")
                     .putAllMetadata(metadata)
                     .build(), RequestOptions.builder()
@@ -170,11 +171,11 @@ public class PaymentService {
 
     @Transactional
     public PaymentIntentResponse getOwnerDepositIntent(Long appointmentId, String token) {
-        if (!ownerDepositTokenService.isValid(token, appointmentId)) {
-            throw new IllegalArgumentException("Invalid or expired deposit link");
-        }
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
+        if (!ownerDepositTokenService.isValid(token, appointmentId, appointment.getOwnerDepositTokenHash())) {
+            throw new IllegalArgumentException("Invalid or expired deposit link");
+        }
         if (appointment.getBookingSource() != Appointment.BookingSource.OWNER
                 || !Boolean.TRUE.equals(appointment.getDepositRequired())) {
             throw new IllegalStateException("This appointment does not require a deposit");
