@@ -9,6 +9,8 @@ public class AdminSubcategoryDTO {
     private String name;
     private String slug;
     private String summary;
+    private Boolean lengthGuideNoteEnabled;
+    private String lengthGuideNote;
     private String image;
     private Integer displayOrder;
     private List<AdminServiceItemDTO> items;

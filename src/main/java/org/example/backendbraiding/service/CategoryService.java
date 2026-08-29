@@ -130,6 +130,8 @@ public class CategoryService {
                     subDto.setName(sub.getName());
                     subDto.setSlug(sub.getSlug());
                     subDto.setSummary(sub.getSummary());
+                    subDto.setLengthGuideNoteEnabled(Boolean.TRUE.equals(sub.getLengthGuideNoteEnabled()));
+                    subDto.setLengthGuideNote(sub.getLengthGuideNote());
                     subDto.setImage(sub.getImage());
                     subDto.setDisplayOrder(sub.getDisplayOrder());
 
@@ -674,6 +676,8 @@ public class CategoryService {
                 subDto.setName(sub.getName());
                 subDto.setSlug(sub.getSlug());
                 subDto.setSummary(sub.getSummary());
+                subDto.setLengthGuideNoteEnabled(Boolean.TRUE.equals(sub.getLengthGuideNoteEnabled()));
+                subDto.setLengthGuideNote(sub.getLengthGuideNote());
                 subDto.setImage(sub.getImage());
                 subDto.setDisplayOrder(sub.getDisplayOrder());
                 subDto.setItems(new ArrayList<>());
@@ -734,6 +738,8 @@ public class CategoryService {
                 subDto.setName(sub.getName());
                 subDto.setSlug(sub.getSlug());
                 subDto.setSummary(sub.getSummary());
+                subDto.setLengthGuideNoteEnabled(Boolean.TRUE.equals(sub.getLengthGuideNoteEnabled()));
+                subDto.setLengthGuideNote(sub.getLengthGuideNote());
                 subDto.setImage(sub.getImage());
                 subDto.setDisplayOrder(sub.getDisplayOrder());
 
@@ -799,6 +805,8 @@ public class CategoryService {
         dto.setName(subcategory.getName());
         dto.setSlug(subcategory.getSlug());
         dto.setSummary(subcategory.getSummary());
+        dto.setLengthGuideNoteEnabled(Boolean.TRUE.equals(subcategory.getLengthGuideNoteEnabled()));
+        dto.setLengthGuideNote(subcategory.getLengthGuideNote());
         dto.setImage(subcategory.getImage());
         dto.setDisplayOrder(subcategory.getDisplayOrder());
 

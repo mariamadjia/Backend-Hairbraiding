@@ -31,6 +31,12 @@ public class Subcategory {
     @Column(columnDefinition = "TEXT")
     private String summary;
 
+    @Column(name = "length_guide_note_enabled", nullable = false)
+    private Boolean lengthGuideNoteEnabled = false;
+
+    @Column(name = "length_guide_note", length = 500)
+    private String lengthGuideNote;
+
     private String image;
 
     @Column(name = "display_order")

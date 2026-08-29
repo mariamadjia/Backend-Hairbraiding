@@ -50,6 +50,9 @@ public class SubcategoryService {
         subcategory.setSlug(slug);
         subcategory.setCategory(category);
         subcategory.setSummary(request.getSummary());
+        subcategory.setLengthGuideNote(cleanLengthGuideNote(request.getLengthGuideNote()));
+        subcategory.setLengthGuideNoteEnabled(Boolean.TRUE.equals(request.getLengthGuideNoteEnabled())
+                && subcategory.getLengthGuideNote() != null);
         subcategory.setImage(request.getImage());
         subcategory.setDisplayOrder(request.getDisplayOrder());
         
@@ -71,6 +74,17 @@ public class SubcategoryService {
         if (request.getSummary() != null) {
             subcategory.setSummary(request.getSummary());
         }
+
+        if (request.getLengthGuideNote() != null) {
+            subcategory.setLengthGuideNote(cleanLengthGuideNote(request.getLengthGuideNote()));
+        }
+
+        if (request.getLengthGuideNoteEnabled() != null) {
+            subcategory.setLengthGuideNoteEnabled(Boolean.TRUE.equals(request.getLengthGuideNoteEnabled())
+                    && subcategory.getLengthGuideNote() != null);
+        } else if (subcategory.getLengthGuideNote() == null) {
+            subcategory.setLengthGuideNoteEnabled(false);
+        }
         
         if (request.getImage() != null) {
             subcategory.setImage(request.getImage());
@@ -84,6 +98,15 @@ public class SubcategoryService {
         Subcategory saved = subcategoryRepository.save(subcategory);
         
         return saved;
+    }
+
+    private String cleanLengthGuideNote(String value) {
+        if (value == null || value.isBlank()) return null;
+        String result = value.trim();
+        if (result.length() > 500) {
+            throw new IllegalArgumentException("Length guide note must be 500 characters or fewer");
+        }
+        return result;
     }
 
     @Transactional

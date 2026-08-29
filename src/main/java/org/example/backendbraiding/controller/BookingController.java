@@ -93,6 +93,8 @@ public class BookingController {
                 bookingSubcategory.put("name", subcategory.getName());
                 bookingSubcategory.put("slug", subcategory.getSlug());
                 bookingSubcategory.put("summary", subcategory.getSummary());
+                bookingSubcategory.put("lengthGuideNoteEnabled", Boolean.TRUE.equals(subcategory.getLengthGuideNoteEnabled()));
+                bookingSubcategory.put("lengthGuideNote", subcategory.getLengthGuideNote());
                 bookingSubcategory.put("displayOrder", subcategory.getDisplayOrder());
 
                 List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(subcategory.getId(), List.of());
@@ -174,6 +176,8 @@ public class BookingController {
             bookingSubcategory.put("id", subcategory.getId());
             bookingSubcategory.put("slug", subcategory.getSlug());
             bookingSubcategory.put("summary", subcategory.getSummary());
+            bookingSubcategory.put("lengthGuideNoteEnabled", Boolean.TRUE.equals(subcategory.getLengthGuideNoteEnabled()));
+            bookingSubcategory.put("lengthGuideNote", subcategory.getLengthGuideNote());
             bookingSubcategory.put("displayOrder", subcategory.getDisplayOrder());
 
             List<GalleryImage> galleryImages = galleryImagesBySubcategory.getOrDefault(subcategory.getId(), List.of());

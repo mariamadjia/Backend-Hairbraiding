@@ -14,6 +14,10 @@ public class SubcategoryRequestDTO {
     private Long categoryId;
     
     private String summary;
+
+    private Boolean lengthGuideNoteEnabled;
+
+    private String lengthGuideNote;
     
     private String image;
     

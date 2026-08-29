@@ -9,6 +9,10 @@ public class SubcategoryUpdateDTO {
     private String name;
     
     private String summary;
+
+    private Boolean lengthGuideNoteEnabled;
+
+    private String lengthGuideNote;
     
     private String image;
     
