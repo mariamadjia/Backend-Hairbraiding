@@ -120,7 +120,9 @@ public class AppointmentNotificationTemplates {
                 .append("Email: ").append(appointment.getCustomer().getEmail()).append("\n")
                 .append("Phone: ").append(appointment.getCustomer().getPhoneNumber()).append("\n\n")
                 .append(summary(appointment, "Deposit authorized"))
-                .append("Open Appointment Management to approve or deny this request.");
+                .append(Boolean.FALSE.equals(appointment.getRequireApproval())
+                        ? "Automatic confirmation is processing. Check Appointment Management for the current payment and booking status."
+                        : "Open Appointment Management to approve or deny this request.");
         return new Notification("New booking request — " + customerName(appointment), body.toString(), "");
     }
 

@@ -77,6 +77,10 @@ public class Appointment {
 
     private LocalDateTime approvedAt;
 
+    // Snapshot at creation. Existing bookings default to manual review.
+    @Column(name = "require_approval", nullable = false)
+    private Boolean requireApproval = true;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

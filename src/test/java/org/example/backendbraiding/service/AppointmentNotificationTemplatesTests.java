@@ -186,6 +186,17 @@ class AppointmentNotificationTemplatesTests {
                 == notification.emailBody().lastIndexOf(">Service:</td><td"));
     }
 
+    @Test
+    void automaticBookingEmailDoesNotAskForManualApproval() {
+        Appointment appointment = appointment(Appointment.PaymentStatus.AUTHORIZED);
+        appointment.setRequireApproval(false);
+        String body = templates.adminNewBooking(appointment).emailBody();
+        assertTrue(body.contains("Automatic confirmation is processing"));
+        assertFalse(body.contains("approve or deny"));
+        appointment.setRequireApproval(true);
+        assertTrue(templates.adminNewBooking(appointment).emailBody().contains("approve or deny"));
+    }
+
     private Appointment appointment(Appointment.PaymentStatus paymentStatus) {
         Customer customer = new Customer();
         customer.setFirstName("Gloria");

@@ -173,6 +173,7 @@ public class AppointmentService {
             customer.setOffSessionConsentAt(LocalDateTime.now());
             customerRepository.save(customer);
         }
+        appointment.setRequireApproval(!ownerCreated && !Boolean.FALSE.equals(settings.getRequireApproval()));
         appointment.setDurationMinutes(durationMinutes);
         appointment.setStatus(Appointment.AppointmentStatus.PENDING);
         appointment.setPaymentPendingExpiresAt(LocalDateTime.now().plusMinutes(RESERVATION_TTL_MINUTES));
@@ -258,7 +259,7 @@ public class AppointmentService {
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
     public AppointmentResponseDTO approveAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
             .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
@@ -271,10 +272,12 @@ public class AppointmentService {
         if (!appointment.getAppointmentDateTime().isAfter(now)) {
             throw new IllegalStateException("Past appointments cannot be approved");
         }
-        if (appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED) {
+        if (appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED
+                && appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
             throw new IllegalStateException("Payment must be authorized before approving an appointment");
         }
-        if (PaymentLifecycleRules.isAuthorizationExpired(
+        if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED
+                && PaymentLifecycleRules.isAuthorizationExpired(
                 appointment.getPaymentAuthorizationExpiresAt(), LocalDateTime.now())) {
             throw new IllegalStateException("Payment authorization has expired; the customer must authorize payment again");
         }
@@ -297,7 +300,8 @@ public class AppointmentService {
         appointmentEventService.record(updatedAppointment, "APPROVAL_REQUESTED", admin, actionDTO.getAdminNotes());
 
         if (appointment.getPaymentIntentId() != null &&
-            appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
+            (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
+                    || appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED)) {
             String paymentIntentId = appointment.getPaymentIntentId();
             // Capture only after the approval commits, so a failed capture never leaves
             // the appointment approved without a corresponding charge decision.
@@ -321,7 +325,7 @@ public class AppointmentService {
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = "appointments", allEntries = true)
     public AppointmentResponseDTO denyAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
             .orElseThrow(() -> new RuntimeException("Appointment not found"));
 
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
@@ -351,8 +355,7 @@ public class AppointmentService {
         String denialPaymentIntentId = appointment.getPaymentIntentId();
         boolean releaseDenialAuthorization = denialPaymentIntentId != null
                 && (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
-                || (appointment.getBookingSource() == Appointment.BookingSource.OWNER
-                && appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING));
+                || appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
@@ -409,7 +412,7 @@ public class AppointmentService {
             Predicate captureProcessing = cb.and(pending, cb.isNotNull(root.get("approvedAt")));
             Predicate paidPending = cb.and(
                     pending,
-                    cb.equal(root.get("paymentStatus"), Appointment.PaymentStatus.AUTHORIZED));
+                    root.get("paymentStatus").in(Appointment.PaymentStatus.AUTHORIZED, Appointment.PaymentStatus.CAPTURED));
             Predicate actionablePending = cb.or(paidPending, captureProcessing);
             Predicate ownerAwaitingDeposit = cb.and(
                     pending,
@@ -454,7 +457,7 @@ public class AppointmentService {
                 case "READY_FOR_APPROVAL" -> cb.and(
                         pending,
                         cb.isNull(root.get("approvedAt")),
-                        cb.equal(root.get("paymentStatus"), Appointment.PaymentStatus.AUTHORIZED),
+                        root.get("paymentStatus").in(Appointment.PaymentStatus.AUTHORIZED, Appointment.PaymentStatus.CAPTURED),
                         cb.greaterThan(root.get("appointmentDateTime"), now));
                 case "AWAITING_PAYMENT" -> cb.and(
                         pending,
@@ -516,7 +519,7 @@ public class AppointmentService {
     @Transactional
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public AppointmentResponseDTO cancelAppointment(Long appointmentId, Long adminId, AppointmentActionDTO actionDTO) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
                 .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING
                 && appointment.getStatus() != Appointment.AppointmentStatus.APPROVED) {
@@ -541,8 +544,7 @@ public class AppointmentService {
         String cancellationPaymentIntentId = saved.getPaymentIntentId();
         boolean releaseCancellationAuthorization = cancellationPaymentIntentId != null
                 && (saved.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
-                || (saved.getBookingSource() == Appointment.BookingSource.OWNER
-                && saved.getPaymentStatus() == Appointment.PaymentStatus.PENDING));
+                || saved.getPaymentStatus() == Appointment.PaymentStatus.PENDING);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
@@ -725,7 +727,7 @@ public class AppointmentService {
         settings.setUpdatedAt(LocalDateTime.now());
         settings.setUpdatedBy(admin);
         
-        settings = settingsRepository.save(settings);
+        settings = settingsRepository.saveAndFlush(settings);
 
         return mapToSettingsDTO(settings);
     }

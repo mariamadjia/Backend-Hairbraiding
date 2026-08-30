@@ -17,7 +17,6 @@ import org.example.backendbraiding.repository.AppointmentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
-import org.springframework.scheduling.annotation.Scheduled;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -31,13 +30,11 @@ import java.math.RoundingMode;
 public class PaymentService {
 
     private final AppointmentRepository appointmentRepository;
-    private final org.example.backendbraiding.repository.AppointmentSettingsRepository appointmentSettingsRepository;
     private final BookingPaymentTokenService bookingPaymentTokenService;
     private final NotificationOutboxService notificationOutboxService;
     private final AppointmentEventService appointmentEventService;
     private final AppointmentNotificationTemplates notificationTemplates;
     private final AppointmentManagementTokenService managementTokenService;
-    private final AppointmentNotificationDispatchService notificationDispatchService;
     private final OwnerDepositTokenService ownerDepositTokenService;
 
     @Transactional
@@ -47,7 +44,7 @@ public class PaymentService {
             throw new IllegalArgumentException("Invalid or expired payment token");
         }
 
-        Appointment appointment = appointmentRepository.findById(request.getAppointmentId())
+        Appointment appointment = appointmentRepository.findByIdForUpdate(request.getAppointmentId())
                 .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
 
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
@@ -75,6 +72,10 @@ public class PaymentService {
                 }
                 replacedIntentId = existingIntent.getId();
                 appointment.setPaymentIntentId(null);
+                appointment.setAmountAuthorized(null);
+                appointment.setPaymentAuthorizationExpiresAt(null);
+                appointment.setApprovedAt(null);
+                appointment.setApprovedBy(null);
             }
 
             Map<String, String> metadata = new HashMap<>();
@@ -171,7 +172,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentIntentResponse getOwnerDepositIntent(Long appointmentId, String token) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
                 .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
         if (!ownerDepositTokenService.isValid(token, appointmentId, appointment.getOwnerDepositTokenHash())) {
             throw new IllegalArgumentException("Invalid or expired deposit link");
@@ -208,18 +209,34 @@ public class PaymentService {
     }
 
     private void recordAuthorization(Appointment appointment, PaymentIntent intent) {
-        boolean firstAuthorization = appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED;
-        appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
+        boolean firstAuthorization = appointment.getAmountAuthorized() == null;
+        boolean operationFailed = appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURE_FAILED
+                || appointment.getPaymentStatus() == Appointment.PaymentStatus.CANCELLATION_FAILED;
+        if (!operationFailed) appointment.setPaymentStatus(Appointment.PaymentStatus.AUTHORIZED);
         appointment.setAmountAuthorized(intent.getAmountCapturable() != null && intent.getAmountCapturable() > 0
                 ? intent.getAmountCapturable() : intent.getAmount());
         appointment.setPaymentPendingExpiresAt(null);
         // Stripe authorization windows vary by method. Six days is a conservative
         // operational deadline for the shortest commonly enabled methods.
-        appointment.setPaymentAuthorizationExpiresAt(LocalDateTime.now().plusDays(6));
+        if (appointment.getPaymentAuthorizationExpiresAt() == null) {
+            appointment.setPaymentAuthorizationExpiresAt(LocalDateTime.now().plusDays(6));
+        }
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING
+                || appointment.getPaymentStatus() == Appointment.PaymentStatus.CANCELLATION_FAILED) {
+            appointmentRepository.save(appointment);
+            return;
+        }
+        if (!appointment.getAppointmentDateTime().isAfter(LocalDateTime.now(java.time.ZoneId.of("America/Chicago")))
+                || PaymentLifecycleRules.isAuthorizationExpired(appointment.getPaymentAuthorizationExpiresAt(), LocalDateTime.now())) {
+            appointmentRepository.save(appointment);
+            return;
+        }
+        if (Boolean.FALSE.equals(appointment.getRequireApproval()) && appointment.getApprovedAt() == null) {
+            appointment.setApprovedAt(LocalDateTime.now(java.time.ZoneId.of("America/Chicago")));
+            appointmentEventService.record(appointment, "AUTO_APPROVAL_REQUESTED", null, null);
+        }
         appointmentRepository.save(appointment);
-        boolean requiresAdminApproval = appointmentSettingsRepository.findFirstByOrderByIdDesc()
-                .map(settings -> settings.getRequireApproval())
-                .orElse(true);
+        boolean requiresAdminApproval = !Boolean.FALSE.equals(appointment.getRequireApproval());
         if (firstAuthorization) {
             AppointmentNotificationTemplates.Notification salonNotification = notificationTemplates.adminNewBooking(appointment);
             if (requiresAdminApproval) {
@@ -238,7 +255,7 @@ public class PaymentService {
         appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURED);
         appointment.setAmountAuthorized(intent.getAmount());
         appointment.setAmountCaptured(intent.getAmountReceived());
-        appointment.setPaymentCapturedAt(LocalDateTime.now());
+        if (appointment.getPaymentCapturedAt() == null) appointment.setPaymentCapturedAt(LocalDateTime.now());
         appointment.setPaymentAuthorizationExpiresAt(null);
         recordPaymentMethod(appointment, intent);
         boolean ownerDeposit = appointment.getBookingSource() == Appointment.BookingSource.OWNER;
@@ -334,8 +351,16 @@ public class PaymentService {
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse capturePayment(PaymentCaptureRequest request) {
         try {
-            Appointment appointment = appointmentRepository.findByPaymentIntentId(request.getPaymentIntentId())
+            Appointment appointment = appointmentRepository.findByPaymentIntentIdForUpdate(request.getPaymentIntentId())
                     .orElseThrow(() -> new IllegalArgumentException("Appointment not found for payment intent"));
+            if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING
+                    && !(appointment.getStatus() == Appointment.AppointmentStatus.APPROVED
+                    && appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED)) {
+                throw new IllegalStateException("Only an approved capture request may be charged");
+            }
+            if (appointment.getApprovedAt() == null) {
+                throw new IllegalStateException("Approve the appointment before capturing its deposit");
+            }
             PaymentIntent current = PaymentIntent.retrieve(request.getPaymentIntentId());
             if ("succeeded".equals(current.getStatus())) {
                 recordCapture(appointment, current);
@@ -343,6 +368,10 @@ public class PaymentService {
             }
             if (!"requires_capture".equals(current.getStatus())) {
                 throw new IllegalStateException("Payment is not ready for capture");
+            }
+            if (!appointment.getAppointmentDateTime().isAfter(LocalDateTime.now(java.time.ZoneId.of("America/Chicago")))
+                    || PaymentLifecycleRules.isAuthorizationExpired(appointment.getPaymentAuthorizationExpiresAt(), LocalDateTime.now())) {
+                throw new IllegalStateException("Cannot capture an expired or past appointment");
             }
             long fullAmount = current.getAmountCapturable();
             if (!PaymentLifecycleRules.isFullCapture(request.getAmountToCapture(), fullAmount)) {
@@ -352,7 +381,7 @@ public class PaymentService {
                     .setAmountToCapture(fullAmount)
                     .build();
             PaymentIntent paymentIntent = current.capture(params, RequestOptions.builder()
-                    .setIdempotencyKey("booking-capture-v1-" + appointment.getId())
+                    .setIdempotencyKey("booking-capture-v1-" + appointment.getId() + "-" + request.getPaymentIntentId())
                     .build());
 
             recordCapture(appointment, paymentIntent);
@@ -376,13 +405,32 @@ public class PaymentService {
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public PaymentIntentResponse cancelPayment(String paymentIntentId) {
         try {
-            PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId).cancel();
-
-            Appointment appointment = appointmentRepository.findByPaymentIntentId(paymentIntentId)
-                    .orElseThrow(() -> new RuntimeException("Appointment not found for payment intent"));
-
+            Appointment appointment = appointmentRepository.findByPaymentIntentIdForUpdate(paymentIntentId)
+                    .orElseThrow(() -> new IllegalArgumentException("Appointment not found for payment intent"));
+            boolean expired = appointment.getStatus() == Appointment.AppointmentStatus.PENDING
+                    && (!appointment.getAppointmentDateTime().isAfter(LocalDateTime.now(java.time.ZoneId.of("America/Chicago")))
+                    || (appointment.getPaymentAuthorizationExpiresAt() != null
+                    && PaymentLifecycleRules.isAuthorizationExpired(appointment.getPaymentAuthorizationExpiresAt(), LocalDateTime.now()))
+                    || (appointment.getPaymentPendingExpiresAt() != null
+                    && !appointment.getPaymentPendingExpiresAt().isAfter(LocalDateTime.now())));
+            if (appointment.getStatus() == Appointment.AppointmentStatus.APPROVED
+                    || (appointment.getStatus() == Appointment.AppointmentStatus.PENDING
+                    && appointment.getApprovedAt() != null && !expired)) {
+                throw new IllegalStateException("Cannot release payment while approval is processing or confirmed");
+            }
+            PaymentIntent paymentIntent = PaymentIntent.retrieve(paymentIntentId);
+            if (!"canceled".equals(paymentIntent.getStatus())) paymentIntent = paymentIntent.cancel();
+            appointment.setPaymentAuthorizationExpiresAt(null);
             appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLED);
+            if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
+                appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+            }
             appointmentRepository.save(appointment);
+            if (expired) {
+                appointmentEventService.record(appointment, "AUTHORIZATION_EXPIRED", null, null);
+                var notification = notificationTemplates.expired(appointment);
+                notificationOutboxService.enqueueBoth(appointment, notification.subject(), notification.emailBody(), notification.smsBody());
+            }
 
             return PaymentIntentResponse.builder()
                     .paymentIntentId(paymentIntent.getId())
@@ -432,15 +480,21 @@ public class PaymentService {
         if (appointment.getPaymentIntentId() == null) {
             throw new IllegalStateException("Payment has not been initialized");
         }
-        return getPaymentStatus(appointment.getPaymentIntentId());
+        PaymentIntentResponse response = getPaymentStatus(appointment.getPaymentIntentId());
+        response.setAppointmentStatus(appointment.getStatus().name());
+        response.setPaymentStatus(appointment.getPaymentStatus().name());
+        response.setRequireApproval(appointment.getRequireApproval());
+        response.setApprovalRequested(appointment.getApprovedAt() != null);
+        return response;
     }
 
     @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public void synchronizePaymentIntent(String paymentIntentId) {
         try {
-            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
-            Appointment appointment = appointmentRepository.findByPaymentIntentId(paymentIntentId)
+            Appointment appointment = appointmentRepository.findByPaymentIntentIdForUpdate(paymentIntentId)
                     .orElseThrow(() -> new IllegalStateException("Appointment not found for payment intent"));
+            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
             switch (intent.getStatus()) {
                 case "requires_capture" -> recordAuthorization(appointment, intent);
                 case "succeeded" -> recordCapture(appointment, intent);
@@ -457,8 +511,8 @@ public class PaymentService {
                 }
                 case "requires_payment_method" -> {
                     // A declined attempt remains retryable on the same PaymentIntent.
-                    if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED
-                            && appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED) {
+                    if (appointment.getPaymentStatus() == Appointment.PaymentStatus.PENDING
+                            || appointment.getPaymentStatus() == Appointment.PaymentStatus.FAILED) {
                         appointment.setPaymentStatus(Appointment.PaymentStatus.PENDING);
                         appointmentRepository.save(appointment);
                     }
@@ -474,9 +528,10 @@ public class PaymentService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public void markCaptureFailed(String paymentIntentId, String reason) {
-        appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
+        appointmentRepository.findByPaymentIntentIdForUpdate(paymentIntentId).ifPresent(appointment -> {
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED) return;
             appointment.setPaymentStatus(Appointment.PaymentStatus.CAPTURE_FAILED);
-            appointment.setAdminNotes("Payment capture failed; retry required: " + reason);
+            // Preserve the administrator's notes; error details belong in the audit event.
             appointmentRepository.save(appointment);
             appointmentEventService.record(appointment, "PAYMENT_CAPTURE_FAILED", appointment.getApprovedBy(), reason);
         });
@@ -485,48 +540,13 @@ public class PaymentService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
     public void markCancellationFailed(String paymentIntentId, String reason) {
-        appointmentRepository.findByPaymentIntentId(paymentIntentId).ifPresent(appointment -> {
+        appointmentRepository.findByPaymentIntentIdForUpdate(paymentIntentId).ifPresent(appointment -> {
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.CAPTURED
+                    || appointment.getPaymentStatus() == Appointment.PaymentStatus.CANCELLED) return;
             appointment.setPaymentStatus(Appointment.PaymentStatus.CANCELLATION_FAILED);
-            appointment.setAdminNotes("Payment authorization release failed; retry required: " + reason);
             appointmentRepository.save(appointment);
             appointmentEventService.record(appointment, "PAYMENT_CANCELLATION_FAILED", appointment.getApprovedBy(), reason);
         });
-    }
-
-    @Scheduled(fixedDelayString = "${stripe.reconciliation.interval-ms:300000}")
-    @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
-    public void reconcilePaymentStates() {
-        for (Appointment appointment : appointmentRepository.findAppointmentsNeedingPaymentReconciliation()) {
-            try {
-                synchronizePaymentIntent(appointment.getPaymentIntentId());
-            } catch (RuntimeException e) {
-                log.warn("Could not reconcile payment {} for appointment {}: {}",
-                        appointment.getPaymentIntentId(), appointment.getId(), e.getMessage());
-            }
-        }
-    }
-
-    @Scheduled(fixedDelayString = "${stripe.authorization-expiry.interval-ms:60000}")
-    @Transactional
-    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
-    public void releaseExpiredAuthorizations() {
-        for (Appointment appointment : appointmentRepository.findExpiredAuthorizations(LocalDateTime.now())) {
-            try {
-                cancelPayment(appointment.getPaymentIntentId());
-                if (appointment.getStatus() == Appointment.AppointmentStatus.PENDING) {
-                    appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
-                }
-                appointment.setAdminNotes("Automatically cancelled: payment authorization expired");
-                appointmentRepository.save(appointment);
-                appointmentEventService.record(appointment, "AUTHORIZATION_EXPIRED", null, appointment.getAdminNotes());
-                notificationDispatchService.expired(appointment.getId());
-            } catch (RuntimeException exception) {
-                markCancellationFailed(appointment.getPaymentIntentId(), exception.getMessage());
-                log.warn("Could not release expired authorization {}: {}",
-                        appointment.getPaymentIntentId(), exception.getMessage());
-            }
-        }
     }
 
 }

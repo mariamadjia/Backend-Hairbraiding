@@ -8,20 +8,13 @@ import com.stripe.model.PaymentIntent;
 import com.stripe.net.Webhook;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.backendbraiding.model.Appointment;
-import org.example.backendbraiding.repository.AppointmentRepository;
-import org.example.backendbraiding.repository.AppointmentSettingsRepository;
-import org.example.backendbraiding.service.PaymentService;
 import org.example.backendbraiding.service.StripeWebhookEventService;
 import org.example.backendbraiding.service.NoShowService;
-import org.example.backendbraiding.dto.PaymentCaptureRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/webhooks")
@@ -29,11 +22,9 @@ import java.util.Optional;
 @Slf4j
 public class StripeWebhookController {
 
-    private final AppointmentRepository appointmentRepository;
-    private final AppointmentSettingsRepository settingsRepository;
-    private final PaymentService paymentService;
     private final StripeWebhookEventService webhookEventService;
     private final NoShowService noShowService;
+    private final org.example.backendbraiding.service.PaymentRecoveryService paymentRecoveryService;
 
     @Value("${stripe.webhook.secret:}")
     private String webhookSecret;
@@ -76,7 +67,7 @@ public class StripeWebhookController {
                      "payment_intent.canceled" -> {
                         String paymentIntentId = requirePaymentIntentId(event);
                         if (!noShowService.synchronize(paymentIntentId)) {
-                            paymentService.synchronizePaymentIntent(paymentIntentId);
+                            paymentRecoveryService.process(paymentIntentId);
                         }
                     }
                 case "payment_intent.amount_capturable_updated" ->
@@ -114,31 +105,6 @@ public class StripeWebhookController {
     }
 
     private void handlePaymentIntentAmountCapturableUpdated(String paymentIntentId) {
-        log.info("Payment authorized for PaymentIntent: {}", paymentIntentId);
-        paymentService.synchronizePaymentIntent(paymentIntentId);
-
-        Optional<Appointment> appointmentOpt = appointmentRepository
-                .findByPaymentIntentId(paymentIntentId);
-
-        if (appointmentOpt.isPresent()) {
-            Appointment appointment = appointmentOpt.get();
-            
-            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED) {
-                boolean requireApproval = settingsRepository.findFirstByOrderByIdDesc()
-                        .map(settings -> settings.getRequireApproval())
-                        .orElse(true);
-                if (!requireApproval) {
-                    try {
-                        appointment.setStatus(Appointment.AppointmentStatus.PENDING);
-                        appointment.setApprovedAt(LocalDateTime.now());
-                        appointmentRepository.save(appointment);
-                        paymentService.capturePayment(new PaymentCaptureRequest(paymentIntentId, null));
-                    } catch (Exception e) {
-                        paymentService.markCaptureFailed(paymentIntentId, e.getMessage());
-                        log.error("Automatic capture failed for appointment {}", appointment.getId(), e);
-                    }
-                }
-            }
-        }
+        paymentRecoveryService.process(paymentIntentId);
     }
 }

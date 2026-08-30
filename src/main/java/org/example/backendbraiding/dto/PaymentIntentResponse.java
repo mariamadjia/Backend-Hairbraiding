@@ -24,4 +24,8 @@ public class PaymentIntentResponse {
     private String message;
     
     private Long appointmentId;
+    private String appointmentStatus;
+    private String paymentStatus;
+    private Boolean requireApproval;
+    private Boolean approvalRequested;
 }
