@@ -243,10 +243,10 @@ public class PaymentService {
                 AppointmentNotificationTemplates.Notification customerNotification = notificationTemplates.pending(appointment);
                 notificationOutboxService.enqueueCustomerAndSalon(appointment,
                         customerNotification.subject(), customerNotification.emailBody(),
-                        salonNotification.subject(), salonNotification.emailBody());
+                        salonNotification.subject(), salonNotification.emailBody(), salonNotification.smsBody());
             } else {
-                notificationOutboxService.enqueueSalonEmail(appointment,
-                        salonNotification.subject(), salonNotification.emailBody());
+                notificationOutboxService.enqueueSalonNotifications(appointment,
+                        salonNotification.subject(), salonNotification.emailBody(), salonNotification.smsBody());
             }
         }
     }

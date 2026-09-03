@@ -95,7 +95,7 @@ class AppointmentApprovalAuditTests {
         assertEquals(Appointment.AppointmentStatus.PENDING, appointment.getStatus());
         assertEquals(Appointment.PaymentStatus.AUTHORIZED, appointment.getPaymentStatus());
         assertNull(appointment.getApprovedAt());
-        verify(outbox).enqueueCustomerAndSalon(eq(appointment), any(), any(), any(), any());
+        verify(outbox).enqueueCustomerAndSalon(eq(appointment), any(), any(), any(), any(), any());
         var mockPayments = mock(PaymentService.class);
         authorizedWebhook(mockPayments);
         verify(mockPayments, never()).capturePayment(any());

@@ -123,7 +123,10 @@ public class AppointmentNotificationTemplates {
                 .append(Boolean.FALSE.equals(appointment.getRequireApproval())
                         ? "Automatic confirmation is processing. Check Appointment Management for the current payment and booking status."
                         : "Open Appointment Management to approve or deny this request.");
-        return new Notification("New booking request — " + customerName(appointment), body.toString(), "");
+        String sms = "New booking request from " + customerName(appointment)
+                + " for " + serviceName(appointment) + " on " + dateTime(appointment)
+                + " CT. Open Appointment Management to review it.";
+        return new Notification("New booking request — " + customerName(appointment), body.toString(), sms);
     }
 
     public Notification approved(Appointment appointment) {

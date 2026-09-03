@@ -21,6 +21,9 @@ public class NotificationOutboxService {
     @Value("${salon.email:adjiashairbraiding@gmail.com}")
     private String salonEmail;
 
+    @Value("${salon.phone:(210) 812-8121}")
+    private String salonPhone;
+
     public void enqueueEmail(Appointment appointment, String subject, String body) {
         String eventKey = UUID.randomUUID().toString();
         enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), subject, body,
@@ -44,7 +47,7 @@ public class NotificationOutboxService {
     }
 
     public void enqueueCustomerAndSalon(Appointment appointment, String customerSubject, String customerBody,
-                                        String salonSubject, String salonBody) {
+                                        String salonSubject, String salonBody, String salonSmsBody) {
         String eventKey = UUID.randomUUID().toString();
         enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), customerSubject,
                 customerBody, eventKey, eventKey + ":CUSTOMER_EMAIL");
@@ -53,14 +56,27 @@ public class NotificationOutboxService {
             enqueue(appointment, NotificationOutbox.Channel.EMAIL, salonEmail.trim(), salonSubject, salonBody,
                     eventKey, eventKey + ":SALON_EMAIL");
         }
+        if (salonPhone != null && !salonPhone.isBlank()
+                && salonSmsBody != null && !salonSmsBody.isBlank()
+                && !salonPhone.equals(appointment.getCustomer().getPhoneNumber())) {
+            enqueue(appointment, NotificationOutbox.Channel.SMS, salonPhone.trim(), null, salonSmsBody,
+                    eventKey, eventKey + ":SALON_SMS");
+        }
     }
 
-    public void enqueueSalonEmail(Appointment appointment, String subject, String body) {
-        if (salonEmail == null || salonEmail.isBlank()
-                || salonEmail.equalsIgnoreCase(appointment.getCustomer().getEmail())) return;
+    public void enqueueSalonNotifications(Appointment appointment, String subject, String emailBody, String smsBody) {
         String eventKey = UUID.randomUUID().toString();
-        enqueue(appointment, NotificationOutbox.Channel.EMAIL, salonEmail.trim(), subject, body,
-                eventKey, eventKey + ":SALON_EMAIL");
+        if (salonEmail != null && !salonEmail.isBlank()
+                && !salonEmail.equalsIgnoreCase(appointment.getCustomer().getEmail())) {
+            enqueue(appointment, NotificationOutbox.Channel.EMAIL, salonEmail.trim(), subject, emailBody,
+                    eventKey, eventKey + ":SALON_EMAIL");
+        }
+        if (salonPhone != null && !salonPhone.isBlank()
+                && smsBody != null && !smsBody.isBlank()
+                && !salonPhone.equals(appointment.getCustomer().getPhoneNumber())) {
+            enqueue(appointment, NotificationOutbox.Channel.SMS, salonPhone.trim(), null, smsBody,
+                    eventKey, eventKey + ":SALON_SMS");
+        }
     }
 
     public void enqueueCustomerAndAdmins(Appointment appointment, String customerSubject, String customerEmailBody,

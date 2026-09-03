@@ -68,6 +68,8 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("customer@example.com"));
         assertTrue(notification.emailBody().contains("Knotless Box Braids"));
         assertTrue(notification.emailBody().contains("Deposit authorized: $50.00"));
+        assertTrue(notification.smsBody().contains("New booking request from Gloria Djonret"));
+        assertTrue(notification.smsBody().contains("Knotless Box Braids"));
     }
 
     @Test
