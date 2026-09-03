@@ -37,6 +37,7 @@ import jakarta.persistence.criteria.Predicate;
 @RequiredArgsConstructor
 @Slf4j
 public class AppointmentService {
+    private static final String SMS_CONSENT_POLICY_VERSION = "2026-09-03";
 
     private final AppointmentRepository appointmentRepository;
     private final CustomerRepository customerRepository;
@@ -172,6 +173,12 @@ public class AppointmentService {
             customer.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
             customer.setOffSessionConsentAt(LocalDateTime.now());
             customerRepository.save(customer);
+            boolean smsConsentAccepted = Boolean.TRUE.equals(requestDTO.getSmsConsentAccepted());
+            appointment.setSmsConsentAccepted(smsConsentAccepted);
+            if (smsConsentAccepted) {
+                appointment.setSmsConsentAt(LocalDateTime.now());
+                appointment.setSmsConsentPolicyVersion(SMS_CONSENT_POLICY_VERSION);
+            }
         }
         appointment.setRequireApproval(!ownerCreated && !Boolean.FALSE.equals(settings.getRequireApproval()));
         appointment.setDurationMinutes(durationMinutes);

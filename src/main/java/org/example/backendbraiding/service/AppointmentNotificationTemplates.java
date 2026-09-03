@@ -51,7 +51,7 @@ public class AppointmentNotificationTemplates {
                 "Your appointment request is pending",
                 "Thank you for submitting your appointment request to " + salonName + ".",
                 "Your request has been received and is currently awaiting confirmation from our team. "
-                        + "We’ll notify you by email as soon as your appointment is approved or if any changes are needed.",
+                        + "We’ll notify you by email and, if you opted in, by text as soon as your appointment is approved or if any changes are needed.",
                 appointment,
                 "Deposit authorized",
                 "Your card has not been charged. The deposit will only be charged if your appointment is approved.",
@@ -59,7 +59,10 @@ public class AppointmentNotificationTemplates {
                 null,
                 null,
                 null);
-        return new Notification("Appointment request received — awaiting confirmation", body, "");
+        String sms = salonName + ": Your appointment request for " + dateTime(appointment)
+                + " CT was received. We send transactional appointment updates; msg frequency varies. "
+                + "Msg & data rates may apply. Reply HELP for help or STOP to opt out.";
+        return new Notification("Appointment request received — awaiting confirmation", body, sms);
     }
 
     public Notification ownerDepositRequested(Appointment appointment, String paymentUrl) {

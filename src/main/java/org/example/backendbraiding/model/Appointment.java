@@ -135,6 +135,15 @@ public class Appointment {
     @Column(name = "off_session_consent_policy_version", length = 50)
     private String offSessionConsentPolicyVersion;
 
+    @Column(name = "sms_consent_accepted", nullable = false)
+    private Boolean smsConsentAccepted = false;
+
+    @Column(name = "sms_consent_at")
+    private LocalDateTime smsConsentAt;
+
+    @Column(name = "sms_consent_policy_version", length = 50)
+    private String smsConsentPolicyVersion;
+
     @Column(name = "management_token_hash", length = 64)
     private String managementTokenHash;
 

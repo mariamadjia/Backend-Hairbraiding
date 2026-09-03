@@ -54,6 +54,7 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("Your card has not been charged"));
         assertFalse(notification.emailBody().contains("60% service fee"));
         assertFalse(notification.emailBody().contains("Manage Appointment"));
+        assertTrue(notification.smsBody().contains("Reply HELP for help or STOP to opt out"));
     }
 
     @Test

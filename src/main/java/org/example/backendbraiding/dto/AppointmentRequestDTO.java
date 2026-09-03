@@ -61,4 +61,6 @@ public class AppointmentRequestDTO {
 
     @AssertTrue(message = "You must authorize the no-show payment policy")
     private Boolean offSessionConsentAccepted;
+
+    private Boolean smsConsentAccepted;
 }
