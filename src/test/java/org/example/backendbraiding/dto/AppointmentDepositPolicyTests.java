@@ -34,6 +34,14 @@ class AppointmentDepositPolicyTests {
                 .anyMatch(violation -> "appointmentDateTime".equals(violation.getPropertyPath().toString())));
         assertFalse(validator.validate(reschedule).stream()
                 .anyMatch(violation -> "appointmentDateTime".equals(violation.getPropertyPath().toString())));
+
+        OwnerRescheduleRequest ownerReschedule = new OwnerRescheduleRequest();
+        assertTrue(validator.validate(ownerReschedule).stream()
+                .anyMatch(violation -> "appointmentDateTime".equals(violation.getPropertyPath().toString())));
+        ownerReschedule.setAppointmentDateTime(LocalDateTime.of(2026, 8, 20, 14, 0));
+        ownerReschedule.setReason("x".repeat(501));
+        assertTrue(validator.validate(ownerReschedule).stream()
+                .anyMatch(violation -> "reason".equals(violation.getPropertyPath().toString())));
     }
 
     private boolean hasPolicyViolation(AppointmentRequestDTO request) {

@@ -9,6 +9,8 @@ import org.example.backendbraiding.dto.AppointmentSettingsDTO;
 import org.example.backendbraiding.dto.AppointmentEventDTO;
 import org.example.backendbraiding.dto.NoShowChargeRequest;
 import org.example.backendbraiding.dto.NoShowFeeDTO;
+import org.example.backendbraiding.dto.OwnerRescheduleRequest;
+import org.example.backendbraiding.dto.AvailableSlotDTO;
 import org.example.backendbraiding.model.Admin;
 import org.example.backendbraiding.repository.AdminRepository;
 import org.example.backendbraiding.service.AppointmentService;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/appointments")
@@ -125,6 +128,24 @@ public class AppointmentController {
     public ResponseEntity<List<AppointmentEventDTO>> getAppointmentEvents(@PathVariable Long id) {
         appointmentService.getAppointmentById(id);
         return ResponseEntity.ok(appointmentEventService.history(id));
+    }
+
+    @GetMapping("/{id}/reschedule-slots")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<AvailableSlotDTO>> getOwnerRescheduleSlots(
+            @PathVariable Long id,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(appointmentService.getOwnerRescheduleSlots(id, date));
+    }
+
+    @PutMapping("/{id}/reschedule")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<AppointmentResponseDTO> rescheduleAppointment(
+            @PathVariable Long id,
+            @Valid @RequestBody OwnerRescheduleRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(appointmentService.rescheduleAppointment(
+                id, extractAdminId(authentication), request));
     }
 
     @GetMapping("/date-range")

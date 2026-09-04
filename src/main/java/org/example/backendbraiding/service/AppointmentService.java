@@ -6,6 +6,8 @@ import org.example.backendbraiding.dto.AppointmentActionDTO;
 import org.example.backendbraiding.dto.AppointmentRequestDTO;
 import org.example.backendbraiding.dto.AppointmentResponseDTO;
 import org.example.backendbraiding.dto.AppointmentSettingsDTO;
+import org.example.backendbraiding.dto.AvailableSlotDTO;
+import org.example.backendbraiding.dto.OwnerRescheduleRequest;
 import org.example.backendbraiding.model.*;
 import org.example.backendbraiding.repository.*;
 import org.springframework.data.domain.Page;
@@ -60,6 +62,7 @@ public class AppointmentService {
     private final AppointmentManagementTokenService managementTokenService;
     private final AppointmentNotificationDispatchService notificationDispatchService;
     private final NotificationOutboxClaimService notificationOutboxClaimService;
+    private final AvailabilityService availabilityService;
 
     private static final int RESERVATION_TTL_MINUTES = 15;
     private static final ZoneId SALON_ZONE = ZoneId.of("America/Chicago");
@@ -575,6 +578,94 @@ public class AppointmentService {
         if (!notificationOutboxClaimService.retryLatestFailed(appointmentId))
             throw new IllegalStateException("There is no failed notification channel to retry");
         return mapToResponseDTO(appointment);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AvailableSlotDTO> getOwnerRescheduleSlots(Long appointmentId, LocalDate date) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
+        requireOwnerReschedulable(appointment);
+        if (appointment.getService() == null) {
+            throw new IllegalStateException("This appointment cannot be rescheduled because its service is unavailable");
+        }
+        return availableRescheduleSlots(appointment, date);
+    }
+
+    @Transactional
+    @org.springframework.cache.annotation.CacheEvict(value = {"appointments", "availableSlots"}, allEntries = true)
+    public AppointmentResponseDTO rescheduleAppointment(Long appointmentId, Long adminId,
+                                                         OwnerRescheduleRequest request) {
+        Appointment appointment = appointmentRepository.findByIdForUpdate(appointmentId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Appointment not found"));
+        requireOwnerReschedulable(appointment);
+        if (appointment.getService() == null) {
+            throw new IllegalStateException("This appointment cannot be rescheduled because its service is unavailable");
+        }
+        LocalDateTime requested = request.getAppointmentDateTime();
+        if (requested.equals(appointment.getAppointmentDateTime())) {
+            throw new IllegalArgumentException("Choose a different appointment time");
+        }
+
+        lockAppointmentSlot(requested);
+        boolean available = availableRescheduleSlots(appointment, requested.toLocalDate()).stream()
+                .anyMatch(slot -> requested.equals(slot.getStartTime()) && Boolean.TRUE.equals(slot.getIsAvailable()));
+        if (!available) {
+            throw new IllegalStateException("That appointment time is no longer available");
+        }
+
+        Admin admin = adminRepository.findById(adminId)
+                .orElseThrow(() -> new org.example.backendbraiding.exception.ResourceNotFoundException("Administrator not found"));
+        int occupiedMinutes = occupiedMinutes(appointment);
+        LocalDateTime oldTime = appointment.getAppointmentDateTime();
+        appointment.setRescheduledFromDateTime(oldTime);
+        appointment.setAppointmentDateTime(requested);
+        appointment.setAppointmentEndDateTime(requested.plusMinutes(occupiedMinutes));
+        if (appointment.getManagementTokenHash() != null) {
+            appointment.setManagementTokenExpiresAt(appointment.getAppointmentEndDateTime().plusDays(1));
+        }
+        Appointment saved = appointmentRepository.save(appointment);
+        String reason = request.getReason() == null || request.getReason().isBlank()
+                ? null : request.getReason().trim();
+        String eventReason = "Rescheduled from " + oldTime + " to " + requested
+                + (reason == null ? "" : ". Reason: " + reason);
+        appointmentEventService.record(saved, "OWNER_RESCHEDULED", admin, eventReason);
+        AppointmentNotificationTemplates.Notification notification = notificationTemplates.ownerRescheduled(saved);
+        notificationOutboxService.enqueueBoth(saved, notification.subject(), notification.emailBody(), notification.smsBody());
+        return mapToResponseDTO(saved);
+    }
+
+    private void requireOwnerReschedulable(Appointment appointment) {
+        if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING
+                && appointment.getStatus() != Appointment.AppointmentStatus.APPROVED) {
+            throw new IllegalStateException("Only pending or approved appointments can be rescheduled");
+        }
+        if (!appointment.getAppointmentDateTime().isAfter(salonNow())) {
+            throw new IllegalStateException("Past appointments cannot be rescheduled");
+        }
+    }
+
+    private List<AvailableSlotDTO> availableRescheduleSlots(Appointment appointment, LocalDate date) {
+        return availabilityService.getAvailableSlots(date, SALON_ZONE.getId(), appointment.getService().getId(),
+                        null, appointment.getId(), scheduledDurationMinutes(appointment))
+                .stream()
+                .filter(slot -> Boolean.TRUE.equals(slot.getIsAvailable()))
+                .filter(slot -> !appointment.getAppointmentDateTime().equals(slot.getStartTime()))
+                .toList();
+    }
+
+    private int occupiedMinutes(Appointment appointment) {
+        if (appointment.getAppointmentEndDateTime() != null
+                && appointment.getAppointmentEndDateTime().isAfter(appointment.getAppointmentDateTime())) {
+            return Math.max(15, (int) java.time.Duration.between(
+                    appointment.getAppointmentDateTime(), appointment.getAppointmentEndDateTime()).toMinutes());
+        }
+        Integer duration = appointment.getDurationMinutes();
+        return duration == null || duration < 15 ? 60 : duration;
+    }
+
+    private int scheduledDurationMinutes(Appointment appointment) {
+        Integer duration = appointment.getDurationMinutes();
+        return duration == null || duration < 15 ? occupiedMinutes(appointment) : duration;
     }
 
     private void enqueueBoth(Appointment appointment, AppointmentNotificationTemplates.Notification notification) {

@@ -117,6 +117,13 @@ class AppointmentNotificationTemplatesTests {
         captured.setAmountCaptured(5000L);
         assertTrue(templates.customerRescheduled(captured).emailBody().startsWith("<!doctype html>"));
 
+        var ownerRescheduled = templates.ownerRescheduled(captured);
+        assertTrue(ownerRescheduled.emailBody().startsWith("<!doctype html>"));
+        assertTrue(ownerRescheduled.emailBody().contains("Our team has updated your appointment"));
+        assertTrue(ownerRescheduled.emailBody().contains("paid deposit remains applied"));
+        assertFalse(ownerRescheduled.emailBody().contains("self-service change"));
+        assertTrue(ownerRescheduled.smsBody().contains("rescheduled your appointment"));
+
         Appointment denied = appointment(Appointment.PaymentStatus.CANCELLED);
         denied.setAdminNotes("The requested time is unavailable");
         assertTrue(templates.denied(denied).emailBody().startsWith("<!doctype html>"));

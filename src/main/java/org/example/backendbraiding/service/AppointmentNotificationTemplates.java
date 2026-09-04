@@ -171,6 +171,23 @@ public class AppointmentNotificationTemplates {
                         + " CT. Your one self-service change has been used. Questions? " + phone);
     }
 
+    public Notification ownerRescheduled(Appointment appointment) {
+        String body = brandedEmail(
+                "Your appointment has been rescheduled",
+                "Our team has updated your appointment date and time.",
+                "The appointment details below reflect your new schedule.",
+                appointment,
+                rescheduleDepositLabel(appointment),
+                rescheduleDepositNotice(appointment),
+                "If this new time does not work for you, please contact us.",
+                null,
+                null,
+                null);
+        return new Notification("Your appointment has been rescheduled — " + shortDate(appointment), body,
+                "Hi " + firstName(appointment) + ", " + salonName + " rescheduled your appointment to "
+                        + dateTime(appointment) + " CT. Any existing deposit remains applied. Questions? " + phone);
+    }
+
     public Notification adminCustomerRescheduled(Appointment appointment) {
         String body = "A customer rescheduled an appointment.\n\nCustomer: " + customerName(appointment)
                 + "\nNew appointment: " + dateTime(appointment) + " CT"
@@ -500,6 +517,24 @@ public class AppointmentNotificationTemplates {
 
     private String cancellationPaymentNotice(Appointment appointment) {
         return cancellationPaymentText(appointment).trim();
+    }
+
+    private String rescheduleDepositLabel(Appointment appointment) {
+        return switch (paymentStatus(appointment)) {
+            case CAPTURED -> "Deposit paid";
+            case AUTHORIZED -> "Deposit authorized";
+            case NOT_REQUIRED -> "Deposit";
+            default -> "Deposit status";
+        };
+    }
+
+    private String rescheduleDepositNotice(Appointment appointment) {
+        return switch (paymentStatus(appointment)) {
+            case CAPTURED -> "Your paid deposit remains applied to this appointment.";
+            case AUTHORIZED -> "Your existing deposit authorization remains attached to this appointment.";
+            case NOT_REQUIRED -> "No deposit is required for this appointment.";
+            default -> "Any existing deposit request remains attached to this appointment.";
+        };
     }
 
     private String shortPaymentOutcome(Appointment appointment) {
