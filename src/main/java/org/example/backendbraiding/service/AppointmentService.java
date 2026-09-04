@@ -639,8 +639,8 @@ public class AppointmentService {
                 && appointment.getStatus() != Appointment.AppointmentStatus.APPROVED) {
             throw new IllegalStateException("Only pending or approved appointments can be rescheduled");
         }
-        if (!appointment.getAppointmentDateTime().isAfter(salonNow())) {
-            throw new IllegalStateException("Past appointments cannot be rescheduled");
+        if (appointment.getAppointmentDateTime().toLocalDate().isBefore(salonNow().toLocalDate())) {
+            throw new IllegalStateException("Appointments from an earlier date cannot be rescheduled");
         }
     }
 
