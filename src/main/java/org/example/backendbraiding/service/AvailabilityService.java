@@ -301,6 +301,13 @@ public class AvailabilityService {
     public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone, Long serviceId,
                                                     Long lengthOptionId, Long excludedAppointmentId,
                                                     Integer durationOverrideMinutes) {
+        return getAvailableSlots(date, timezone, serviceId, lengthOptionId, excludedAppointmentId,
+                durationOverrideMinutes, false);
+    }
+
+    public List<AvailableSlotDTO> getAvailableSlots(LocalDate date, String timezone, Long serviceId,
+                                                    Long lengthOptionId, Long excludedAppointmentId,
+                                                    Integer durationOverrideMinutes, boolean allowSameDayOverride) {
         List<AvailableSlotDTO> slots = new ArrayList<>();
         int serviceMinutes = durationOverrideMinutes != null && durationOverrideMinutes >= 15
                 ? durationOverrideMinutes : resolveServiceDuration(serviceId, lengthOptionId);
@@ -331,7 +338,7 @@ public class AvailabilityService {
 
         LocalDate today = ZonedDateTime.now(zoneId).toLocalDate();
         if (date.isBefore(today)
-                || (!Boolean.TRUE.equals(settings.getAllowSameDayBooking()) && date.equals(today))
+                || (!allowSameDayOverride && !Boolean.TRUE.equals(settings.getAllowSameDayBooking()) && date.equals(today))
                 || date.isAfter(today.plusDays(advanceBookingDays(settings)))) {
             return slots;
         }

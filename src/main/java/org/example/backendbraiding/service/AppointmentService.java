@@ -646,7 +646,7 @@ public class AppointmentService {
 
     private List<AvailableSlotDTO> availableRescheduleSlots(Appointment appointment, LocalDate date) {
         return availabilityService.getAvailableSlots(date, SALON_ZONE.getId(), appointment.getService().getId(),
-                        null, appointment.getId(), scheduledDurationMinutes(appointment))
+                        null, appointment.getId(), scheduledDurationMinutes(appointment), true)
                 .stream()
                 .filter(slot -> Boolean.TRUE.equals(slot.getIsAvailable()))
                 .filter(slot -> !appointment.getAppointmentDateTime().equals(slot.getStartTime()))
