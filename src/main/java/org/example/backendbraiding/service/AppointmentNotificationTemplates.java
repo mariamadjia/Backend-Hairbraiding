@@ -65,6 +65,41 @@ public class AppointmentNotificationTemplates {
         return new Notification("Appointment request received — awaiting confirmation", body, sms);
     }
 
+    public Notification pendingWithoutDeposit(Appointment appointment) {
+        String body = brandedEmail(
+                "Your appointment request is pending",
+                "Thank you for submitting your appointment request to " + salonName + ".",
+                "Your request has been received and is awaiting confirmation from our team.",
+                appointment,
+                "Deposit",
+                "No deposit or card is required for this appointment.",
+                "We’ll notify you when the salon approves or denies your request.",
+                null,
+                null,
+                null);
+        String sms = salonName + ": Your appointment request for " + dateTime(appointment)
+                + " CT was received. No deposit is required. Msg frequency varies; msg & data rates may apply. "
+                + "Reply HELP for help or STOP to opt out.";
+        return new Notification("Appointment request received — awaiting confirmation", body, sms);
+    }
+
+    public Notification approvedWithoutDeposit(Appointment appointment, String managementUrl) {
+        String body = brandedEmail(
+                "Your appointment is confirmed",
+                "Your appointment with " + salonName + " is confirmed.",
+                null,
+                appointment,
+                "Deposit",
+                "No deposit or card is required for this appointment.",
+                "Please arrive on time.",
+                null,
+                "Manage Appointment",
+                managementUrl);
+        return new Notification("Your appointment is confirmed — " + shortDate(appointment), body,
+                "Hi " + firstName(appointment) + ", your " + salonName + " appointment is confirmed for "
+                        + dateTime(appointment) + " CT. No deposit is required. Manage it here: " + managementUrl);
+    }
+
     public Notification ownerDepositRequested(Appointment appointment, String paymentUrl) {
         String body = brandedEmail(
                 "Pay your deposit to confirm",
@@ -122,7 +157,8 @@ public class AppointmentNotificationTemplates {
                 .append("Customer: ").append(customerName(appointment)).append("\n")
                 .append("Email: ").append(appointment.getCustomer().getEmail()).append("\n")
                 .append("Phone: ").append(appointment.getCustomer().getPhoneNumber()).append("\n\n")
-                .append(summary(appointment, "Deposit authorized"))
+                .append(summary(appointment, paymentStatus(appointment) == Appointment.PaymentStatus.NOT_REQUIRED
+                        ? "Deposit" : "Deposit authorized"))
                 .append(Boolean.FALSE.equals(appointment.getRequireApproval())
                         ? "Automatic confirmation is processing. Check Appointment Management for the current payment and booking status."
                         : "Open Appointment Management to approve or deny this request.");

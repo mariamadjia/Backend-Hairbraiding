@@ -47,6 +47,9 @@ public class PaymentService {
         Appointment appointment = appointmentRepository.findByIdForUpdate(request.getAppointmentId())
                 .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
 
+        if (appointment.getPaymentStatus() == Appointment.PaymentStatus.NOT_REQUIRED) {
+            return noPaymentRequiredResponse(appointment);
+        }
         if (appointment.getStatus() != Appointment.AppointmentStatus.PENDING) {
             throw new IllegalStateException("Payment can only be authorized for a pending appointment");
         }
@@ -88,6 +91,10 @@ public class PaymentService {
                 throw new IllegalStateException("This booking is missing its deposit quote. Please start the booking again.");
             }
             long depositAmountCents = calculateDepositAmountCents(appointment.getPrice(), quotedDepositCents);
+
+            if (depositAmountCents == 0) {
+                return completeWithoutPayment(appointment);
+            }
 
             String stripeCustomerId = ensureStripeCustomer(appointment);
 
@@ -319,7 +326,8 @@ public class PaymentService {
     }
 
     private long calculateDepositAmountCents(String appointmentPrice, long configuredDepositCents) {
-        if (configuredDepositCents <= 0) throw new IllegalStateException("Configured deposit must be greater than zero");
+        if (configuredDepositCents < 0) throw new IllegalStateException("Configured deposit cannot be negative");
+        if (configuredDepositCents == 0) return 0;
         if (appointmentPrice == null || appointmentPrice.isBlank()) {
             return configuredDepositCents;
         }
@@ -345,6 +353,53 @@ public class PaymentService {
                 .currency(paymentIntent.getCurrency())
                 .message(message)
                 .appointmentId(appointmentId)
+                .build();
+    }
+
+    private PaymentIntentResponse completeWithoutPayment(Appointment appointment) {
+        appointment.setDepositAmount(0L);
+        appointment.setAmountAuthorized(0L);
+        appointment.setAmountCaptured(0L);
+        appointment.setPaymentStatus(Appointment.PaymentStatus.NOT_REQUIRED);
+        appointment.setPaymentPendingExpiresAt(null);
+        boolean requiresApproval = !Boolean.FALSE.equals(appointment.getRequireApproval());
+        if (!requiresApproval) {
+            appointment.setStatus(Appointment.AppointmentStatus.APPROVED);
+            appointment.setApprovedAt(LocalDateTime.now(java.time.ZoneId.of("America/Chicago")));
+        }
+        appointmentRepository.save(appointment);
+        appointmentEventService.record(appointment, "PAYMENT_NOT_REQUIRED", null, null);
+
+        AppointmentNotificationTemplates.Notification customerNotification;
+        if (requiresApproval) {
+            customerNotification = notificationTemplates.pendingWithoutDeposit(appointment);
+        } else {
+            appointmentEventService.record(appointment, "APPROVED", null, "No deposit required");
+            customerNotification = notificationTemplates.approvedWithoutDeposit(
+                    appointment, managementTokenService.issue(appointment));
+        }
+        AppointmentNotificationTemplates.Notification salonNotification = notificationTemplates.adminNewBooking(appointment);
+        notificationOutboxService.enqueueCustomerAndSalon(appointment,
+                customerNotification.subject(), customerNotification.emailBody(), customerNotification.smsBody(),
+                salonNotification.subject(), salonNotification.emailBody(), salonNotification.smsBody());
+
+        return noPaymentRequiredResponse(appointment);
+    }
+
+    private PaymentIntentResponse noPaymentRequiredResponse(Appointment appointment) {
+        boolean requiresApproval = !Boolean.FALSE.equals(appointment.getRequireApproval());
+        return PaymentIntentResponse.builder()
+                .status("not_required")
+                .amount(0L)
+                .currency("usd")
+                .message(requiresApproval
+                        ? "No deposit is required; the appointment is awaiting salon approval."
+                        : "No deposit is required; the appointment is confirmed.")
+                .appointmentId(appointment.getId())
+                .appointmentStatus(appointment.getStatus().name())
+                .paymentStatus(appointment.getPaymentStatus().name())
+                .requireApproval(appointment.getRequireApproval())
+                .approvalRequested(appointment.getApprovedAt() != null)
                 .build();
     }
 
@@ -479,6 +534,19 @@ public class PaymentService {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new IllegalArgumentException("Appointment not found"));
         if (appointment.getPaymentIntentId() == null) {
+            if (appointment.getPaymentStatus() == Appointment.PaymentStatus.NOT_REQUIRED) {
+                return PaymentIntentResponse.builder()
+                        .status("not_required")
+                        .amount(0L)
+                        .currency("usd")
+                        .message("No payment is required for this appointment.")
+                        .appointmentId(appointment.getId())
+                        .appointmentStatus(appointment.getStatus().name())
+                        .paymentStatus(appointment.getPaymentStatus().name())
+                        .requireApproval(appointment.getRequireApproval())
+                        .approvalRequested(appointment.getApprovedAt() != null)
+                        .build();
+            }
             throw new IllegalStateException("Payment has not been initialized");
         }
         PaymentIntentResponse response = getPaymentStatus(appointment.getPaymentIntentId());

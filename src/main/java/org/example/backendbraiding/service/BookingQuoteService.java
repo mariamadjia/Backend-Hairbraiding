@@ -43,7 +43,7 @@ public class BookingQuoteService {
                 ? service.getDepositOverrideCents()
                 : settingsRepository.findFirstByOrderByIdDesc()
                     .map(AppointmentSettings::getDefaultDepositCents).orElse(5000L);
-        if (configuredDeposit <= 0) throw new IllegalStateException("Booking deposit is not configured");
+        if (configuredDeposit < 0) throw new IllegalStateException("Booking deposit cannot be negative");
         long addOnDepositCents = addOns.stream().mapToLong(AddOnService.ResolvedAddOn::depositAdjustmentCents).sum();
         long depositCents = Math.min(Math.addExact(configuredDeposit, addOnDepositCents), priceCents);
         long version = service.getVersion() == null ? 0L : service.getVersion();

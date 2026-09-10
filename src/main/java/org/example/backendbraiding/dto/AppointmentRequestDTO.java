@@ -59,7 +59,6 @@ public class AppointmentRequestDTO {
     @AssertTrue(message = "You must accept the non-refundable deposit policy")
     private Boolean depositPolicyAccepted;
 
-    @AssertTrue(message = "You must authorize the no-show payment policy")
     private Boolean offSessionConsentAccepted;
 
     private Boolean smsConsentAccepted;

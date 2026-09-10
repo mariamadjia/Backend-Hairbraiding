@@ -90,6 +90,9 @@ public class AppointmentService {
         LengthOption lengthOption = resolveLengthOption(service, requestDTO.getLengthOptionId(), requestDTO.getSelectedLength());
         String foundation = resolveFoundation(service, requestDTO.getSelectedFoundation());
         BookingQuoteTokenService.QuoteClaims quote = bookingQuoteTokenService.parse(requestDTO.getQuoteToken());
+        if (quote.depositCents() > 0 && !Boolean.TRUE.equals(requestDTO.getOffSessionConsentAccepted())) {
+            throw new IllegalArgumentException("You must authorize the no-show payment policy");
+        }
         List<AddOnService.ResolvedAddOn> selectedAddOns = addOnService.validateClaims(
                 service, lengthOption, quote.addOns());
         validateQuote(quote, service, lengthOption, foundation, selectedAddOns, settings);
@@ -171,10 +174,12 @@ public class AppointmentService {
         if (!ownerCreated) {
             appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
             appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
-            appointment.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
-            appointment.setOffSessionConsentAt(LocalDateTime.now());
-            customer.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
-            customer.setOffSessionConsentAt(LocalDateTime.now());
+            if (quote.depositCents() > 0) {
+                appointment.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
+                appointment.setOffSessionConsentAt(LocalDateTime.now());
+                customer.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
+                customer.setOffSessionConsentAt(LocalDateTime.now());
+            }
             customerRepository.save(customer);
             boolean smsConsentAccepted = Boolean.TRUE.equals(requestDTO.getSmsConsentAccepted());
             appointment.setSmsConsentAccepted(smsConsentAccepted);
@@ -283,10 +288,12 @@ public class AppointmentService {
             throw new IllegalStateException("Past appointments cannot be approved");
         }
         if (appointment.getPaymentStatus() != Appointment.PaymentStatus.AUTHORIZED
-                && appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED) {
+                && appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED
+                && appointment.getPaymentStatus() != Appointment.PaymentStatus.NOT_REQUIRED) {
             throw new IllegalStateException("Payment must be authorized before approving an appointment");
         }
         if (appointment.getPaymentStatus() != Appointment.PaymentStatus.CAPTURED
+                && appointment.getPaymentStatus() != Appointment.PaymentStatus.NOT_REQUIRED
                 && PaymentLifecycleRules.isAuthorizationExpired(
                 appointment.getPaymentAuthorizationExpiresAt(), LocalDateTime.now())) {
             throw new IllegalStateException("Payment authorization has expired; the customer must authorize payment again");
@@ -295,10 +302,12 @@ public class AppointmentService {
         Admin admin = adminRepository.findById(adminId)
             .orElseThrow(() -> new RuntimeException("Admin not found"));
 
-        // Keep the existing PENDING database status until Stripe confirms capture.
-        // approvedAt marks this request as capture-in-progress without requiring a
-        // new enum value that older PostgreSQL check constraints reject.
-        appointment.setStatus(Appointment.AppointmentStatus.PENDING);
+        boolean paymentNotRequired = appointment.getPaymentStatus() == Appointment.PaymentStatus.NOT_REQUIRED;
+        // Paid bookings stay pending until Stripe confirms capture. A zero-deposit
+        // booking can be approved immediately because there is nothing to capture.
+        appointment.setStatus(paymentNotRequired
+                ? Appointment.AppointmentStatus.APPROVED
+                : Appointment.AppointmentStatus.PENDING);
         appointment.setApprovedBy(admin);
         appointment.setApprovedAt(now);
         
@@ -307,7 +316,8 @@ public class AppointmentService {
         }
 
         Appointment updatedAppointment = appointmentRepository.save(appointment);
-        appointmentEventService.record(updatedAppointment, "APPROVAL_REQUESTED", admin, actionDTO.getAdminNotes());
+        appointmentEventService.record(updatedAppointment,
+                paymentNotRequired ? "APPROVED" : "APPROVAL_REQUESTED", admin, actionDTO.getAdminNotes());
 
         if (appointment.getPaymentIntentId() != null &&
             (appointment.getPaymentStatus() == Appointment.PaymentStatus.AUTHORIZED
@@ -327,6 +337,10 @@ public class AppointmentService {
                     }
                 }
             });
+        } else if (paymentNotRequired) {
+            String managementUrl = managementTokenService.issue(updatedAppointment);
+            enqueueBoth(updatedAppointment,
+                    notificationTemplates.approvedWithoutDeposit(updatedAppointment, managementUrl));
         }
         
         return mapToResponseDTO(updatedAppointment);
@@ -1046,7 +1060,7 @@ public class AppointmentService {
         if (Math.addExact(currentPriceCents, currentAddOnCents) != quote.priceCents()) {
             throw new IllegalStateException("Pricing changed while you were booking. Please review the updated price.");
         }
-        if (quote.depositCents() <= 0 || quote.depositCents() > quote.priceCents()) {
+        if (quote.depositCents() < 0 || quote.depositCents() > quote.priceCents()) {
             throw new IllegalArgumentException("The booking quote contains an invalid deposit");
         }
         long configuredDeposit = service.getDepositOverrideCents() != null
@@ -1061,7 +1075,7 @@ public class AppointmentService {
     }
 
     static long effectiveDeposit(long configuredDeposit, long addOnDepositCents, long priceCents) {
-        if (configuredDeposit <= 0) throw new IllegalStateException("Booking deposit is not configured");
+        if (configuredDeposit < 0) throw new IllegalStateException("Booking deposit cannot be negative");
         return Math.min(Math.addExact(configuredDeposit, addOnDepositCents), priceCents);
     }
 

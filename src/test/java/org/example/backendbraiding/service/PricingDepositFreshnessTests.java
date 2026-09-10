@@ -3,7 +3,6 @@ package org.example.backendbraiding.service;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PricingDepositFreshnessTests {
 
@@ -14,8 +13,7 @@ class PricingDepositFreshnessTests {
     }
 
     @Test
-    void rejectsAnInvalidDepositConfiguration() {
-        assertThrows(IllegalStateException.class,
-                () -> AppointmentService.effectiveDeposit(0L, 0L, 20000L));
+    void allowsAZeroDepositConfiguration() {
+        assertEquals(0L, AppointmentService.effectiveDeposit(0L, 0L, 20000L));
     }
 }

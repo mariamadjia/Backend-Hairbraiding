@@ -10,6 +10,6 @@ public class ServiceDepositPatchRequest {
     @NotNull @Min(0)
     private Long version;
 
-    @Min(1) @Max(100000)
+    @Min(0) @Max(100000)
     private Long depositCents;
 }

@@ -16,7 +16,7 @@ public class PricingDepositRequest {
     private Long version;
 
     @NotNull
-    @Min(1) @Max(100000)
+    @Min(0) @Max(100000)
     private Long defaultDepositCents;
 
     @Valid
@@ -26,6 +26,6 @@ public class PricingDepositRequest {
     public static class ServiceOverride {
         @NotNull private Long serviceId;
         @NotNull @Min(0) private Long version;
-        @Min(1) @Max(100000) private Long depositCents;
+        @Min(0) @Max(100000) private Long depositCents;
     }
 }

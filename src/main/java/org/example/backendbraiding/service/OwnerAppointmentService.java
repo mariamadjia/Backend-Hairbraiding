@@ -57,9 +57,12 @@ public class OwnerAppointmentService {
                 .orElseThrow(() -> new IllegalStateException("Created appointment could not be loaded"));
         appointment.setBookingSource(Appointment.BookingSource.OWNER);
         appointment.setCreatedByAdmin(admin);
-        appointment.setDepositRequired(request.getDepositRequired());
+        boolean depositRequired = Boolean.TRUE.equals(request.getDepositRequired())
+                && appointment.getDepositAmount() != null
+                && appointment.getDepositAmount() > 0;
+        appointment.setDepositRequired(depositRequired);
 
-        if (Boolean.TRUE.equals(request.getDepositRequired())) {
+        if (depositRequired) {
             OwnerDepositTokenService.IssuedToken issued = tokenService.issue(appointment.getId());
             appointment.setOwnerDepositTokenHash(tokenService.hash(issued.value()));
             LocalDateTime expiresAt = LocalDateTime.ofInstant(issued.expiresAt(), SALON_ZONE);
