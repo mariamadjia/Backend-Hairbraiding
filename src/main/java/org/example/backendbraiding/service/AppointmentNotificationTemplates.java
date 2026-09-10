@@ -153,6 +153,7 @@ public class AppointmentNotificationTemplates {
     }
 
     public Notification adminNewBooking(Appointment appointment) {
+        String bookingsUrl = frontendUrl + "/admin?section=bookings";
         StringBuilder body = new StringBuilder("A new appointment request has been submitted.\n\n")
                 .append("Customer: ").append(customerName(appointment)).append("\n")
                 .append("Email: ").append(appointment.getCustomer().getEmail()).append("\n")
@@ -161,10 +162,11 @@ public class AppointmentNotificationTemplates {
                         ? "Deposit" : "Deposit authorized"))
                 .append(Boolean.FALSE.equals(appointment.getRequireApproval())
                         ? "Automatic confirmation is processing. Check Appointment Management for the current payment and booking status."
-                        : "Open Appointment Management to approve or deny this request.");
+                        : "Open Appointment Management to approve or deny this request.")
+                .append("\n\nOpen bookings: ").append(bookingsUrl);
         String sms = "New booking request from " + customerName(appointment)
                 + " for " + serviceName(appointment) + " on " + dateTime(appointment)
-                + " CT. Open Appointment Management to review it.";
+                + " CT. Review it here: " + bookingsUrl;
         return new Notification("New booking request — " + customerName(appointment), body.toString(), sms);
     }
 
