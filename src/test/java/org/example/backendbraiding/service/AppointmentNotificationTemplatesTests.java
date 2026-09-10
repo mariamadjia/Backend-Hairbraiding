@@ -125,6 +125,8 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(ownerRescheduled.emailBody().contains("paid deposit remains applied"));
         assertFalse(ownerRescheduled.emailBody().contains("self-service change"));
         assertTrue(ownerRescheduled.smsBody().contains("rescheduled your appointment"));
+        assertTrue(ownerRescheduled.smsBody().contains(
+                "If this new time does not work for you, please contact us at (210) 812-8121."));
 
         Appointment denied = appointment(Appointment.PaymentStatus.CANCELLED);
         denied.setAdminNotes("The requested time is unavailable");

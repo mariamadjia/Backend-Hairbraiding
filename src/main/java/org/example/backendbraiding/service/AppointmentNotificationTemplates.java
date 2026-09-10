@@ -223,7 +223,8 @@ public class AppointmentNotificationTemplates {
                 null);
         return new Notification("Your appointment has been rescheduled — " + shortDate(appointment), body,
                 "Hi " + firstName(appointment) + ", " + salonName + " rescheduled your appointment to "
-                        + dateTime(appointment) + " CT. Any existing deposit remains applied. Questions? " + phone);
+                        + dateTime(appointment) + " CT. Any existing deposit remains applied. "
+                        + "If this new time does not work for you, please contact us at " + phone + ".");
     }
 
     public Notification adminCustomerRescheduled(Appointment appointment) {
