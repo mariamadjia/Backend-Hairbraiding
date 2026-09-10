@@ -166,7 +166,7 @@ public class AppointmentNotificationTemplates {
                 .append("\n\nOpen bookings: ").append(bookingsUrl);
         String sms = "New booking request from " + customerName(appointment)
                 + " for " + serviceName(appointment) + " on " + dateTime(appointment)
-                + " CT. Review it here: " + bookingsUrl;
+                + " CT. Sign in to the AH Braiding admin dashboard to review it.";
         return new Notification("New booking request — " + customerName(appointment), body.toString(), sms);
     }
 

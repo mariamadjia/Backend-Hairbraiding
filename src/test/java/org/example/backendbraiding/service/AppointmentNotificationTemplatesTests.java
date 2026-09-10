@@ -72,7 +72,8 @@ class AppointmentNotificationTemplatesTests {
         assertTrue(notification.emailBody().contains("https://example.com/admin?section=bookings"));
         assertTrue(notification.smsBody().contains("New booking request from Gloria Djonret"));
         assertTrue(notification.smsBody().contains("Knotless Box Braids"));
-        assertTrue(notification.smsBody().contains("https://example.com/admin?section=bookings"));
+        assertTrue(notification.smsBody().contains("Sign in to the AH Braiding admin dashboard"));
+        assertFalse(notification.smsBody().contains("https://"));
     }
 
     @Test
