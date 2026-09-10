@@ -436,7 +436,10 @@ public class AppointmentService {
             Predicate captureProcessing = cb.and(pending, cb.isNotNull(root.get("approvedAt")));
             Predicate paidPending = cb.and(
                     pending,
-                    root.get("paymentStatus").in(Appointment.PaymentStatus.AUTHORIZED, Appointment.PaymentStatus.CAPTURED));
+                    root.get("paymentStatus").in(
+                            Appointment.PaymentStatus.AUTHORIZED,
+                            Appointment.PaymentStatus.CAPTURED,
+                            Appointment.PaymentStatus.NOT_REQUIRED));
             Predicate actionablePending = cb.or(paidPending, captureProcessing);
             Predicate ownerAwaitingDeposit = cb.and(
                     pending,
@@ -481,7 +484,10 @@ public class AppointmentService {
                 case "READY_FOR_APPROVAL" -> cb.and(
                         pending,
                         cb.isNull(root.get("approvedAt")),
-                        root.get("paymentStatus").in(Appointment.PaymentStatus.AUTHORIZED, Appointment.PaymentStatus.CAPTURED),
+                        root.get("paymentStatus").in(
+                                Appointment.PaymentStatus.AUTHORIZED,
+                                Appointment.PaymentStatus.CAPTURED,
+                                Appointment.PaymentStatus.NOT_REQUIRED),
                         cb.greaterThan(root.get("appointmentDateTime"), now));
                 case "AWAITING_PAYMENT" -> cb.and(
                         pending,
