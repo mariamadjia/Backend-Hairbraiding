@@ -27,7 +27,7 @@ public class Customer {
     @Column(nullable = false)
     private String lastName;
 
-    @Column(nullable = false)
+    @Column
     private String email;
 
     @Column(nullable = false)

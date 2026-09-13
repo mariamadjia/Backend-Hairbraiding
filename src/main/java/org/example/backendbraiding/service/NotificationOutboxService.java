@@ -25,6 +25,7 @@ public class NotificationOutboxService {
     private String salonPhone;
 
     public void enqueueEmail(Appointment appointment, String subject, String body) {
+        if (!hasCustomerEmail(appointment)) return;
         String eventKey = UUID.randomUUID().toString();
         enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), subject, body,
                 eventKey, eventKey + ":CUSTOMER_EMAIL");
@@ -39,8 +40,10 @@ public class NotificationOutboxService {
 
     public void enqueueBoth(Appointment appointment, String subject, String emailBody, String smsBody) {
         String eventKey = UUID.randomUUID().toString();
-        enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), subject, emailBody,
-                eventKey, eventKey + ":CUSTOMER_EMAIL");
+        if (hasCustomerEmail(appointment)) {
+            enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), subject, emailBody,
+                    eventKey, eventKey + ":CUSTOMER_EMAIL");
+        }
         if (customerConsentedToSms(appointment) && smsBody != null && !smsBody.isBlank()) {
             enqueue(appointment, NotificationOutbox.Channel.SMS, appointment.getCustomer().getPhoneNumber(), null, smsBody,
                     eventKey, eventKey + ":CUSTOMER_SMS");
@@ -51,8 +54,10 @@ public class NotificationOutboxService {
                                         String customerSmsBody,
                                         String salonSubject, String salonBody, String salonSmsBody) {
         String eventKey = UUID.randomUUID().toString();
-        enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), customerSubject,
-                customerBody, eventKey, eventKey + ":CUSTOMER_EMAIL");
+        if (hasCustomerEmail(appointment)) {
+            enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), customerSubject,
+                    customerBody, eventKey, eventKey + ":CUSTOMER_EMAIL");
+        }
         if (customerConsentedToSms(appointment) && customerSmsBody != null && !customerSmsBody.isBlank()) {
             enqueue(appointment, NotificationOutbox.Channel.SMS, appointment.getCustomer().getPhoneNumber(), null,
                     customerSmsBody, eventKey, eventKey + ":CUSTOMER_SMS");
@@ -88,8 +93,10 @@ public class NotificationOutboxService {
     public void enqueueCustomerAndAdmins(Appointment appointment, String customerSubject, String customerEmailBody,
                                          String customerSmsBody, String adminSubject, String adminBody) {
         String eventKey = UUID.randomUUID().toString();
-        enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), customerSubject,
-                customerEmailBody, eventKey, eventKey + ":CUSTOMER_EMAIL");
+        if (hasCustomerEmail(appointment)) {
+            enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), customerSubject,
+                    customerEmailBody, eventKey, eventKey + ":CUSTOMER_EMAIL");
+        }
         if (customerConsentedToSms(appointment) && customerSmsBody != null && !customerSmsBody.isBlank()) {
             enqueue(appointment, NotificationOutbox.Channel.SMS, appointment.getCustomer().getPhoneNumber(), null,
                     customerSmsBody, eventKey, eventKey + ":CUSTOMER_SMS");
@@ -119,5 +126,10 @@ public class NotificationOutboxService {
 
     private boolean customerConsentedToSms(Appointment appointment) {
         return Boolean.TRUE.equals(appointment.getSmsConsentAccepted());
+    }
+
+    private boolean hasCustomerEmail(Appointment appointment) {
+        return appointment.getCustomer().getEmail() != null
+                && !appointment.getCustomer().getEmail().isBlank();
     }
 }

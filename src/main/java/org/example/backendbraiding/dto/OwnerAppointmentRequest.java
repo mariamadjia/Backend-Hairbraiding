@@ -14,7 +14,7 @@ public class OwnerAppointmentRequest {
     @NotBlank private String quoteToken;
     @NotBlank private String firstName;
     @NotBlank private String lastName;
-    @NotBlank @Email private String email;
+    @Email private String email;
     @NotBlank
     @Pattern(regexp = "^[+]?[(]?[0-9]{1,4}[)]?[-\\s\\.]?[(]?[0-9]{1,4}[)]?[-\\s\\.]?[0-9]{1,9}$")
     private String phoneNumber;

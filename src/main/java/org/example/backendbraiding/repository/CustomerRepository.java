@@ -15,6 +15,7 @@ import org.springframework.data.repository.query.Param;
 public interface CustomerRepository extends JpaRepository<Customer, Long> {
     Optional<Customer> findByEmail(String email);
     Optional<Customer> findFirstByEmailIgnoreCaseOrderByIdAsc(String email);
+    Optional<Customer> findFirstByPhoneNormalizedOrderByIdAsc(String phoneNormalized);
     Optional<Customer> findByPhoneNumber(String phoneNumber);
 
     interface CustomerSummaryView {

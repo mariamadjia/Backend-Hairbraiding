@@ -98,15 +98,25 @@ public class AppointmentService {
         validateQuote(quote, service, lengthOption, foundation, selectedAddOns, settings);
         validateAppointmentDateTime(requestDTO.getAppointmentDateTime(), settings);
         
-        String normalizedEmail = requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
-        // Serialize customer creation per normalized email across application instances.
+        String normalizedEmail = requestDTO.getEmail() == null || requestDTO.getEmail().isBlank()
+                ? null : requestDTO.getEmail().trim().toLowerCase(Locale.ROOT);
+        if (normalizedEmail == null && !ownerCreated) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        String normalizedPhone = normalizePhone(requestDTO.getPhoneNumber());
+        String customerIdentity = normalizedEmail == null ? "phone:" + normalizedPhone : "email:" + normalizedEmail;
+        // Serialize customer creation per normalized email, or phone for an owner-created
+        // appointment without email, across application instances.
         // This closes the race where two simultaneous first bookings create duplicate customers.
         entityManager.createNativeQuery("WITH customer_lock AS (" +
                         "SELECT pg_advisory_xact_lock(hashtextextended(?1, 0))" +
                         ") SELECT hashtextextended(?1, 0) FROM customer_lock")
-                .setParameter(1, normalizedEmail)
+                .setParameter(1, customerIdentity)
                 .getSingleResult();
-        Customer customer = customerRepository.findFirstByEmailIgnoreCaseOrderByIdAsc(normalizedEmail)
+        Optional<Customer> existingCustomer = normalizedEmail == null
+                ? customerRepository.findFirstByPhoneNormalizedOrderByIdAsc(normalizedPhone)
+                : customerRepository.findFirstByEmailIgnoreCaseOrderByIdAsc(normalizedEmail);
+        Customer customer = existingCustomer
             .orElseGet(() -> {
                 Customer newCustomer = new Customer();
                 newCustomer.setEmail(normalizedEmail);
@@ -116,7 +126,7 @@ public class AppointmentService {
         customer.setFirstName(requestDTO.getFirstName());
         customer.setLastName(requestDTO.getLastName());
         customer.setPhoneNumber(requestDTO.getPhoneNumber().trim());
-        customer.setPhoneNormalized(normalizePhone(requestDTO.getPhoneNumber()));
+        customer.setPhoneNormalized(normalizedPhone);
         customer = customerRepository.save(customer);
         if (noShowFeeRepository.hasUnresolvedBalance(customer.getId())) {
             throw new IllegalStateException("A previous no-show balance must be resolved before booking another appointment");
