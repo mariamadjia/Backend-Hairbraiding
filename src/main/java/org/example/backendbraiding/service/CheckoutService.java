@@ -208,7 +208,10 @@ public class CheckoutService {
                 appointment.getAppointmentDateTime(), appointment.getAppointmentEndDateTime(), appointment.getStatus().name(),
                 appointment.getPaymentStatus() == null ? null : appointment.getPaymentStatus().name(), total, deposit, tip,
                 paid, refunded, balance, checkout == null ? "OPEN" : checkout.getStatus().name(),
-                checkout == null ? null : checkout.getCompletedAt(), appointment.getNotificationStatus(), transactions);
+                checkout == null ? null : checkout.getCompletedAt(), appointment.getNotificationStatus(),
+                appointment.getBookingSource() == null ? Appointment.BookingSource.CUSTOMER.name() : appointment.getBookingSource().name(),
+                appointment.getDepositPolicyVersion(), appointment.getDepositPolicyAcceptedAt(),
+                appointment.getOffSessionConsentPolicyVersion(), appointment.getOffSessionConsentAt(), transactions);
     }
 
     private void requireCheckoutEligible(Appointment appointment) {

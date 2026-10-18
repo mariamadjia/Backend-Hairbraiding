@@ -23,6 +23,11 @@ public record CheckoutDTO(
         String checkoutStatus,
         LocalDateTime completedAt,
         String notificationStatus,
+        String bookingSource,
+        String depositPolicyVersion,
+        LocalDateTime depositPolicyAcceptedAt,
+        String offSessionConsentPolicyVersion,
+        LocalDateTime offSessionConsentAt,
         List<TransactionDTO> transactions
 ) {
     public record TransactionDTO(
