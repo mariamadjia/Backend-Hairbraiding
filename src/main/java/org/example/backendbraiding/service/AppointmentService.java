@@ -480,11 +480,13 @@ public class AppointmentService {
                 case "CHECKOUT" -> cb.and(
                         approved,
                         cb.lessThanOrEqualTo(root.get("appointmentDateTime"), now));
-                case "HISTORY" -> root.get("status").in(
-                        Appointment.AppointmentStatus.DENIED,
-                        Appointment.AppointmentStatus.CANCELLED,
-                        Appointment.AppointmentStatus.COMPLETED,
-                        Appointment.AppointmentStatus.NO_SHOW);
+                case "HISTORY" -> cb.or(
+                        root.get("status").in(
+                                Appointment.AppointmentStatus.DENIED,
+                                Appointment.AppointmentStatus.CANCELLED,
+                                Appointment.AppointmentStatus.COMPLETED,
+                                Appointment.AppointmentStatus.NO_SHOW),
+                        cb.and(approved, cb.lessThanOrEqualTo(root.get("appointmentDateTime"), now)));
                 case "NEEDS_ACTION" -> cb.or(actionablePending, ownerAwaitingDeposit,
                         paymentIssue, noShowPaymentIssue, notificationIssue);
                 default -> throw new IllegalArgumentException(
