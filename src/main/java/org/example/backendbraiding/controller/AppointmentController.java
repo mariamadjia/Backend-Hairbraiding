@@ -39,6 +39,7 @@ public class AppointmentController {
     private final AdminRepository adminRepository;
     private final org.example.backendbraiding.service.AppointmentEventService appointmentEventService;
     private final org.example.backendbraiding.service.NoShowService noShowService;
+    private final org.example.backendbraiding.service.AppointmentAgreementPdfService agreementPdfService;
 
     @PostMapping
     public ResponseEntity<AppointmentResponseDTO> createAppointment(
@@ -121,6 +122,14 @@ public class AppointmentController {
     public ResponseEntity<AppointmentResponseDTO> getAppointmentById(@PathVariable Long id) {
         AppointmentResponseDTO appointment = appointmentService.getAppointmentById(id);
         return ResponseEntity.ok(appointment);
+    }
+
+    @GetMapping(value = "/{id}/agreement.pdf", produces = "application/pdf")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> agreementPdf(@PathVariable Long id) {
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "inline; filename=appointment-" + id + "-agreement.pdf")
+                .body(agreementPdfService.create(id));
     }
 
     @GetMapping("/{id}/events")
