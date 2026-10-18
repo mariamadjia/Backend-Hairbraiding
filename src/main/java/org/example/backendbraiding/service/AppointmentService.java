@@ -431,6 +431,7 @@ public class AppointmentService {
         return Map.of(
                 "NEEDS_ACTION", appointmentRepository.count(workflowSpecification("NEEDS_ACTION", "ALL", "")),
                 "UPCOMING", appointmentRepository.count(workflowSpecification("UPCOMING", "ALL", "")),
+                "CHECKOUT", appointmentRepository.count(workflowSpecification("CHECKOUT", "ALL", "")),
                 "HISTORY", appointmentRepository.count(workflowSpecification("HISTORY", "ALL", ""))
         );
     }
@@ -476,17 +477,18 @@ public class AppointmentService {
                 case "UPCOMING" -> cb.or(
                         captureProcessing,
                         cb.and(approved, cb.greaterThanOrEqualTo(root.get("appointmentDateTime"), now)));
-                case "HISTORY" -> cb.or(
-                        root.get("status").in(
-                                Appointment.AppointmentStatus.DENIED,
-                                Appointment.AppointmentStatus.CANCELLED,
-                                Appointment.AppointmentStatus.COMPLETED,
-                                Appointment.AppointmentStatus.NO_SHOW),
-                        cb.and(approved, cb.lessThan(root.get("appointmentDateTime"), now)));
+                case "CHECKOUT" -> cb.and(
+                        approved,
+                        cb.lessThanOrEqualTo(root.get("appointmentDateTime"), now));
+                case "HISTORY" -> root.get("status").in(
+                        Appointment.AppointmentStatus.DENIED,
+                        Appointment.AppointmentStatus.CANCELLED,
+                        Appointment.AppointmentStatus.COMPLETED,
+                        Appointment.AppointmentStatus.NO_SHOW);
                 case "NEEDS_ACTION" -> cb.or(actionablePending, ownerAwaitingDeposit,
                         paymentIssue, noShowPaymentIssue, notificationIssue);
                 default -> throw new IllegalArgumentException(
-                        "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, HISTORY");
+                        "Invalid appointment workflow view. Valid values are: NEEDS_ACTION, UPCOMING, CHECKOUT, HISTORY");
             };
 
             Predicate detailPredicate = switch (detail) {
