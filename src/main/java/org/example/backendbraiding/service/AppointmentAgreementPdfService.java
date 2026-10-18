@@ -29,9 +29,13 @@ public class AppointmentAgreementPdfService {
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
         String policy = a.getBookingPolicySnapshot();
         if (policy == null || policy.isBlank()) {
-            policy = "Historical agreement record\nThe exact policy snapshot was not stored for this appointment. "
-                    + "The database records policy version " + value(a.getDepositPolicyVersion())
-                    + " as accepted at " + date(a.getDepositPolicyAcceptedAt()) + ".";
+            if ("non-refundable-v1".equals(a.getDepositPolicyVersion())) {
+                policy = BookingPolicySnapshot.fullText(a.getDepositAmount() == null ? 0 : a.getDepositAmount());
+            } else {
+                policy = "Historical agreement record\nThe exact policy snapshot was not stored for this appointment. "
+                        + "The database records policy version " + value(a.getDepositPolicyVersion())
+                        + " as accepted at " + date(a.getDepositPolicyAcceptedAt()) + ".";
+            }
         }
         List<String> lines = new ArrayList<>();
         lines.add("AH BRAIDING SALON"); lines.add("CUSTOMER BOOKING AGREEMENT"); lines.add("");
