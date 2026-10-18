@@ -26,6 +26,7 @@ public record CheckoutDTO(
         String bookingSource,
         String depositPolicyVersion,
         LocalDateTime depositPolicyAcceptedAt,
+        String bookingPolicySnapshot,
         String offSessionConsentPolicyVersion,
         LocalDateTime offSessionConsentAt,
         List<TransactionDTO> transactions

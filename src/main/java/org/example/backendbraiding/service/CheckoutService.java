@@ -211,6 +211,7 @@ public class CheckoutService {
                 checkout == null ? null : checkout.getCompletedAt(), appointment.getNotificationStatus(),
                 appointment.getBookingSource() == null ? Appointment.BookingSource.CUSTOMER.name() : appointment.getBookingSource().name(),
                 appointment.getDepositPolicyVersion(), appointment.getDepositPolicyAcceptedAt(),
+                appointment.getBookingPolicySnapshot(),
                 appointment.getOffSessionConsentPolicyVersion(), appointment.getOffSessionConsentAt(), transactions);
     }
 

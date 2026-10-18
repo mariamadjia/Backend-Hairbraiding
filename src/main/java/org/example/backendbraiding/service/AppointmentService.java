@@ -184,6 +184,7 @@ public class AppointmentService {
         if (!ownerCreated) {
             appointment.setDepositPolicyVersion(DEPOSIT_POLICY_VERSION);
             appointment.setDepositPolicyAcceptedAt(LocalDateTime.now());
+            appointment.setBookingPolicySnapshot(bookingPolicySnapshot(quote.depositCents()));
             if (quote.depositCents() > 0) {
                 appointment.setOffSessionConsentPolicyVersion(OFF_SESSION_POLICY_VERSION);
                 appointment.setOffSessionConsentAt(LocalDateTime.now());
@@ -221,6 +222,21 @@ public class AppointmentService {
         AppointmentResponseDTO response = mapToResponseDTO(savedAppointment);
         response.setPaymentToken(bookingPaymentTokenService.createToken(savedAppointment.getId()));
         return response;
+    }
+
+    private String bookingPolicySnapshot(long depositCents) {
+        String deposit = MoneySupport.fromNonNegativeCents(depositCents);
+        String paymentTerms = depositCents == 0
+                ? "No deposit or credit card is required for this appointment request. Payments made directly to the salon are final and non-refundable."
+                : "A card authorization of $" + deposit + " is required to submit the appointment request. The card is charged when the appointment is approved. Once approved, the $" + deposit + " deposit is non-refundable and is applied toward the total service balance. If the request is denied, the authorization hold is released. All payments are final and non-refundable.";
+        String noShowTerms = depositCents == 0
+                ? "At least 72 hours' notice is required to cancel or reschedule. No card-based no-show fee will be charged because no payment method is collected. Repeated no-shows may result in loss of booking privileges."
+                : "At least 72 hours' notice is required to cancel or reschedule. Missing an appointment without notice results in a non-refundable fee equal to 60% of the scheduled service price. The deposit is applied toward this fee. The customer authorizes AH Braiding Salon to save the deposit card and charge the eligible remaining no-show balance, normally within 24 hours and no later than seven calendar days after the missed appointment.";
+        return "Appointments, Deposits & Approval\n" + paymentTerms
+                + "\n\nHair & Appointment Preparation\nArrive with clean, fully detangled hair unless a wash and blow-dry service is scheduled. Additional preparation or hair may result in additional charges. The stylist may modify or decline a service when the hair or scalp is unsuitable for braiding."
+                + "\n\nLate Arrivals\nA 30-minute grace period is provided. Later arrivals may result in a shortened service, an additional fee, rescheduling, or forfeiture of the deposit."
+                + "\n\nCancellations, Rescheduling & No-Shows\n" + noShowTerms
+                + "\n\nPhotos & Promotional Use\nThe salon may photograph or record completed hairstyles for promotional use. Customers may opt out by notifying the stylist before service begins.";
     }
 
     static String displayServiceName(ServiceItem service) {

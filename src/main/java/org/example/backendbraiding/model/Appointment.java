@@ -129,6 +129,9 @@ public class Appointment {
     @Column(name = "deposit_policy_accepted_at")
     private LocalDateTime depositPolicyAcceptedAt;
 
+    @Column(name = "booking_policy_snapshot", columnDefinition = "TEXT")
+    private String bookingPolicySnapshot;
+
     @Column(name = "off_session_consent_at")
     private LocalDateTime offSessionConsentAt;
 

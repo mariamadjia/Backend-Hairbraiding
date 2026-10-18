@@ -84,6 +84,25 @@ public class NotificationOutboxClaimService {
         return reset;
     }
 
+    @Transactional
+    public NotificationOutbox retry(Long notificationId) {
+        NotificationOutbox item = repository.findById(notificationId)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
+        if (item.getStatus() == NotificationOutbox.Status.SENT) {
+            throw new IllegalStateException("A delivered notification cannot be retried");
+        }
+        item.setStatus(NotificationOutbox.Status.PENDING);
+        item.setAttempts(0);
+        item.setNextAttemptAt(LocalDateTime.now());
+        item.setClaimedAt(null);
+        item.setLastError(null);
+        NotificationOutbox saved = repository.save(item);
+        Appointment appointment = item.getAppointment();
+        appointment.setNotificationStatus("PENDING");
+        appointmentRepository.save(appointment);
+        return saved;
+    }
+
     private void updateAppointmentStatus(Appointment appointment) {
         List<NotificationOutbox> all = repository.findByAppointmentIdOrderByCreatedAtDesc(appointment.getId());
         String latestEvent = all.stream().map(NotificationOutbox::getEventKey).filter(Objects::nonNull).findFirst().orElse(null);
