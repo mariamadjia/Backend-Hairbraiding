@@ -50,6 +50,23 @@ public class NotificationOutboxService {
         }
     }
 
+    public boolean enqueueSelected(Appointment appointment, String subject, String emailBody, String smsBody,
+                                   boolean email, boolean sms) {
+        String eventKey = UUID.randomUUID().toString();
+        boolean queued = false;
+        if (email && hasCustomerEmail(appointment) && emailBody != null && !emailBody.isBlank()) {
+            enqueue(appointment, NotificationOutbox.Channel.EMAIL, appointment.getCustomer().getEmail(), subject, emailBody,
+                    eventKey, eventKey + ":CUSTOMER_EMAIL");
+            queued = true;
+        }
+        if (sms && customerConsentedToSms(appointment) && smsBody != null && !smsBody.isBlank()) {
+            enqueue(appointment, NotificationOutbox.Channel.SMS, appointment.getCustomer().getPhoneNumber(), null, smsBody,
+                    eventKey, eventKey + ":CUSTOMER_SMS");
+            queued = true;
+        }
+        return queued;
+    }
+
     public void enqueueCustomerAndSalon(Appointment appointment, String customerSubject, String customerBody,
                                         String customerSmsBody,
                                         String salonSubject, String salonBody, String salonSmsBody) {
@@ -125,7 +142,8 @@ public class NotificationOutboxService {
     }
 
     private boolean customerConsentedToSms(Appointment appointment) {
-        return Boolean.TRUE.equals(appointment.getSmsConsentAccepted());
+        return appointment.getBookingSource() == Appointment.BookingSource.OWNER
+                || Boolean.TRUE.equals(appointment.getSmsConsentAccepted());
     }
 
     private boolean hasCustomerEmail(Appointment appointment) {
